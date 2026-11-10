@@ -145,6 +145,17 @@ textarea.in{min-height:84px;resize:vertical}
 .fwrap h2.dh{margin:6px 0 0;font-family:var(--font-display);font-size:20px}
 .fday.shopside > header small{color:var(--muted)}
 .row.act{background:var(--bad-bg);align-items:flex-start}
+.mroom{padding:8px 0;border-top:1px solid var(--line)} .mroom:first-child{border-top:0;padding-top:0}
+.mroom .mt{display:flex;gap:10px;justify-content:space-between;align-items:baseline;flex-wrap:wrap}
+.mroom p{margin:2px 0 0}
+.qline{display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:4px 10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.qline:first-child{border-top:0}
+.qline .qnote{grid-column:1 / -1;margin:0}
+.qline .in.price{text-align:right}
+.qtotal{display:flex;justify-content:space-between;align-items:baseline;border-top:2px solid var(--ink);padding-top:10px;font-size:18px}
+.qtotal b{font-family:var(--font-display);font-size:28px}
+.qmsg{min-height:260px;font-family:inherit;white-space:pre-wrap}
+a.btn{text-decoration:none;color:inherit} a.btn.pri{color:var(--on-brand)} a.btn.off{opacity:.45;pointer-events:none}
 .pricenow h2{color:var(--info)} .pricenow .list{border:1.5px solid var(--info)}
 .row.price{background:var(--info-bg);align-items:flex-start}
 .row.price .sub{overflow-wrap:anywhere}
@@ -888,12 +899,46 @@ window.IFDLogic = (function(){
     need(p.furniture.length, 'moving furniture', /furniture/i);
     return out;
   }
+  /* ---------- the quote ----------
+     Staff type the prices against what was measured. The customer is only ever given the figures: no sizes. */
+  var SIZE_RE = /\d\s*(?:m²|m2|sq\.?\s?m|metres?|meters?|cm|mm|m)\b|\d\s*[x×]\s*\d/i;
+  function hasSize(text){ return SIZE_RE.test(String(text || '')); }
+  function quotesOf(job){ var o = (job && job.quotes) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).filter(function(q){ return !q.gone; }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
+  function quoteOf(job){ var q = quotesOf(job); return q.length ? q[q.length - 1] : null; }
+  function quoteLines(q){ return (Array.isArray(q && q.lines) ? q.lines : []).filter(function(l){ return l && l.label && num(l.price) > 0; }); }
+  function quoteTotal(q){ return round2(quoteLines(q).reduce(function(t, l){ return t + num(l.price); }, 0)); }
+  function firstName(name){ return String(name || '').trim().replace(/^(mr|mrs|ms|miss|mx|dr)\.?\s+/i, '').split(/\s+/)[0] || ''; }
+  function quoteMessage(job, q, from, shop){
+    var first = firstName((job.customer || {}).name), lines = quoteLines(q).map(function(l){ return l.label + ': ' + money(l.price); });
+    return ['Hi ' + (first || 'there') + ',', '', 'Thank you for having us out to measure. Here is your quote from ' + shop.name + '.', ''].concat(lines,
+      ['', 'Total: ' + money(quoteTotal(q)), '', 'If you would like to go ahead, or want anything changed, give us a ring on ' + shop.phone + '.', '', 'Thanks again,', from, shop.name]).join('\n');
+  }
+  /* the lines a quote starts from, with what staff need to price each one. The notes are for staff only. */
+  function quoteRows(job){
+    var p = pricingOf(job), out = [], rooms = roomsOf(job).filter(function(r){ return specOf(r); });
+    var sq = round2(p.rolls.reduce(function(t, g){ return t + g.sq; }, 0)), unfit = carpetGroups(job, roomsOf(job)).unfit;
+    if (p.carpets.length || p.stairs.length) out.push({key:'carpet', label:'Carpet', note:[sq ? fmtM(sq) + ' m² to order: ' + p.rolls.map(function(g){ return fmtM(g.cut) + ' m off the ' + g.w + ' m roll'; }).join(' and ') : '',
+      p.stairs.length ? 'plus the stairs, ' + p.stairs.map(function(z){ return 'a ' + fmtM(z.run) + ' m run ' + Math.round(z.wid * 100) + ' cm wide'; }).join(' and ') : '', unfit.length ? unfit.join(', ') + ' needs a join or a review first' : ''].filter(Boolean).join(', ')});
+    if (p.flooringRooms.length) out.push({key:'flooring', label:'Flooring', note:fmtM(p.flooringArea) + ' m² of floor, nothing added for wastage'});
+    if (p.underlayCarpet || p.underlayFlooring) out.push({key:'underlay', label:'Underlay', note:[p.underlayCarpet ? fmtM(p.underlayCarpet) + ' m² under carpet' : '', p.underlayFlooring ? fmtM(p.underlayFlooring) + ' m² under flooring' : ''].filter(Boolean).join(', ')});
+    var gh = p.byHand.filter(function(x){ return x.indexOf('gripper') === 0; }), bh = p.byHand.filter(function(x){ return x.indexOf('beading') === 0; });
+    if (p.gripper || gh.length) out.push({key:'gripper', label:'Gripper', note:[p.gripper ? 'about ' + fmtM(p.gripper) + ' m round the walls' : '', gh.length ? gh.join(', ') + ' to work out' : ''].filter(Boolean).join(', ')});
+    if (p.beading || bh.length) out.push({key:'beading', label:'Beading', note:[p.beading ? 'about ' + fmtM(p.beading) + ' m round the walls' : '', bh.length ? bh.join(', ') + ' to work out' : ''].filter(Boolean).join(', ')});
+    var bars = Object.keys(BAR_KINDS).filter(function(k){ return p.bars[k]; }).map(function(k){ return p.bars[k] + ' ' + BAR_KINDS[k].toLowerCase(); });
+    if (bars.length) out.push({key:'bars', label:'Door bars', note:bars.join(', ')});
+    var floor = round2(rooms.reduce(function(t, r){ return t + roomArea(r); }, 0)), steps = p.stairs.length ? roomsOf(job).reduce(function(t, r){ var st = hslPart(hslOf(r), 'stairs'); return t + (st ? Math.floor(num(st.n)) + Math.floor(num(st.winders)) : 0); }, 0) : 0;
+    out.push({key:'fitting', label:'Fitting', note:rooms.length + (rooms.length === 1 ? ' room, ' : ' rooms, ') + fmtM(floor) + ' m² of floor' + (steps ? ', ' + steps + ' stairs' : '')});
+    if (p.uplift.length) out.push({key:'uplift', label:'Uplift and disposal', note:p.uplift.join(', ') + ', ' + fmtM(p.upliftArea) + ' m²'});
+    if (p.furniture.length) out.push({key:'furniture', label:'Moving furniture', note:p.furniture.join(', ')});
+    return out;
+  }
   /* measured, the sizes are in, and nothing has been priced yet: the shop's next move */
   function toPrice(job){
-    if (!job || job.status !== 'open' || linesOf(job).length) return false;
+    if (!job || job.status !== 'open' || linesOf(job).length || quoteOf(job)) return false;
     var pre = preOf(job);
     return pre.length > 0 && pre.every(function(v){ return v.status === 'done'; }) && roomsOf(job).length > 0;
   }
+  function quoted(job){ return !!job && job.status === 'open' && !linesOf(job).length && !!quoteOf(job); }
   function lastFindings(job){ return preOf(job).filter(function(v){ return v.status === 'done'; }).sort(function(a, b){ return String(b.doneAt).localeCompare(String(a.doneAt)); })[0] || null; }
   function briefLine(job){
     var b = briefOf(job), out = [];
@@ -1160,7 +1205,7 @@ window.IFDLogic = (function(){
     linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
-    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, toPrice:toPrice, lastFindings:lastFindings, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
+    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, toPrice:toPrice, quoted:quoted, quotesOf:quotesOf, quoteOf:quoteOf, quoteLines:quoteLines, quoteTotal:quoteTotal, quoteMessage:quoteMessage, quoteRows:quoteRows, hasSize:hasSize, firstName:firstName, lastFindings:lastFindings, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
     BRIEF_ROOMS:BRIEF_ROOMS, BRIEF_ALSO:BRIEF_ALSO, briefOf:briefOf, briefHas:briefHas, briefChoice:briefChoice, briefName:briefName, briefLine:briefLine,
     hasHSL:hasHSL, limitsOf:limitsOf, measureLimits:measureLimits, planMeasure:planMeasure, toArrange:toArrange, milesBetween:milesBetween, dayWork:dayWork, dayReach:dayReach, hslClash:hslClash, farClash:farClash, hslWhy:hslWhy,
     isFinalBay:isFinalBay, lineAllocated:lineAllocated, supplyOf:supplyOf, supplyState:supplyState, dLines:dLines, dRecs:dRecs, dGot:dGot, dOutstanding:dOutstanding,
@@ -1539,7 +1584,17 @@ function attentionJobs(){ const t = L.todayISO(), cx = dayCtx(); return jobsArr(
 /* jobs a fitter has handed back from site, and visits left unfinished with no return date: the shop acts on these first */
 /* measured and ready for the shop: price it, then ring the customer. The longest wait is first. */
 function toPriceJobs(){ const at = j => (L.lastFindings(j) || {}).doneAt || ''; return openJobs().filter(L.toPrice).sort((a, b) => String(at(a)).localeCompare(String(at(b)))); }
-function openToPrice(id){ openSheet(id); setTimeout(() => { const el = document.getElementById('toPriceBanner'); if (el) el.scrollIntoView({block:'start'}); }, 80); }
+function openToPrice(id){ openSheet(id); const j = S.jobs.get(id); if (j) quoteDialog(j); }
+function quotedJobs(){ return openJobs().filter(L.quoted).sort((a, b) => String(L.quoteOf(a).at).localeCompare(String(L.quoteOf(b).at))); }
+function quotedRow(job){
+  const c = job.customer || {}, q = L.quoteOf(job), st = q.sent || {}, days = Math.max(0, L.daysBetween(String(q.at).slice(0, 10), L.todayISO()));
+  return h('button', {type:'button', class:'row', onclick:() => openSheet(job.id)},
+    h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
+      h('div', {class:'sub', text:[c.phone, 'Quoted ' + L.money(L.quoteTotal(q)) + ' by ' + (q.byName || 'someone') + ' ' + whenText(q.at)].filter(Boolean).join(' · ')}),
+      h('div', {class:'meta'}, st.email ? chip('Email opened', 'ok') : null, st.text ? chip('Text opened', 'ok') : null, st.copy ? chip('Copied to send', 'ok') : null, !st.email && !st.text && !st.copy ? chip('Not sent yet', 'bad') : null,
+        chip(days === 0 ? 'Quoted today' : days === 1 ? 'Quoted yesterday' : 'Quoted ' + days + ' days ago', days >= 3 ? 'warn' : ''))),
+    h('div', {class:'end'}, h('span', {class:'num', text:L.money(L.quoteTotal(q))})));
+}
 function priceRow(job){
   const c = job.customer || {}, v = L.lastFindings(job) || {}, rooms = L.roomsOf(job), b = L.briefOf(job), p = L.pricingOf(job), cg = L.carpetGroups(job, rooms);
   const days = v.doneAt ? Math.max(0, L.daysBetween(String(v.doneAt).slice(0, 10), L.todayISO())) : 0;
@@ -1697,7 +1752,7 @@ VIEWS.today = function(){
     const todayJobs = open.filter(j => j.date === t || j.date === L.addDays(t, 1)).sort(sortOpen);
     const dueTasks = S.tasks.filter(x => !x.done && (!x.due || x.due <= t));
     const held = open.filter(j => L.checksOutstanding(j).length).sort(sortOpen);
-    const price = toPriceJobs(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j)).sort(sortOpen);
+    const price = toPriceJobs(), quotedNow = quotedJobs(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j) && !L.quoted(j)).sort(sortOpen);
     const heldHot = held.some(j => (j.review && j.review.on) || j.diary || (L.validISO(j.date) && L.daysBetween(t, j.date) <= 7));
     body.replaceChildren();
     add(body, [
@@ -1708,6 +1763,7 @@ VIEWS.today = function(){
       S.estimators.length ? h('div', {class:'estrip', id:'estStrip'}, S.estimators.map(e => { const ld = estimatorLoad(e);
         return h('button', {type:'button', class:'estrow' + (ld.urgent.length || ld.late.length ? ' hot' : ''), onclick:() => openPersonPage(e)}, h('b', {text:e}), h('span', {class:'what', text:estimatorLine(ld)}), h('span', {class:'open', text:'Open dashboard'})); })) : null,
       price.length ? h('section', {class:'sec pricenow', id:'priceSec'}, h('h2', {}, 'To price', h('span', {text:'measured and waiting on the shop: price it, then ring the customer'})), h('div', {class:'list'}, price.map(priceRow))) : null,
+      quotedNow.length ? h('section', {class:'sec', id:'quotedSec'}, h('h2', {}, 'Quoted', h('span', {text:'waiting on the customer'})), h('div', {class:'list'}, quotedNow.map(quotedRow))) : null,
       h('div', {class:'tiles'},
         h('button', {type:'button', class:'tile' + (inbox.length ? ' hot' : ''), onclick:() => { const el = document.getElementById('inboxSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(inbox.length)}), h('span', {text:'New from website'}), h('small', {text:'Waiting to be made into jobs'})),
         h('button', {type:'button', class:'tile' + (heldHot ? ' hot' : ''), onclick:() => { const el = document.getElementById('checksSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(held.length)}), h('span', {text:'Checks outstanding'}), h('small', {text:'Sizes, measures and inspections'})),
@@ -2263,9 +2319,15 @@ function drawSheet(){
   const lf = L.toPrice(job) ? L.lastFindings(job) || {} : null;
   const toPriceBanner = lf ? h('div', {class:'banner info', id:'toPriceBanner'}, h('div', {class:'grow'}, h('b', {text:'Measured and ready to price. '}),
       'The sizes came in from ' + (lf.doneBy || 'the measure') + ' ' + whenText(lf.doneAt) + '. Check the summary below, press Price it to build the quote, then ring ' + (c.name || 'the customer') + (c.phone ? ' on ' + c.phone : '') + '.'),
-    btn('Price it', () => saleDialog(job), 'pri sm')) : null;
+    btn('Price it', () => quoteDialog(job), 'pri sm')) : null;
+  const pq = L.quoteOf(job), sentBits = pq ? ['email', 'text', 'copy'].filter(k => pq.sent && pq.sent[k]).map(k => (k === 'email' ? 'Email opened to ' + pq.sent[k].to : k === 'text' ? 'Text opened to ' + pq.sent[k].to : 'Copied to send') + ' ' + whenText(pq.sent[k].at) + ' by ' + (pq.sent[k].byName || 'someone')) : [];
+  const priceQuoteCard = pq ? h('div', {class:'card', id:'quoteCard'}, h('h3', {}, 'Quote', chip(L.money(L.quoteTotal(pq)), 'info'), open ? h('span', {class:'bar'}, btn('Send it', () => sendQuoteDialog(job, pq), 'sm pri'), btn('Change it', () => quoteDialog(job), 'sm')) : null),
+    L.quoteLines(pq).map(l => h('div', {class:'ln-top'}, h('span', {text:l.label}), h('b', {class:'num', text:L.money(l.price)}))),
+    h('div', {class:'qtotal'}, h('span', {text:'Total'}), h('b', {class:'num', text:L.money(L.quoteTotal(pq))})),
+    h('p', {class:'small muted', text:'Saved by ' + (pq.byName || 'someone') + ' ' + whenText(pq.at) + '. ' + (sentBits.length ? sentBits.join('. ') + '.' : 'Not sent to the customer yet.')})) : null;
   const priceBlock = pricingBlock(job, lines.length ? lines.map(l => l.title) : null, open);
-  const pricingCard = priceBlock ? h('div', {class:'card', id:'pricingCard'}, h('h3', {}, 'For pricing, from the measure'), priceBlock) : null;
+  const more = priceBlock ? h('details', {id:'pricingMore', open:S.ui.priceMore === true, ontoggle:e => { S.ui.priceMore = e.target.open; }}, h('summary', {class:'small', text:'Carpet working-out and checks'}), priceBlock) : null;
+  const pricingCard = priceBlock ? h('div', {class:'card', id:'pricingCard'}, h('h3', {}, 'What was measured'), measuredBlock(job), more) : null;
   const panel = h('div', {class:'panel', role:'dialog', 'aria-label':'Job ' + (job.ref || '')},
     h('div', {class:'panel-head'},
       h('div', {class:'grow'}, h('h2', {text:(c.name || 'No name') + '  ' + (job.ref || '')}),
@@ -2276,7 +2338,7 @@ function drawSheet(){
       btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'},
       backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0)).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
-      toPriceBanner, custCard, briefCard, pricingCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
+      toPriceBanner, priceQuoteCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
       h('div', {class:'card'}, h('h3', {}, 'History'), h('div', {class:'log'}, logs.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': ' + x.text}))))));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -2681,6 +2743,106 @@ function pricingBlock(job, titles, edit){
     miss.length ? h('div', {class:'banner warn', id:'pricingMiss'}, h('p', {}, h('b', {text:'Not on it yet: ' + miss.join(', ') + '. '}), 'The measure says these are needed. Add them, or carry on if they are covered another way.')) : null,
     p.unasked.length ? h('p', {class:'small muted', text:'No answers recorded for ' + p.unasked.join(', ') + '.'}) : null,
     h('p', {class:'small muted', text:'Carpet is bought at the full width of the roll, so it is roll width × cut length, not the floor area. The cut is the side running along the roll plus 10 cm, rounded up to the next 10 cm. A hall or landing is ordered at its longest and widest and cut down on the day. A stair run is the depth plus the height of every step, plus 30 cm. Flooring, underlay, gripper and beading are the bare floor: nothing is added for wastage and doorways are not taken off.'}));
+}
+/* ---------- what was measured, kept simple: each room, its size and what it needs ---------- */
+function measuredBlock(job){
+  const rooms = L.roomsOf(job), b = L.briefOf(job);
+  if (!rooms.length) return h('p', {class:'muted', text:'No room sizes are in yet.'});
+  return h('div', {id:'measuredBlock'}, rooms.map(r => {
+    const s = L.specOf(r), hx = L.hslOf(r), ch = r.want ? L.briefChoice(b, r.want) : null, needs = [], notes = [];
+    if (s){
+      if (s.underlay) needs.push('underlay'); if (s.gripper) needs.push('gripper'); if (s.beading) needs.push('beading');
+      L.specBars(s).forEach(z => needs.push(z.n + (z.n === 1 ? ' door bar (' : ' door bars (') + z.label.toLowerCase() + ')'));
+      if (s.old) notes.push(s.uplift ? 'Old flooring down: the customer wants a price to uplift and dispose of it.' : 'Old flooring down: the customer is lifting it.');
+      if (s.furniture) notes.push('The customer wants a price to move furniture.');
+    }
+    const pl = s && s.floor === 'carpet' && !hx ? L.planFor(job, r) : null;
+    return h('div', {class:'mroom'},
+      h('div', {class:'mt'}, h('b', {text:r.name || 'Room'}), h('span', {class:'num', text:hx ? L.fmtM(L.roomArea(r)) + ' m² in all' : L.roomSize(r)})),
+      hx ? h('p', {class:'small', text:L.hslText(r)}) : null,
+      h('p', {class:'small', text:(s ? (s.floor === 'carpet' ? 'Carpet' : 'Flooring') : 'Not said whether carpet or flooring') + (ch ? ': ' + ch.title : '') + '. ' + (s ? (needs.length ? 'Needs ' + needs.join(', ') + '.' : 'Nothing else needed.') : '')}),
+      pl && !pl.fits ? h('p', {class:'small', style:'color:var(--bad);font-weight:700', text:'This room needs a join or a fitting review before the carpet is priced.'}) : null,
+      notes.map(n => h('p', {class:'small', text:n})));
+  }));
+}
+/* ---------- the quote: staff type the prices, the customer gets the figures only ---------- */
+const SHOP = {name:'Innovation Flooring Direct', phone:'0141 952 5200'};
+function myName(set){
+  try { if (set !== undefined){ localStorage.setItem('ifd-my-name', set); return set; } const v = localStorage.getItem('ifd-my-name'); if (v) return v; } catch (e) {}
+  return S.me.name && S.me.name !== 'Shop' ? S.me.name : '';
+}
+function quoteDialog(job){
+  if (!needDb()) return;
+  const s = sayer(), c = job.customer || {}, cur = L.quoteOf(job), base = L.quoteRows(job);
+  const rows = cur ? L.quoteLines(cur).map(l => ({label:l.label, price:String(l.price), note:(base.find(z => z.label === l.label) || {}).note || ''}))
+    .concat(base.filter(z => !L.quoteLines(cur).some(l => l.label === z.label)).map(z => ({label:z.label, price:'', note:z.note}))) : base.map(z => ({label:z.label, price:'', note:z.note}));
+  const box = h('div', {id:'quoteLines'}), total = h('b', {class:'num', id:'quoteTotal'}), who = h('input', {class:'in', id:'quoteBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const sum = () => { total.textContent = L.money(L.round2(rows.reduce((t, r) => t + (Number(r.price) > 0 ? Number(r.price) : 0), 0))); };
+  function draw(){
+    box.replaceChildren();
+    rows.forEach((r, i) => box.append(h('div', {class:'qline'},
+      h('input', {class:'in', id:'ql' + i, type:'text', value:r.label, placeholder:'What it is for', 'aria-label':'Line ' + (i + 1), oninput:e => { r.label = e.target.value; }}),
+      h('input', {class:'in price', id:'qp' + i, type:'number', min:'0', step:'0.01', inputmode:'decimal', placeholder:'£', value:r.price, 'aria-label':'Price for ' + (r.label || 'line ' + (i + 1)), oninput:e => { r.price = e.target.value; sum(); }}),
+      r.note ? h('p', {class:'small muted qnote', text:r.note}) : null)));
+    sum();
+  }
+  draw();
+  const save = btn('Save the quote', async () => {
+    const lines = rows.map(r => ({label:String(r.label || '').trim(), price:L.round2(Number(r.price) || 0)})).filter(l => l.price > 0), name = who.value.trim(), errs = [];
+    if (!lines.length) errs.push('Type at least one price.');
+    if (lines.some(l => !l.label)) errs.push('Every price needs to say what it is for.');
+    if (lines.some(l => L.hasSize(l.label))) errs.push('Take the sizes out of the wording. The customer is only given the figures.');
+    if (!name) errs.push('Type your name, so the customer knows who the quote is from.');
+    if (errs.length){ s.say(errs.join(' '), true); return; }
+    myName(name);
+    const k = 'q' + uid(), q = {n:L.quotesOf(job).length + 1, at:nowISO(), by:S.me.id || '', byName:name, lines:lines, total:L.round2(lines.reduce((t, l) => t + l.price, 0))}, pt = {quotes:{}}; pt.quotes[k] = q;
+    save.disabled = true;
+    try { await patchJob(job.id, pt, 'Quote of ' + L.money(q.total) + ' saved by ' + name + ': ' + lines.map(l => l.label + ' ' + L.money(l.price)).join(', ')); toast('Quote saved'); sendQuoteDialog(Object.assign({}, job, {quotes:Object.assign({}, job.quotes, pt.quotes)}), Object.assign({k:k}, q)); }
+    catch (e){ save.disabled = false; dbFail(e); }
+  }, 'pri');
+  openModal(dlg('Price the job', h('div', {class:'sec', id:'quoteForm'},
+    h('div', {class:'card tight'}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '')}), h('p', {class:'small muted', text:[c.phone, [c.address, c.postcode].filter(Boolean).join(', ')].filter(Boolean).join(' · ')})),
+    h('div', {class:'card'}, h('h3', {}, 'What was measured'), measuredBlock(job)),
+    h('div', {class:'card'}, h('h3', {}, 'Prices'), h('p', {class:'small muted', text:'Type the price for each line. Leave a line empty to leave it off the quote. The grey notes are for you: the customer only sees the wording and the price.'}),
+      box, h('div', {class:'bar'}, btn('Add another line', () => { rows.push({label:'', price:'', note:''}); draw(); try { box.querySelector('#ql' + (rows.length - 1)).focus(); } catch (e) {} }, 'sm')),
+      h('div', {class:'qtotal'}, h('span', {text:'Total'}), total)),
+    field('Your name, shown on the quote', who), s.box), [btn('Cancel', closeModal), save]));
+}
+function sendQuoteDialog(job, q){
+  if (!needDb()) return;
+  const s = sayer(), c = job.customer || {}, name = q.byName || myName();
+  const msg = h('textarea', {class:'in qmsg', id:'quoteMsg'}); msg.value = L.quoteMessage(job, q, name, SHOP);
+  const email = h('input', {class:'in', id:'quoteEmail', type:'email', value:c.email || '', placeholder:'Customer’s email'}), phone = h('input', {class:'in', id:'quotePhone', type:'tel', value:c.phone || '', placeholder:'Customer’s mobile'});
+  const warn = h('p', {class:'small', id:'quoteWarn', style:'color:var(--bad);font-weight:700', hidden:true, text:'There is a size in the message. Take it out: customers are only given the figures.'});
+  const mail = h('a', {class:'btn pri', id:'quoteEmailBtn', text:'Email it'}), text = h('a', {class:'btn pri', id:'quoteTextBtn', text:'Text it'});
+  const sent = async (how, to) => {
+    const pt = {quotes:{}}, rec = {}; rec[how] = {at:nowISO(), to:to, byName:name}; pt.quotes[q.k] = {sent:rec};
+    if (how === 'email' && to && to !== (c.email || '')) pt.customer = {email:to};
+    try { await patchJob(job.id, pt, 'Quote of ' + L.money(L.quoteTotal(q)) + (how === 'email' ? ' opened in email to ' + to : how === 'text' ? ' opened as a text to ' + to : ' copied to send') + ' by ' + name); s.say(''); } catch (e){ dbFail(e); }
+  };
+  function links(){
+    const bad = L.hasSize(msg.value), em = email.value.trim(), ph = phone.value.replace(/[^\d+]/g, '');
+    warn.hidden = !bad;
+    const okMail = !bad && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em), okText = !bad && ph.length >= 10;
+    mail.className = 'btn pri' + (okMail ? '' : ' off'); text.className = 'btn pri' + (okText ? '' : ' off');
+    if (okMail) mail.href = 'mailto:' + encodeURIComponent(em) + '?subject=' + encodeURIComponent('Your quote from ' + SHOP.name) + '&body=' + encodeURIComponent(msg.value); else mail.removeAttribute('href');
+    if (okText) text.href = 'sms:' + ph + '?&body=' + encodeURIComponent(msg.value); else text.removeAttribute('href');
+  }
+  [msg, email, phone].forEach(el => el.addEventListener('input', links)); links();
+  mail.addEventListener('click', () => { if (mail.href) sent('email', email.value.trim()); });
+  text.addEventListener('click', () => { if (text.href) sent('text', phone.value.trim()); });
+  const copy = btn('Copy the message', async () => {
+    if (L.hasSize(msg.value)){ links(); return; }
+    try { await navigator.clipboard.writeText(msg.value); toast('Copied'); } catch (e){ try { msg.focus(); msg.select(); } catch (x) {} toast('Select the message and copy it'); }
+    sent('copy', '');
+  });
+  openModal(dlg('Send the quote', h('div', {class:'sec', id:'quoteSend'},
+    h('p', {}, h('b', {text:'Quote saved: ' + L.money(L.quoteTotal(q)) + '. '}), 'This is what the customer gets. It has the figures and no sizes. Change the wording if you want to.'),
+    msg, warn,
+    h('div', {class:'grid2'}, field('Email', email), field('Mobile', phone)),
+    h('div', {class:'bar'}, mail, text, copy),
+    h('p', {class:'small muted', text:'Email it opens your email with the quote ready to send. Text it opens the messages app, so use it on a phone. Nothing goes to the customer until you press send there.'}),
+    s.box), [btn('Done', closeModal, 'pri')]));
 }
 /* ---------- what a measure is for: rooms, what the customer picked, extras to price ---------- */
 function briefBox(init, P){
