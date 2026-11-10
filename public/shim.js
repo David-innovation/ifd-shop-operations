@@ -39,8 +39,10 @@
       if (m[1] === mine && tries < 40) throw new Error('old build'); /* still the old server: wait for the new one */
       return m[1];
     });
+    /* the records have to be answering too, not only the page */
+    const api = () => fetch('/api/me', {headers:{'x-ifd':'1'}, cache:'no-store', credentials:'same-origin'}).then(r => { if (!r.ok && r.status !== 401) throw new Error('not ready'); });
     tries++;
-    look().then(v => v === 'signed-out' ? location.reload() : new Promise(res => setTimeout(res, 2500)).then(look).then(v2 => { if (v2 === v) location.reload(); else again(); }, again), again);
+    look().then(v => v === 'signed-out' ? location.reload() : new Promise(res => setTimeout(res, 4000)).then(look).then(v2 => { if (v2 !== v) throw new Error('changed'); return api(); }).then(() => location.reload(), again), again);
   }
   function outOfDate(){
     if (stale) return; stale = true;
@@ -92,15 +94,17 @@
   const mcp = {
     callTool: async (server, tool, args) => ({payload:(await call('POST', '/api/shopify', {kind:tool === 'graphql_mutation' ? 'mutation' : 'query', query:args.query, variables:args.variables})).body}),
     watchTool: (server, tool, args, handler, o) => {
-      let live = true;
-      const run = () => mcp.callTool(server, tool, args).then(result => { if (live) handler({type:'data', result:result}); }, error => { if (live) handler({type:'error', error:error}); });
+      let live = true, quick = 0;
+      /* a question that fails is asked again a few seconds later, three times, before waiting for the next round */
+      const run = () => mcp.callTool(server, tool, args).then(result => { quick = 0; if (live) handler({type:'data', result:result}); },
+        error => { if (!live) return; handler({type:'error', error:error}); if (quick++ < 3) setTimeout(() => { if (live) run(); }, 5000); });
       run(); const t = setInterval(() => { if (!document.hidden) run(); }, (o && o.refetchInterval) || 120000);
       return () => { live = false; clearInterval(t); };
     },
     invalidate: async () => {}, listTools: async () => ({servers:[]})
   };
   /* ---- who is signed in ---- */
-  let meP = null; const me = () => meP || (meP = call('GET', '/api/me'));
+  let meP = null; const me = () => meP || (meP = call('GET', '/api/me').catch(e => { meP = null; throw e; }));   /* a failed answer is not kept */
   const user = {
     me: async () => { const m = await me(); return {id:m.id, name:m.name, isOwner:m.role === 'owner', canEdit:true, role:m.role}; },
     id: async () => (await me()).id,

@@ -5279,8 +5279,12 @@ async function boot(){
   const caps = await Promise.all([use('db'), use('mcp'), use('user'), use('downloads')]);
   S.cap.db = caps[0]; S.cap.mcp = caps[1]; S.cap.user = caps[2]; S.cap.downloads = caps[3];
   use('geo').then(g => { S.cap.geo = g; if (g) wantGeo(openJobs().map(j => (j.customer || {}).postcode)); });
-  if (S.cap.user){ try { const me = await S.cap.user.me(); S.me = {id:me.id || '', name:me.name || ''}; } catch (e) {} }
-  startDb(); connectShop();
+  /* who is signed in, and the line to Shopify: each is tried again by itself if the server was still starting */
+  const who = async left => { try { const me = await S.cap.user.me(); S.me = {id:me.id || '', name:me.name || ''}; } catch (e) { if (left > 0) setTimeout(() => who(left - 1), 3000); } };
+  if (S.cap.user) await who(10);
+  startDb();
+  let shopTries = 0; const shopAgain = () => { if (S.shop.state === 'down' && shopTries++ < 6) setTimeout(() => connectShop().then(shopAgain), 5000); };
+  connectShop().then(shopAgain);
 }
 boot();
 })();
