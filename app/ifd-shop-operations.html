@@ -705,7 +705,7 @@ window.IFDLogic = (function(){
     if (hc) why.push(hslWhy(hc, job.fitter, job.date));
     if (bo) why.push('Sent back to the shop by ' + (bo.fitter || 'the fitter') + '. Deal with that first.');
     offClashes(job, off).forEach(function(c){ if (!c.v) why.push(c.who + ' cannot work on ' + fmtDay(c.date) + '.'); });
-    if (!linesOf(job).length) why.push('Nothing has been sold on this job yet.');
+    if (!linesOf(job).length) why.push(quoted(job) ? 'The customer has not said yes to the quote yet. Press Customer said yes on the quote, and the fitter and the day are picked there.' : 'Nothing has been sold on this job yet.');
     if (job.type === 'Fitting' && !job.fitter) why.push('Choose the fitter first.');
     if (!validISO(job.date)) why.push('Set a date first.');
     checksOutstanding(job).forEach(function(t){ why.push(t); });
@@ -3174,7 +3174,7 @@ function acceptDialog(job){
     paint(it); drawWhen();
   }
   const typeSeg = h('div', {class:'seg', id:'accType'});
-  const when = whenPicker(job, 'acc', () => F.type, {fitter:job.fitter || '', date:''}), whenNote = h('p', {class:'small', id:'accWhenNote', style:'font-weight:600'});
+  const when = whenPicker(job, 'acc', () => F.type, {fitter:job.fitter || '', date:L.validISO(job.date) && job.date >= L.todayISO() ? job.date : ''}),   /* a fitter or a day already pencilled on the job carries over */ whenNote = h('p', {class:'small', id:'accWhenNote', style:'font-weight:600'});
   const anyOrder = () => items.some(it => it.how === 'order');
   const qFit = L.quoteFitting(q), qTotal = L.quoteTotal(q);
   const fitPay = h('input', {class:'in', id:'accFitPay', type:'number', min:'0', step:'0.01', inputmode:'decimal', value:qFit > 0 ? qFit.toFixed(2) : '', oninput:() => drawSplit()});
@@ -3188,7 +3188,7 @@ function acceptDialog(job){
   function drawWhen(){
     const t = F.type, ord = anyOrder(), fit = t === 'Fitting', del = t === 'Delivery';
     when.who.hidden = !(fit || (del && !ord)); when.days.hidden = !((fit || del) && !ord); fitRow.hidden = !fit; drawSplit();
-    if (ord || !(fit || del)) when.clear();
+    if (ord || t === 'Collection') when.clear();
     whenNote.hidden = !t;
     whenNote.textContent = t === 'Collection' ? (ord ? 'Nothing more to pick. The customer collects it once it has arrived.' : 'Nothing more to pick. The carpet goes straight to be cut, and the customer collects it when it is ready.')
       : del ? (ord ? 'The delivery day is picked once the order details and the arrival date are in.' : 'Pick the delivery day.')
