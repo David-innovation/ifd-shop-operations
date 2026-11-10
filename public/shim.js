@@ -14,12 +14,34 @@
     return data;
   }
   /* ---- records: every screen that is open hears about a change and reads the fresh copy ---- */
-  const subs = new Map(); let es = null, opened = false;
+  const subs = new Map(); let es = null, opened = false, retry = null;
   function listen(){
     if (es) return;
     es = new EventSource('/api/events');
     es.addEventListener('change', e => { try { (subs.get(JSON.parse(e.data).coll) || []).forEach(fn => fn()); } catch (x) {} });
+    es.addEventListener('version', e => { try { const v = JSON.parse(e.data).v, mine = (document.querySelector('meta[name="ifd-version"]') || {}).content; if (v && mine && v !== mine) outOfDate(); } catch (x) {} });
     es.addEventListener('open', () => { if (opened) subs.forEach(set => set.forEach(fn => fn())); opened = true; });   /* after a dropped connection, catch up on everything */
+    /* the browser gives up for good if the server refuses once, which happens for a minute during an update: keep trying */
+    es.addEventListener('error', () => { if (es && es.readyState === 2){ es = null; clearTimeout(retry); retry = setTimeout(listen, 3000); } });
+  }
+  /* ---- a newer build of the screens is running: bring this screen up to date without losing anything half typed ---- */
+  let stale = false;
+  function outOfDate(){
+    if (stale) return; stale = true;
+    const idle = () => {
+      const m = document.getElementById('modal'), sh = document.getElementById('sheet'), a = document.activeElement;
+      const typing = a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'button';
+      return (!m || m.hidden) && (!sh || sh.hidden) && !typing;
+    };
+    if (idle()){ location.reload(); return; }
+    const bar = document.createElement('div'), b = document.createElement('button');
+    bar.id = 'staleBar'; bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483000;background:#1b5683;color:#fff;padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;font:600 15px system-ui,sans-serif';
+    b.type = 'button'; b.textContent = 'Refresh now'; b.style.cssText = 'font:inherit;border:0;border-radius:8px;padding:8px 14px;background:#fff;color:#14181a;cursor:pointer';
+    b.addEventListener('click', () => location.reload());
+    bar.append('This screen has been updated. It refreshes by itself when you close what you are working on.', b);
+    document.body.appendChild(bar);
+    setInterval(() => { if (idle()) location.reload(); }, 2000);
   }
   function watch(coll, read, next, err){
     listen(); let seq = 0, live = true;

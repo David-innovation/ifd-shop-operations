@@ -21,7 +21,10 @@ function create(opts){
   const hash = s => crypto.createHmac('sha256', pepper).update(String(s)).digest('hex');
   const iso = () => new Date(now()).toISOString();
   const pub = name => fs.readFileSync(path.join(__dirname, 'public', name), 'utf8');
-  const appHtml = () => SKEL + '<script src="/shim.js"></script></head><body>' + fs.readFileSync(path.join(__dirname, 'app', 'ifd-shop-operations.html'), 'utf8') + '</body></html>';
+  const appBody = fs.readFileSync(path.join(__dirname, 'app', 'ifd-shop-operations.html'), 'utf8');
+  /* which build of the screens this is, so a screen left open can tell when it has been replaced */
+  const VERSION = crypto.createHash('sha256').update(appBody + pub('shim.js')).digest('hex').slice(0, 12);
+  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/shim.js"></script></head><body>' + appBody + '</body></html>';
   const db = st.db;
   const q = {
     userByMobile: db.prepare('SELECT * FROM users WHERE mobile = ?'), userById: db.prepare('SELECT * FROM users WHERE id = ?'),
@@ -193,6 +196,7 @@ function create(opts){
     }
     if (p === '/api/events'){
       res.writeHead(200, {'content-type':'text/event-stream', 'cache-control':'no-store', 'connection':'keep-alive', 'x-accel-buffering':'no'}); res.write(': connected\n\n');
+      res.write('event: version\ndata: ' + JSON.stringify({v:VERSION}) + '\n\n');
       listeners.add(res); req.on('close', () => listeners.delete(res)); return;
     }
     fail(res, 404, 'not_found', 'Not found.');
@@ -201,7 +205,7 @@ function create(opts){
     handle(req, res).catch(e => { if (res.headersSent) return res.end(); if (e && e.status) return fail(res, e.status, e.code, e.message); log('ERROR ' + (e && e.stack || e)); fail(res, 500, 'server_error', 'Something went wrong on the server.'); });
   });
   const beat = setInterval(() => listeners.forEach(r => { try { r.write(': keep\n\n'); } catch (e) {} }), 25000); beat.unref();
-  return { server, store:st, ensureUser, close(){ clearInterval(beat); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
+  return { server, store:st, ensureUser, version:VERSION, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ clearInterval(beat); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
     /* for the owner's tools and the tests */
     disableUser(id){ const u = q.userById.get(id); if (u){ q.setUser.run(u.name, u.role, 0, id); q.dropSessionsOf.run(id); } } };
 }

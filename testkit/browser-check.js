@@ -148,6 +148,25 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.waitForFunction(() => document.querySelectorAll('#modal .dday').length === 7);
     ok(/Sonnie.s diary/.test(await pg.locator('#modal .dpick').innerText()) && await pg.locator('#modal input[type=date]:visible').count() === 0, 'then that person’s diary comes up, with no calendar box');
     await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click();
+    // a screen left open brings itself up to date when the screens have been replaced, without losing work in hand
+    await pg.locator('#tabs .tab', {hasText:'Today'}).click();
+    await pg.evaluate(() => { window.__mark = 1; document.querySelector('meta[name="ifd-version"]').content = 'an-older-build'; });
+    app.dropLive();                                                             // what a restart looks like to an open screen
+    await pg.waitForFunction(() => !window.__mark && document.querySelector('#storeText') && document.querySelector('#storeText').textContent === 'Shopify live', null, {timeout:20000});
+    ok(await pg.evaluate(v => document.querySelector('meta[name="ifd-version"]').content === v, app.version), 'an idle screen refreshes itself onto the new build');
+    await pg.getByRole('button', {name:'New sale'}).first().click(); await pg.fill('#saleName', 'Half typed');
+    await pg.evaluate(() => { window.__mark = 1; document.querySelector('meta[name="ifd-version"]').content = 'an-older-build'; });
+    app.dropLive();
+    await pg.waitForSelector('#staleBar', {timeout:20000});
+    ok(await pg.evaluate(() => window.__mark === 1) && await pg.locator('#saleName').inputValue() === 'Half typed', 'a screen with something open is told, and is not refreshed under the person’s hands');
+    await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await pg.locator('h1').first().click();
+    await pg.waitForFunction(() => !window.__mark && document.querySelector('#storeText') && document.querySelector('#storeText').textContent === 'Shopify live', null, {timeout:20000});
+    ok(true, 'it refreshes as soon as they close what they were doing');
+    app.store.setDoc(docPath('jobs/tlive'), {v:1, ref:'#T9', source:'shop', status:'open', type:'Collection', date:'', slot:'', fitter:'', diary:false, customer:{name:'Late Arrival', phone:'07700 900777'}, lines:{}, total:0, pay:{}, quote:[], drafts:{}, sizeCheck:'none', rooms:{}, pre:{}, log:{}});
+    await b.pg.evaluate(() => fetch('/api/db/update', {method:'POST', headers:{'x-ifd':'1', 'content-type':'application/json'}, body:JSON.stringify({path:'jobs/tlive', data:{notes:'x'}})}));
+    await pg.locator('#tabs .tab', {hasText:'Jobs'}).click();
+    await pg.waitForFunction(() => /Late Arrival/.test(document.querySelector('#view').innerText), null, {timeout:10000});
+    ok(true, 'live updates keep arriving after the connection has been dropped and picked up again');
     ok(shopify.state.calls.includes('OpsShop') && shopify.state.calls.includes('OpsInbox') && shopify.state.tokens === 1, 'every Shopify question went through one server-held key');
     ok(await pg.getByRole('button', {name:'Sign out'}).isVisible(), 'the shared screen has a way to sign out');
     await pg.getByRole('button', {name:'Sign out'}).click(); await pg.waitForSelector('#mobile');

@@ -164,3 +164,19 @@ test('a fitter’s sign-in cannot reach the shop’s screens, records, Shopify o
     assert.strictEqual((await s.req('DELETE', '/api/assets/' + up.json.id, undefined, shopCookie)).json.deleted, true); assert.strictEqual((await fetch(s.base + up.json.url, {headers:{cookie:shopCookie}})).status, 404);
   } finally { s.stop(); }
 });
+
+test('an open screen can tell when the screens have been replaced', async () => {
+  const s = await boot();
+  try {
+    const shop = await s.signIn('07700 900002');
+    const home = await s.req('GET', '/', undefined, shop);
+    const m = /<meta name="ifd-version" content="([0-9a-f]{12})">/.exec(home.text);
+    assert.ok(m && m[1] === s.app.version, 'the page carries the build it was made from');
+    assert.strictEqual(home.headers.get('cache-control'), 'no-store');
+    const ac = new AbortController(), r = await fetch(s.base + '/api/events', {headers:{cookie:shop, 'x-ifd':'1'}, signal:ac.signal});
+    const rd = r.body.getReader(), dec = new TextDecoder(); let got = '';
+    while (!/event: version\ndata: [^\n]+\n\n/.test(got)){ const c = await rd.read(); if (c.done) break; got += dec.decode(c.value); }
+    ac.abort();
+    assert.match(got, new RegExp('event: version\\ndata: \\{"v":"' + s.app.version + '"\\}'), 'the live line says which build is running as soon as it connects');
+  } finally { s.stop(); }
+});
