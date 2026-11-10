@@ -348,8 +348,25 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.locator('#modal .card', {has:pg.locator('#fr1Name')}).getByRole('button', {name:'Same answers as the room above'}).click();
     ok(await pg.locator('#fr1BeadingY').getAttribute('aria-pressed') === 'true' && await pg.locator('#fr1BarsY').getAttribute('aria-pressed') === 'false', 'one tap copies the answers from the room above, but not its door bars');
     await pg.click('#fr1BarsN'); await pg.locator('#fr1Ok').check();
-    await pg.fill('#fr2Len', '4.6'); await pg.fill('#fr2Wid', '4.3');
+    // a hall, stairs and landing is measured in parts: the hall and the landing drawn and sized, the stairs counted
+    ok(await pg.locator('#fr2Hsl').count() === 1 && await pg.locator('#fr2Len').count() === 0 && await pg.locator('#fr2HallY').getAttribute('aria-pressed') === 'true'
+      && await pg.locator('#fr2StairsY').getAttribute('aria-pressed') === 'true' && await pg.locator('#fr2LandY').getAttribute('aria-pressed') === 'true',
+      'a hall, stairs and landing is measured in parts, not as one length and width');
     await pg.click('#fr2Carpet');
+    await pg.fill('#fr2HallLen', '3.2'); await pg.fill('#fr2HallWid', '1.1');
+    await pg.fill('#fr2StepCount', '13'); await pg.fill('#fr2StepWid', '0.86'); await pg.fill('#fr2StepTread', '25'); await pg.fill('#fr2StepRiser', '20');
+    const nd2 = await pg.locator('#fr2Need').innerText();
+    ok(/whether the stairs turn/.test(nd2) && /the landing at its longest and widest/.test(nd2) && !/how many stairs/.test(nd2) && !/the hall/.test(nd2), 'it says exactly what is still missing from the stairs and the landing');
+    await pg.click('#fr2TurnY'); await pg.fill('#fr2TurnCount', '2'); await pg.fill('#fr2TurnDepth', '40');
+    await pg.fill('#fr2LandLen', '2.6'); await pg.fill('#fr2LandWid', '1.9');
+    await pg.click('#fr2LandDraw'); await pg.waitForSelector('#fr2LandPad'); await pg.locator('#fr2LandPad').scrollIntoViewIfNeeded();
+    let bx = await pg.locator('#fr2LandPad').boundingBox();
+    await pg.mouse.move(bx.x + 60, bx.y + 60); await pg.mouse.down(); await pg.mouse.move(bx.x + 260, bx.y + 60, {steps:4}); await pg.mouse.move(bx.x + 260, bx.y + 200, {steps:4}); await pg.mouse.move(bx.x + 60, bx.y + 200, {steps:4}); await pg.mouse.move(bx.x + 60, bx.y + 60, {steps:4}); await pg.mouse.up();
+    await pg.fill('#fr2LandSize', '2.6'); await pg.click('#fr2LandPut');
+    ok(/tap the drawing on the side that is 2\.60 m/.test(await pg.locator('#fr2LandHint').innerText()), 'a size is typed, then placed on the drawing with a tap');
+    bx = await pg.locator('#fr2LandPad').boundingBox(); await pg.mouse.click(bx.x + 160, bx.y + 40);
+    ok(/Draw the landing with a finger/.test(await pg.locator('#fr2LandHint').innerText()) && await pg.evaluate(() => { const c = document.querySelector('#fr2LandPad'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let ink = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 90) ink++; return ink > 1500; }),
+      'the landing is drawn with the size printed on it');
     ok(await pg.evaluate(() => { const L = window.IFDLogic, P = L.carpetPlan, e1 = P(3, 3.8).best, e2 = P(4.2, 3, {widths:[4]}).best, e2b = P(4.2, 3), e3 = P(4.2, 4.6).best, dec = P(3.05, 3.42).best, ex = P(4, 3, {widths:[4]});
       return e1.across === 3.8 && e1.cut === 3.1 && e1.rollW === 4 && e1.sq === 12.4 && e1.units === 31
         && e2.across === 3 && e2.cut === 4.3 && e2.rollW === 4 && e2.sq === 17.2
@@ -370,19 +387,27 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(br.length === 3 && br.every(r => r.status === 'verified') && br.find(r => r.name === 'Hall, stairs and landing').want === grey.k && !(bj2.review && bj2.review.on), 'the measured rooms keep which floor each is for, and nothing is flagged');
     const sp0 = br.find(r => r.name === 'Bedroom 1').spec, sp2 = br.find(r => r.name === 'Hall, stairs and landing').spec;
     ok(sp0.floor === 'flooring' && sp0.underlay === true && sp0.beading === true && sp0.bars.ff === 1 && sp0.bars.cf === 1 && sp0.old === true && sp0.uplift === true && sp0.furniture === true
-      && sp2.floor === 'carpet' && sp2.rollW === 5 && sp2.dir === 'any' && sp2.gripper === true && sp2.old === true && sp2.uplift === false && sp2.bars.cc === 0, 'each room keeps its answers: carpet or flooring, roll width, underlay, gripper or beading, door bars, old flooring and furniture');
+      && sp2.floor === 'carpet' && sp2.rollW === 0 && sp2.dir === 'any' && sp2.gripper === true && sp2.old === true && sp2.uplift === false && sp2.bars.cc === 0, 'each room keeps its answers: carpet or flooring, roll width, underlay, gripper or beading, door bars, old flooring and furniture');
+    const hr = br.find(r => r.name === 'Hall, stairs and landing'), hp = Object.values(hr.photos || {});
+    ok(hr.hsl.hall.on === true && hr.hsl.hall.len === 3.2 && hr.hsl.hall.wid === 1.1 && hr.hsl.stairs.n === 13 && hr.hsl.stairs.wid === 0.86 && hr.hsl.stairs.tread === 25 && hr.hsl.stairs.riser === 20 && hr.hsl.stairs.winders === 2 && hr.hsl.stairs.wdepth === 40
+      && hr.hsl.landing.len === 2.6 && hr.hsl.landing.wid === 1.9 && hr.area === 14.78 && hp.length === 1 && hp[0].kind === 'sketch' && hp[0].part === 'landing' && hp[0].sizes.join() === '2.60 m',
+      'the hall, the stairs and the landing are each kept, with the drawing of the landing and the sizes written on it');
     // back in the shop, the sale starts from what was chosen, beside the sizes that were measured
     await pg.locator('#sheet').getByRole('button', {name:'Close'}).click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
     await pg.getByRole('button', {name:'Back to the shop'}).click();
     await openJobPlain('Brief Customer'); await pg.waitForSelector('#pricingCard');
+    const cc = await pg.locator('#checksCard').innerText();
+    ok(/Hall 3\.20 × 1\.10 m at its longest and widest\. 13 stairs, 0\.86 m wide[\s\S]*?Landing 2\.60 × 1\.90 m at its longest and widest/.test(cc) && await pg.locator('#checksCard .thumbs img, #checksCard .thumb').count() >= 1,
+      'the job shows the hall, the stairs and the landing in words, with the drawing beside them');
     const pc = await pg.locator('#pricingCard').innerText();
-    ok(/Flooring: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Carpet: Hall, stairs and landing[\s\S]*?The 4\.60 m side goes across the roll[\s\S]*?4\.40 m off the 5 m roll, 22\.00 m²/.test(pc) && /Flooring underlay\s+18\.90 m²/.test(pc) && /Carpet underlay\s+19\.78 m²/.test(pc)
-      && /Gripper, round the walls\s+about 17\.80 m/.test(pc) && /Beading, round the walls\s+about 24\.60 m/.test(pc) && /Door bars, carpet to flooring\s+1/.test(pc) && /Door bars, flooring to flooring\s+1/.test(pc)
+    ok(/Flooring: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Carpet: Hall, stairs and landing, hall[\s\S]*?1\.20 m off the 4 m roll, 4\.80 m²/.test(pc) && /Carpet: Hall, stairs and landing, landing[\s\S]*?2\.00 m off the 4 m roll, 8\.00 m²/.test(pc)
+      && /Stairs: Hall, stairs and landing[\s\S]*?13 stairs, 0\.86 m wide, each 25 cm deep and 20 cm high, plus 2 turning steps, 40 cm at the deepest[\s\S]*?Run 7\.35 m, 0\.86 m wide/.test(pc)
+      && /Flooring underlay\s+18\.90 m²/.test(pc) && /Carpet underlay\s+14\.78 m²/.test(pc) && /Work out by hand\s+gripper for Hall, stairs and landing/.test(pc) && /Beading, round the walls\s+about 24\.60 m/.test(pc) && /Door bars, carpet to flooring\s+1/.test(pc) && /Door bars, flooring to flooring\s+1/.test(pc)
       && /Uplift and dispose: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Furniture to move\s+Bedroom 1, Bedroom 2/.test(pc) && /customer is lifting it\s+Hall, stairs and landing/.test(pc) && !/£/.test(pc),
       'the shop gets one summary to price from: floor areas, carpet cuts, underlay, gripper, beading, door bars, uplift and furniture');
     await pg.locator('#sheet').getByRole('button', {name:'Add items'}).click(); await pg.waitForSelector('#saleFromMeasure');
     const fm = await pg.locator('#saleFromMeasure').innerText();
-    ok(/Royale Oak/.test(fm) && /Bedroom 1 3\.50 × 3\.00 m/.test(fm) && /Hall, stairs and landing 4\.60 × 4\.30 m/.test(fm) && /Also to price: Underlay, Door bars/.test(fm), 'making the sale shows what was chosen beside the measured sizes');
+    ok(/Royale Oak/.test(fm) && /Bedroom 1 3\.50 × 3\.00 m/.test(fm) && /Hall, stairs and landing 14\.78 m²/.test(fm) && /4 m roll: 3\.20 m cut, 12\.80 m² of carpet/.test(fm) && /The stairs in Hall, stairs and landing are not in these figures/.test(fm) && /Also to price: Underlay, Door bars/.test(fm), 'making the sale shows what was chosen beside the measured sizes');
     await pg.locator('#saleFromMeasure').getByRole('button', {name:'Add to the sale'}).click();
     await pg.waitForFunction(() => /On the sale/.test(document.querySelector('#saleFromMeasure').innerText), null, {timeout:6000});
     ok(await pg.locator('#modal input[id^="ln-q-"]').count() === 1, 'one tap puts the chosen product on the sale, ready for the quantity');
