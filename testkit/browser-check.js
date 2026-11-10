@@ -533,14 +533,30 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/Choose fitting, delivery or collection/.test(await pg.locator('#modal').innerText()) && !app.store.getDoc('jobs/q1').data.accepted, 'it has to be entered as a fitting, a delivery or a collection');
     await pg.fill('#accLen0', '40');
     ok(/Only 30\.0 m free on our rolls/.test(await pg.locator('#accSt0').innerText()) && await pg.locator('#accStock0').isDisabled(), 'a cut longer than the roll cannot come from stock');
-    await pg.fill('#accLen0', '10.8'); await pg.click('#accStock0'); await pg.click('#accFitting');
+    await pg.fill('#accLen0', '10.8'); await pg.click('#accStock0');
+    await pg.click('#accCollection');
+    ok(/goes straight to be cut, and the customer collects it when it is ready/.test(await pg.locator('#accWhenNote').innerText()) && await pg.locator('#accFitter').isHidden() && await pg.locator('#modal .dstrip').isHidden(), 'a collection needs nothing more: it goes straight to be cut');
+    await pg.click('#accDelivery');
+    ok(/Pick the delivery day/.test(await pg.locator('#accWhenNote').innerText()) && await pg.locator('#modal .dstrip').isVisible(), 'a delivery asks for its day');
+    await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click();
+    ok(/Pick the delivery day/.test(await pg.locator('#modal .banner.bad').last().innerText()) && !app.store.getDoc('jobs/q1').data.accepted, 'and cannot be saved without one');
+    await pg.click('#accFitting');
+    ok(/Choose the fitter\. Their diary comes up to pick the day/.test(await pg.locator('#accWhenNote').innerText()) && /Choose whose diary first/.test(await pg.locator('#modal .dpick').innerText()), 'a fitting asks for the fitter first');
+    await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click();
+    ok(/Choose the fitter\./.test(await pg.locator('#modal .banner.bad').last().innerText()) && !app.store.getDoc('jobs/q1').data.accepted, 'a fitting cannot be saved without a fitter');
+    await pg.selectOption('#accFitter', 'Lennox');
+    await pg.waitForFunction(() => /Lennox’s diary/.test(document.querySelector('#modal .dpick').innerText));
+    await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click();
+    ok(/Pick the fitting day in Lennox’s diary/.test(await pg.locator('#modal .banner.bad').last().innerText()), 'choosing the fitter brings up their diary, and the day has to be picked from it');
+    await (await cellOf(pg.locator('#modal'), day(9))).click();
+    await pg.waitForFunction(() => /Chosen/.test(document.querySelector('#modal .ddetail').innerText));
     await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:8000});
     const a1 = app.store.getDoc('jobs/q1').data, a1l = Object.values(a1.lines).sort((x, y) => x.n - y.n), d1 = shopify.state.lastDraft;
-    ok(a1.type === 'Fitting' && a1.total === 599.99 && a1.accepted.byName === 'Sam' && a1.accepted.total === 599.99 && a1l.length === 7 && a1l[0].unit === 'm' && a1l[0].qty === 108 && a1l[0].w === 4 && a1l[0].hold === 'draft' && /^#D/.test(a1l[0].holdRef) && a1l[0].state === 'todo'
+    ok(a1.type === 'Fitting' && a1.fitter === 'Lennox' && a1.date === day(9) && a1.diary === false && a1.total === 599.99 && a1.accepted.byName === 'Sam' && a1.accepted.total === 599.99 && a1l.length === 7 && a1l[0].unit === 'm' && a1l[0].qty === 108 && a1l[0].w === 4 && a1l[0].hold === 'draft' && /^#D/.test(a1l[0].holdRef) && a1l[0].state === 'todo'
       && a1l[0].variantId === 'gid://shopify/ProductVariant/801' && a1l[0].price === 0 && /Lounge/.test(a1l[0].rooms) && /the stairs/.test(a1l[0].rooms) && a1l.slice(1).map(l => l.title + ' ' + l.price).join('|') === 'Carpet 300|Underlay 80|Gripper 20|Door bars 9.99|Fitting 150|Uplift and disposal 40'
       && a1l.slice(1).every(l => l.hold === 'none') && Object.keys(a1.drafts).length === 1, 'the job becomes a fitting at the quoted total, with the cut off our roll and every line of the quote on it');
     ok(d1.lineItems.length === 7 && d1.lineItems[0].variantId === 'gid://shopify/ProductVariant/801' && d1.lineItems[0].quantity === 108 && !d1.lineItems.some(i => /Carpet cut/.test(i.title || '')) && d1.lineItems[1].title === 'Carpet' && d1.lineItems[1].originalUnitPriceWithCurrency.amount === '300.00'
-      && !!d1.reserveInventoryUntil && d1.customAttributes.some(x => x.key === 'Job type' && x.value === 'Fitting'), 'Shopify reserves the cut on that roll and holds the sale at the quoted figures');
+      && !!d1.reserveInventoryUntil && d1.customAttributes.some(x => x.key === 'Job type' && x.value === 'Fitting') && d1.customAttributes.some(x => x.key === 'Job date' && x.value === day(9)), 'Shopify reserves the cut on that roll and holds the sale at the quoted figures');
     await pg.waitForSelector('#cutBanner');
     ok(/On the cutting list\. 10\.8 m of Silver twist carpet · Roll R-801 · 4m wide/.test(await pg.locator('#cutBanner').innerText()) && /To cut/.test(await pg.locator('#sheet .panel-head').innerText()) && /The customer said yes/.test(await pg.locator('#quoteAccepted').innerText())
       && await pg.locator('#quoteCard').getByRole('button', {name:'Customer said yes'}).count() === 0, 'the job says it is on the cutting list, and the quote shows as accepted');
@@ -550,8 +566,8 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
       'the dashboard shows it under To cut, and it has left Quotes sent');
     await pg.locator('#cutSec').getByRole('button', {name:'Open the cutting list'}).click(); await pg.waitForSelector('#cutList');
     const crow = pg.locator('#cutList .row', {hasText:'Quentin Quote'});
-    ok(/10\.8 m/.test(await crow.innerText()) && /Silver twist carpet · Roll R-801 · 4m wide/.test(await crow.innerText()) && /Fitting/.test(await crow.innerText()) && /Rooms: Lounge/.test(await crow.innerText()) && !/£/.test(await pg.locator('#cutList').innerText()),
-      'the warehouse’s cutting list shows the length, the roll, who it is for and the rooms, and no prices');
+    ok(/10\.8 m/.test(await crow.innerText()) && /Silver twist carpet · Roll R-801 · 4m wide/.test(await crow.innerText()) && /Fitting with Lennox/.test(await crow.innerText()) && /Rooms: Lounge/.test(await crow.innerText()) && !/£/.test(await pg.locator('#cutList').innerText()),
+      'the warehouse’s cutting list shows the length, the roll, who it is for, the fitter and the day, the rooms, and no prices');
     await crow.getByRole('button', {name:'Cut done'}).click(); await pg.waitForSelector('#cutForm');
     await pg.locator('#modal').getByRole('button', {name:'Save: it is cut'}).click();
     ok(/Say where the cut piece is now/.test(await pg.locator('#modal').innerText()), 'a cut cannot be marked done without saying where the piece is');
@@ -565,7 +581,11 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.waitForFunction(() => /In stock/.test(document.querySelector('#accSt0').innerText), null, {timeout:8000});
     await pg.click('#accOrder0');
     ok(/It goes under To order\. The job is held there until the order details and the arrival date are in/.test(await pg.locator('#accHint0').innerText()), 'choosing to order it in says the job will be held for the order details');
-    await pg.click('#accDelivery'); await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:8000});
+    await pg.click('#accFitting'); await pg.selectOption('#accFitter', 'Lennox');
+    ok(/Choose the fitter\. The day is picked once the order details and the arrival date are in/.test(await pg.locator('#accWhenNote').innerText()) && await pg.locator('#modal .dstrip').isHidden() && await pg.locator('#accFitter').isVisible(), 'a fitting whose carpet is ordered in still gets its fitter, and its day waits for the arrival date');
+    await pg.click('#accDelivery');
+    ok(/The delivery day is picked once the order details and the arrival date are in/.test(await pg.locator('#accWhenNote').innerText()) && await pg.locator('#modal .dstrip').isHidden(), 'a delivery whose carpet is ordered in is not asked for a day yet');
+    await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:8000});
     const o1 = app.store.getDoc('jobs/q2').data, o1l = Object.values(o1.lines).find(l => l.unit === 'm');
     ok(o1.type === 'Delivery' && o1.total === 320 && o1l.hold === 'supplier' && o1l.state === 'todo' && o1l.qty === 31 && o1l.variantId === '' && o1l.title === 'Silver twist carpet · 4m wide' && !shopify.state.lastDraft.reserveInventoryUntil && shopify.state.lastDraft.lineItems.length === 2,
       'carpet that is ordered in takes nothing off our rolls, and the sale is still held in Shopify at the quoted figures');
@@ -583,21 +603,32 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/Enter who it is ordered from/.test(await pg.locator('#modal').innerText()) && /Enter the day it is due to arrive/.test(await pg.locator('#modal').innerText()), 'the order details need the supplier and the arrival date');
     await pg.fill('#ordSupplier', 'Carpet Co'); await pg.fill('#ordRef', 'PO-77'); await pg.click('#ordIn10');
     const etaDay = await pg.evaluate(() => window.IFDLogic.addDays(window.IFDLogic.todayISO(), 10)), etaTxt = await pg.evaluate(d => window.IFDLogic.fmtDay(d), etaDay);
-    await pg.locator('#modal').getByRole('button', {name:'Save the order details'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
+    await pg.locator('#modal').getByRole('button', {name:'Save the order details'}).click(); await pg.waitForSelector('#dayForm', {timeout:6000});
+    ok((await pg.locator('#dayForm').innerText()).includes('The carpet is due in ' + etaTxt + ', so pick that day or a later one'), 'as soon as the arrival date is in, it asks for the delivery day');
+    await pg.locator('#modal').getByRole('button', {name:'Not yet'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
     const o2l = Object.values(app.store.getDoc('jobs/q2').data.lines).find(l => l.unit === 'm');
     await pg.waitForSelector('#onOrderSec');
     ok(o2l.state === 'ordered' && o2l.supplier === 'Carpet Co' && o2l.orderRef === 'PO-77' && o2l.due === etaDay && o2l.orderedBy === 'Sam' && !(await pg.locator('#orderSec').count())
       && (await pg.locator('#onOrderSec .row', {hasText:'Olive Orderin'}).innerText()).includes('Due in ' + etaTxt) && /from Carpet Co, order PO-77/.test(await pg.locator('#onOrderSec .row', {hasText:'Olive Orderin'}).innerText()),
       'once the order details are in it moves to On order, showing when it is due');
+    const oo = pg.locator('#onOrderSec .row', {hasText:'Olive Orderin'});
+    ok(/No day picked yet/.test(await oo.innerText()), 'and it says no day has been picked yet');
+    await oo.getByRole('button', {name:'Pick the day'}).click(); await pg.waitForSelector('#dayForm');
+    await pg.evaluate(d => { const i = document.querySelector('#dayDate'); i.value = d; i.dispatchEvent(new Event('change', {bubbles:true})); }, day(3));
+    await pg.waitForFunction(() => /The carpet is not due in until/.test(document.body.innerText), null, {timeout:6000});
+    await pg.locator('#modal').getByRole('button', {name:'Save the day'}).click();
+    ok(/Pick the delivery day/.test(await pg.locator('#modal .banner.bad').last().innerText()) && app.store.getDoc('jobs/q2').data.date === '', 'the day cannot be before the carpet is due in');
+    const dayAfter = await pg.evaluate(d => window.IFDLogic.addDays(d, 1), etaDay);
+    await (await cellOf(pg.locator('#modal'), dayAfter)).click();
+    await pg.waitForFunction(() => /Chosen/.test(document.querySelector('#modal .ddetail').innerText));
+    await pg.locator('#modal').getByRole('button', {name:'Save the day'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
+    ok(app.store.getDoc('jobs/q2').data.date === dayAfter, 'and is saved once it is on or after the arrival date');
+    await pg.waitForFunction(() => /Delivery (Mon|Tue|Wed|Thu|Fri|Sat|Sun) /.test(document.querySelector('#onOrderSec').innerText), null, {timeout:6000});
     await openJobPlain('Olive Orderin'); await pg.waitForSelector('#quoteCard');
     ok(/On order/.test(await pg.locator('#sheet .panel-head').innerText()) && !(await pg.locator('#orderBanner').count()), 'the job is no longer held');
     await pg.evaluate(d => { const i = document.querySelector('#jobDate'); i.value = d; i.dispatchEvent(new Event('change', {bubbles:true})); }, day(3));
     await pg.waitForFunction(() => /is not due in until/.test(document.body.innerText), null, {timeout:6000});
-    ok(app.store.getDoc('jobs/q2').data.date === '', 'it cannot be dated for before the carpet is due in');
-    await pg.evaluate(d => { const i = document.querySelector('#jobDate'); i.value = d; i.dispatchEvent(new Event('change', {bubbles:true})); }, etaDay);
-    await pg.waitForFunction(d => document.querySelector('#jobDate') && document.querySelector('#jobDate').value === d, etaDay, {timeout:6000});
-    await pg.waitForTimeout(300);
-    ok(app.store.getDoc('jobs/q2').data.date === etaDay, 'and can be dated from the day it arrives');
+    ok(app.store.getDoc('jobs/q2').data.date === dayAfter, 'on the job itself the day cannot be moved to before the carpet is due in either');
     await pg.locator('#sheet').getByRole('button', {name:'It has arrived: book it in'}).click(); await pg.selectOption('#allocBay', 'W4-01'); await pg.locator('#modal').getByRole('button', {name:'Save'}).click();
     await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
     const o3l = Object.values(app.store.getDoc('jobs/q2').data.lines).find(l => l.unit === 'm');

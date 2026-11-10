@@ -1663,17 +1663,19 @@ function orderRow(job){
   return h('div', {class:'row static act'},
     h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
       L.orderNeeded(job).map(l => h('div', {class:'sub', text:'To order: ' + L.fmtQty(l.qty, l.unit) + ' of ' + l.title})),
-      h('div', {class:'meta'}, chip(job.type || 'No type'), c.phone ? chip(c.phone) : null, chip('Held here until the order details and arrival date are in', 'bad'))),
+      h('div', {class:'meta'}, chip((job.type || 'No type') + (job.fitter ? ' with ' + job.fitter : '')), c.phone ? chip(c.phone) : null, chip('Held here until the order details and arrival date are in', 'bad'))),
     h('div', {class:'bar'}, btn('Enter order details', () => orderDetailsFor(job), 'sm pri'), btn('Open', () => openSheet(job.id), 'sm')));
 }
 function onOrderJobs(){ const due = j => L.onOrder(j).map(l => l.due).sort()[0] || ''; return openJobs().filter(j => !L.orderNeeded(j).length && L.onOrder(j).length).sort((a, b) => due(a).localeCompare(due(b))); }
 function onOrderRow(job){
-  const c = job.customer || {}, ls = L.onOrder(job), due = ls.map(l => l.due).sort()[0], late = due < L.todayISO();
+  const c = job.customer || {}, ls = L.onOrder(job), due = ls.map(l => l.due).sort()[0], late = due < L.todayISO(), noDay = job.type !== 'Collection' && !L.validISO(job.date);
   return h('div', {class:'row static'}, dateBlock({date:due, status:'open'}),
     h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
       ls.map(l => h('div', {class:'sub', text:L.fmtQty(l.qty, l.unit) + ' of ' + l.title + ' from ' + (l.supplier || 'the supplier') + (l.orderRef ? ', order ' + l.orderRef : '')})),
-      h('div', {class:'meta'}, chip(job.type || 'No type'), chip(late ? 'Was due ' + L.fmtDay(due) + ': chase the supplier' : 'Due in ' + L.fmtDay(due), late ? 'bad' : 'info'))),
-    h('div', {class:'bar'}, btn('It has arrived', () => { const l = ls[0]; if (l.deliveryId && S.deliveries.has(l.deliveryId)) openDelivery(l.deliveryId); else allocDialog(job, l, 'bay'); }, 'sm pri'), btn('Open', () => openSheet(job.id), 'sm')));
+      h('div', {class:'meta'}, chip(job.type || 'No type'), chip(late ? 'Was due ' + L.fmtDay(due) + ': chase the supplier' : 'Due in ' + L.fmtDay(due), late ? 'bad' : 'info'),
+        noDay ? chip((job.fitter ? 'With ' + job.fitter + ', no' : 'No') + ' day picked yet', 'bad') : L.validISO(job.date) ? chip(job.type + ' ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : ''), 'ok') : null)),
+    h('div', {class:'bar'}, noDay ? btn('Pick the day', () => dayDialog(job), 'sm pri') : null,
+      btn('It has arrived', () => { const l = ls[0]; if (l.deliveryId && S.deliveries.has(l.deliveryId)) openDelivery(l.deliveryId); else allocDialog(job, l, 'bay'); }, 'sm' + (noDay ? '' : ' pri')), btn('Open', () => openSheet(job.id), 'sm')));
 }
 /* the warehouse's cutting list: dated jobs first, then in the order the customers said yes */
 function cutAll(){
@@ -1686,7 +1688,7 @@ function cutRow(x, brief){
   return h('div', {class:'row static cut' + (held ? ' held' : '')},
     h('div', {class:'cutlen'}, h('b', {class:'num', text:(Number(l.qty) / 10).toFixed(1) + ' m'}), h('small', {text:l.w ? 'off the ' + l.w + ' m roll' : 'to cut'})),
     h('div', {class:'grow'}, h('div', {class:'who', text:l.title}),
-      h('div', {class:'sub', text:'For ' + (c.name || 'No name') + '  ' + (j.ref || '') + ' · ' + (j.type || 'No type') + ' · ' + (L.validISO(j.date) ? L.fmtDay(j.date) : 'no date yet')}),
+      h('div', {class:'sub', text:'For ' + (c.name || 'No name') + '  ' + (j.ref || '') + ' · ' + (j.type || 'No type') + (j.fitter ? ' with ' + j.fitter : '') + ' · ' + (L.validISO(j.date) ? L.fmtDay(j.date) : j.type === 'Collection' ? 'collects when ready' : 'no date yet')}),
       l.rooms ? h('div', {class:'sub', text:'Rooms: ' + l.rooms}) : null,
       held ? h('p', {class:'why', text:'Do not cut yet. ' + x.hold[0]}) : null,
       h('div', {class:'meta'}, l.holdRef ? chip('Reserved in Shopify ' + l.holdRef) : null, l.state === 'allocated' && l.bay ? bayTag(l.bay) : null)),
@@ -3012,6 +3014,59 @@ function chaseDialog(job){
     h('p', {class:'muted', text:'Ring them, see what can be done, then say what happened.'}),
     box, field('Notes', note), field('Your name', who), s.box), [btn('Cancel', closeModal), save], true));
 }
+/* ---------- who and when, for a fitting or a delivery ----------
+   Choosing the person brings up their own diary to pick the day from. A fitting has to have a fitter. */
+function whenPicker(job, P, getType, init){
+  const c = job.customer || {}, i0 = init || {};
+  const date = h('input', {class:'in', id:P + 'Date', type:'date', value:L.validISO(i0.date) ? i0.date : ''});
+  const blank = h('option', {value:''}), sel = h('select', {class:'in', id:P + 'Fitter'}, blank), lab = h('span', {});
+  const people = S.fitters.slice(); if (i0.fitter && people.indexOf(i0.fitter) === -1) people.unshift(i0.fitter);
+  people.forEach(f => sel.append(h('option', {value:f, text:f, selected:f === i0.fitter})));
+  const o = {install:true, clear:true, skipJob:job.id, needPerson:false, hsl:() => getType() === 'Fitting' && L.hasHSL(job), person:() => sel.value, post:() => c.postcode || ''};
+  const strip = dayStrip(date, o), who = h('label', {class:'fld'}, lab, sel);
+  let min = '';
+  const check = d => {
+    if (!d) return '';
+    const f = sel.value, fit = getType() === 'Fitting';
+    return (min && d < min ? 'The carpet is not due in until ' + L.fmtDay(min) + '. Pick that day or a later one.' : '') || offMsg(f, d) || (fit && f ? hslMsg(Object.assign({}, job, {type:'Fitting', fitter:f, date:d}), f, d) : '');
+  };
+  date.addEventListener('change', () => { const m = check(date.value); if (m){ toast(m, true); date.value = ''; strip.refresh(); } });
+  sel.addEventListener('change', () => { const m = check(date.value); if (m){ toast(m, true); date.value = ''; } strip.refresh(); });
+  function refresh(){
+    const fit = getType() === 'Fitting';
+    lab.textContent = fit ? 'Fitter' : 'Who is delivering, if it is decided';
+    blank.textContent = fit ? 'Choose the fitter' : 'Not decided yet';
+    o.needPerson = fit;
+    strip.refresh();
+  }
+  refresh();
+  return {who:who, days:strip.node, refresh:refresh, fitter:() => sel.value, date:() => (L.validISO(date.value) ? date.value : ''),
+    setMin:m => { min = L.validISO(m) ? m : ''; if (min) strip.show(min); }, clear:() => { if (date.value){ date.value = ''; strip.refresh(); } },
+    problems:needDay => {
+      const fit = getType() === 'Fitting', out = [], f = sel.value, d = L.validISO(date.value) ? date.value : '';
+      if (fit && !f) out.push('Choose the fitter.');
+      if (needDay && !d) out.push(fit ? (f ? 'Pick the fitting day in ' + f + '’s diary.' : 'Then pick the fitting day in their diary.') : 'Pick the delivery day.');
+      const m = check(d); if (m) out.push(m);
+      return out;
+    }};
+}
+/* the day for a fitting or a delivery, picked once the carpet's arrival date is known, or changed later */
+function dayDialog(job){
+  if (!needDb()) return;
+  const s = sayer(), c = job.customer || {}, fit = job.type === 'Fitting', eta = L.onOrder(job).map(l => l.due).sort().pop() || '';
+  const when = whenPicker(job, 'day', () => job.type, {fitter:job.fitter, date:L.validISO(job.date) ? job.date : ''});
+  when.setMin(eta);
+  const save = btn('Save the day', async () => {
+    const errs = when.problems(true); if (errs.length){ s.say(errs.join(' '), true); return; }
+    const p = {date:when.date(), fitter:when.fitter()};
+    save.disabled = true;
+    try { await patchJob(job.id, p, (fit ? 'Fitting' : 'Delivery') + ' set for ' + L.fmtDay(p.date) + (p.fitter ? ' with ' + p.fitter : '')); closeModal(); toast('Day saved'); }
+    catch (e){ save.disabled = false; dbFail(e); }
+  }, 'pri');
+  openModal(dlg(fit ? 'Pick the fitting day' : 'Pick the delivery day', h('div', {class:'sec', id:'dayForm'},
+    h('p', {}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '') + '. '}), eta ? 'The carpet is due in ' + L.fmtDay(eta) + ', so pick that day or a later one.' : ''),
+    when.who, when.days, s.box), [btn('Not yet', closeModal), save]));
+}
 /* ---------- the customer said yes ----------
    The job becomes a fitting, a delivery or a collection, and the carpet is allocated there and then. From our own rolls
    it is reserved in Shopify and goes to the warehouse's cutting list. Otherwise it is ordered in, and the job is held
@@ -3057,15 +3112,29 @@ function acceptDialog(job){
       else { const f = L.levelFigures(pv.v); it.pv = pv; it.free = f.total.available; it.tracked = f.tracked; it.look = 'ok'; }
     } catch (e){ it.look = 'fail'; it.err = explain(e); }
     if (it.look !== 'fail' && (!it.how || (it.how === 'stock' && !canStock(it)))) it.how = canStock(it) ? 'stock' : unitsOf10(it) > 0 || it.look === 'none' ? 'order' : '';
-    paint(it);
+    paint(it); drawWhen();
   }
   const typeSeg = h('div', {class:'seg', id:'accType'});
-  const drawType = () => { typeSeg.replaceChildren(); L.TYPES.forEach(t => typeSeg.append(h('button', {type:'button', id:'acc' + t, class:F.type === t ? 'on' : '', onclick:() => { F.type = t; drawType(); }}, t))); };
-  drawType();
+  const when = whenPicker(job, 'acc', () => F.type, {fitter:job.fitter || '', date:''}), whenNote = h('p', {class:'small', id:'accWhenNote', style:'font-weight:600'});
+  const anyOrder = () => items.some(it => it.how === 'order');
+  /* a collection needs nothing more, a delivery needs its day, a fitting needs its fitter and then its day.
+     Carpet that is being ordered in has no day yet: that is picked once its arrival date is known. */
+  function drawWhen(){
+    const t = F.type, ord = anyOrder(), fit = t === 'Fitting', del = t === 'Delivery';
+    when.who.hidden = !(fit || (del && !ord)); when.days.hidden = !((fit || del) && !ord);
+    if (ord || !(fit || del)) when.clear();
+    whenNote.hidden = !t;
+    whenNote.textContent = t === 'Collection' ? (ord ? 'Nothing more to pick. The customer collects it once it has arrived.' : 'Nothing more to pick. The carpet goes straight to be cut, and the customer collects it when it is ready.')
+      : del ? (ord ? 'The delivery day is picked once the order details and the arrival date are in.' : 'Pick the delivery day.')
+      : fit ? (ord ? 'Choose the fitter. The day is picked once the order details and the arrival date are in.' : 'Choose the fitter. Their diary comes up to pick the day.') : '';
+    when.refresh();
+  }
+  const drawType = () => { typeSeg.replaceChildren(); L.TYPES.forEach(t => typeSeg.append(h('button', {type:'button', id:'acc' + t, class:F.type === t ? 'on' : '', onclick:() => { F.type = t; drawType(); drawWhen(); }}, t))); };
+  drawType(); drawWhen();
   const itemsBox = h('div', {id:'accItems'});
   items.forEach((it, i) => {
     const st = h('p', {class:'st', id:'accSt' + i}), hint = h('p', {class:'small muted', id:'accHint' + i});
-    const stock = h('button', {type:'button', id:'accStock' + i, onclick:() => { if (canStock(it)){ it.how = 'stock'; paint(it); } }}, 'From our stock'), order = h('button', {type:'button', id:'accOrder' + i, onclick:() => { it.how = 'order'; paint(it); }}, 'Order it in');
+    const stock = h('button', {type:'button', id:'accStock' + i, onclick:() => { if (canStock(it)){ it.how = 'stock'; paint(it); drawWhen(); } }}, 'From our stock'), order = h('button', {type:'button', id:'accOrder' + i, onclick:() => { it.how = 'order'; paint(it); drawWhen(); }}, 'Order it in');
     const len = h('input', {class:'in', id:'accLen' + i, type:'number', min:'0', step:'0.1', inputmode:'decimal', value:it.len, 'aria-label':'Length to cut in metres for ' + label(it),
       oninput:e => { it.len = e.target.value; if (it.how === 'stock' && !canStock(it)) it.how = ''; paint(it); }});
     it.el = {st:st, hint:hint, stock:stock, order:order};
@@ -3086,6 +3155,7 @@ function acceptDialog(job){
     if (!F.saved){
       const errs = [];
       if (!F.type) errs.push('Choose fitting, delivery or collection.');
+      else if (F.type !== 'Collection') when.problems(!anyOrder()).forEach(e => errs.push(e));
       items.forEach(it => {
         const u = unitsOf10(it);
         if (!(u > 0)) errs.push('Type the length to cut for ' + label(it) + '.');
@@ -3101,15 +3171,16 @@ function acceptDialog(job){
       return {key:it.key, kind:'stock', onQuote:true, variantId:stock ? pv.v.id : '', title:stock ? variantTitle(pv.p, pv.v) : (pv ? pv.p.title : it.ch.title) + ' · ' + it.w + 'm wide', sub:'', unit:'m', roll:true, widthM:it.w, cov:0, ppm:0,
         unitPrice:stock ? Number(pv.v.price) || 0 : 0, price:0, qty:String(Number(it.len)), available:it.free, tracked:it.tracked, source:stock ? 'stock' : 'supplier', supplier:'', due:'', rooms:it.names.concat(it.stairs.length ? ['the stairs'] : []).join(', ')}; })
       .concat(L.quoteLines(q).map(l => ({key:uid(), kind:'other', title:l.label, price:l.price, qty:1})));
-    const ctx = {customer:c, lines:lines, note:'Quote accepted. Job ' + (job.ref || '') + ' in IFD Shop Operations. The prices are the quote the customer agreed.', type:F.type, date:''};
+    const day = F.type === 'Collection' || anyOrder() ? '' : when.date(), fitter = F.type === 'Collection' || (F.type === 'Delivery' && anyOrder()) ? '' : when.fitter();
+    const ctx = {customer:c, lines:lines, note:'Quote accepted. Job ' + (job.ref || '') + ' in IFD Shop Operations. The prices are the quote the customer agreed.', type:F.type, date:day};
     try {
       if (!F.saved){ F.saved = await reserveInShopify(ctx, s.say, true); dialog.querySelectorAll('input,select,textarea,button').forEach(el => { if (el !== save) el.disabled = true; }); }
       s.say('Saving the job');
       const draft = F.saved.draft, startN = L.linesOf(job).reduce((mx, l) => Math.max(mx, l.n || 0), 0), total = L.quoteTotal(q);
-      const patch = {type:F.type, lines:toJobLines(lines, startN, draft ? draft.name : ''), total:total, accepted:{at:nowISO(), by:S.me.id || '', byName:name, q:q.k, total:total, type:F.type}};
+      const patch = {type:F.type, fitter:fitter, date:day, slot:'', diary:false, lines:toJobLines(lines, startN, draft ? draft.name : ''), total:total, accepted:{at:nowISO(), by:S.me.id || '', byName:name, q:q.k, total:total, type:F.type}};
       if (draft){ patch.drafts = {}; patch.drafts[L.gidNum(draft.id)] = {id:draft.id, name:draft.name, closed:false}; }
       const say = list => list.map(it => Number(it.len).toFixed(1) + ' m of ' + label(it)).join(', '), fromStock = items.filter(it => it.how === 'stock'), toOrder = items.filter(it => it.how === 'order');
-      await patchJob(job.id, patch, 'The customer said yes to the quote of ' + L.money(total) + '. Taken by ' + name + '. ' + F.type + '.'
+      await patchJob(job.id, patch, 'The customer said yes to the quote of ' + L.money(total) + '. Taken by ' + name + '. ' + F.type + (fitter ? ' with ' + fitter : '') + (day ? ' on ' + L.fmtDay(day) : F.type === 'Collection' ? '' : ', day to be picked once the carpet’s arrival date is in') + '.'
         + (fromStock.length ? ' From our stock, reserved in Shopify' + (draft ? ' on draft ' + draft.name : '') + ' and sent to the cutting list: ' + say(fromStock) + '.' : '') + (toOrder.length ? ' To be ordered in: ' + say(toOrder) + '.' : ''));
       closeModal(); toast(F.saved.warn || (toOrder.length ? 'Saved. Now put the order in and enter its details' : fromStock.length ? 'Saved. The carpet is on the cutting list' : 'Saved'), !!F.saved.warn);
     } catch (e){
@@ -3120,7 +3191,7 @@ function acceptDialog(job){
   }
   const dialog = dlg('The customer said yes', h('div', {class:'sec', id:'acceptForm'},
     h('div', {class:'card tight'}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '')}), h('p', {class:'small muted', text:'Quote of ' + L.money(L.quoteTotal(q)) + ' from ' + (q.byName || 'the shop') + '.'})),
-    h('div', {class:'card'}, h('h3', {}, 'How are they getting it?'), typeSeg),
+    h('div', {class:'card'}, h('h3', {}, 'How are they getting it?'), typeSeg, whenNote, when.who, when.days),
     h('div', {class:'card'}, h('h3', {}, 'The carpet'),
       takeDone() ? null : h('p', {class:'small muted', text:'Awaiting opening stocktake: the stock figures shown here are not confirmed yet.'}),
       items.length ? itemsBox : h('p', {class:'muted', id:'accNone', text:carpetRooms.length ? 'No carpet was picked for this job when the measure was booked, so there is nothing to allocate here. Add it on the job with Add items once this is saved.' : 'There is no carpet on this job.'}),
@@ -3153,8 +3224,13 @@ function orderDetailsDialog(job, l){
     myName(name);
     const p = {lines:{}}; p.lines[l.k] = {state:'ordered', supplier:su, orderRef:ref.value.trim(), due:d, orderedAt:nowISO(), orderedBy:name, picked:false, checked:false};
     save.disabled = true;
-    try { await patchJob(job.id, p, L.fmtQty(l.qty, l.unit) + ' of ' + l.title + ' ordered from ' + su + (ref.value.trim() ? ', order ' + ref.value.trim() : '') + ', due in ' + L.fmtDay(d) + '. Entered by ' + name); closeModal(); toast('Order details saved. Due in ' + L.fmtDay(d)); }
-    catch (e){ save.disabled = false; dbFail(e); }
+    try {
+      await patchJob(job.id, p, L.fmtQty(l.qty, l.unit) + ' of ' + l.title + ' ordered from ' + su + (ref.value.trim() ? ', order ' + ref.value.trim() : '') + ', due in ' + L.fmtDay(d) + '. Entered by ' + name);
+      closeModal(); toast('Order details saved. Due in ' + L.fmtDay(d));
+      /* the arrival date is known now, so a fitting or a delivery can be given its day */
+      const j2 = Object.assign({}, job, {lines:Object.assign({}, job.lines)}); j2.lines[l.k] = Object.assign({}, job.lines[l.k], p.lines[l.k]);
+      if (j2.type !== 'Collection' && !L.validISO(j2.date) && !L.orderNeeded(j2).length) dayDialog(j2);
+    } catch (e){ save.disabled = false; dbFail(e); }
   }, 'pri');
   openModal(dlg('Order details', h('div', {class:'sec', id:'ordForm'},
     h('p', {}, h('b', {text:L.fmtQty(l.qty, l.unit) + ' of ' + l.title}), ' for ' + ((job.customer || {}).name || 'this job') + ' ' + (job.ref || '') + '.'),
