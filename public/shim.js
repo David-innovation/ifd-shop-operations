@@ -25,7 +25,13 @@
     es.addEventListener('error', () => { if (es && es.readyState === 2){ es = null; clearTimeout(retry); retry = setTimeout(listen, 3000); } });
   }
   /* ---- a newer build of the screens is running: bring this screen up to date without losing anything half typed ---- */
-  let stale = false;
+  let stale = false, reloading = false;
+  /* only refresh once the server is answering again, so a restart never leaves the screen on an error page */
+  function safeReload(){
+    if (reloading) return; reloading = true;
+    const again = () => { reloading = false; setTimeout(safeReload, 3000); };
+    fetch('/', {cache:'no-store', credentials:'same-origin'}).then(r => { if (r.ok) location.reload(); else again(); }, again);
+  }
   function outOfDate(){
     if (stale) return; stale = true;
     const idle = () => {
@@ -33,15 +39,15 @@
       const typing = a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'button';
       return (!m || m.hidden) && (!sh || sh.hidden) && !typing;
     };
-    if (idle()){ location.reload(); return; }
+    if (idle()){ safeReload(); return; }
     const bar = document.createElement('div'), b = document.createElement('button');
     bar.id = 'staleBar'; bar.setAttribute('role', 'status');
     bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483000;background:#1b5683;color:#fff;padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;font:600 15px system-ui,sans-serif';
     b.type = 'button'; b.textContent = 'Refresh now'; b.style.cssText = 'font:inherit;border:0;border-radius:8px;padding:8px 14px;background:#fff;color:#14181a;cursor:pointer';
-    b.addEventListener('click', () => location.reload());
+    b.addEventListener('click', safeReload);
     bar.append('This screen has been updated. It refreshes by itself when you close what you are working on.', b);
     document.body.appendChild(bar);
-    setInterval(() => { if (idle()) location.reload(); }, 2000);
+    setInterval(() => { if (idle()) safeReload(); }, 2000);
   }
   function watch(coll, read, next, err){
     listen(); let seq = 0, live = true;
