@@ -3002,7 +3002,7 @@ function hslInputs(P, r, name, onChange){
   const x0 = L.hslOf(r) || {}, known = !!L.hslOf(r), nm = String(name || '').toLowerCase(), all = /\bh\W{0,2}s\W{0,2}l\b/.test(nm);
   const has = {hall:/hall/.test(nm), stairs:/stair/.test(nm), landing:/landing/.test(nm)}, any = has.hall || has.stairs || has.landing;
   const first = k => (known ? !!(x0[k] && x0[k].on) : all ? true : any ? has[k] : null);
-  const st = {hall:first('hall'), stairs:first('stairs'), landing:first('landing'), turn:known && x0.stairs && x0.stairs.on ? Number(x0.stairs.winders) > 0 : null, draw:{hall:false, landing:false}};
+  const st = {hall:first('hall'), stairs:first('stairs'), landing:first('landing'), turn:known && x0.stairs && x0.stairs.on ? Number(x0.stairs.winders) > 0 : null, draw:{hall:false, landing:true}};
   const fire = () => { if (onChange) onChange(); };
   const mk = (id, v, ph, step, mode) => h('input', {class:'in', id:P + id, type:'number', min:'0', step:step || '0.01', inputmode:mode || 'decimal', placeholder:ph, value:Number(v) > 0 ? Number(v) : '', oninput:() => { marks(); fire(); }});
   const o = k => x0[k] || {};
@@ -3030,7 +3030,7 @@ function hslInputs(P, r, name, onChange){
   const shape = (k, id, len, wid) => [h('div', {class:'grid2'}, field('At its longest (m)', len), field('At its widest (m)', wid)),
     h('p', {class:'small muted', text:'Give the longest and the widest it gets. A piece that size is ordered and the fitter cuts it down to the shape on the day.'}),
     !pads ? h('p', {class:'small muted', text:'Drawings cannot be saved from this login.'})
-      : st.draw[k] ? pads[k].node : h('div', {class:'bar'}, btn('Draw the ' + k + ' and write its sizes on', () => { st.draw[k] = true; draw(); }, 'sm', {id:P + id + 'Draw'}))];
+      : st.draw[k] ? [h('p', {class:'subh', text:'Drawing of the ' + k}), pads[k].node] : h('div', {class:'bar'}, btn('Draw the ' + k + ' and write its sizes on', () => { st.draw[k] = true; draw(); }, 'sm', {id:P + id + 'Draw'}))];
   function draw(){
     box.replaceChildren();
     const part = (k, title, q, body) => { stills[k] = h('p', {class:'still', hidden:true}); return h('div', {class:'hpart'}, h('b', {class:'ht', text:title}), q, st[k] ? body : null, stills[k]); };
@@ -3244,8 +3244,8 @@ function findingsDialog(job, v){
       x.isNew ? field(x.seed ? 'Room to measure' : 'New room', x.nameIn) : h('div', {class:'ln-top'}, h('b', {text:x.name}), chip(L.ROOM_STATUS[x.old.status] || 'Unverified', L.ROOM_TONE[x.old.status] || 'warn')),
       !x.isNew && x.old.note ? h('p', {class:'small muted', text:x.old.note}) : null,
       wantC ? h('p', {class:'small muted', text:'For: ' + wantC.title + (wantC.w ? ' (' + wantC.w + ' m wide roll)' : '')}) : null,
-      x.spec ? [h('div', {class:'bar'}, i > 0 && R[i - 1].spec ? btn('Same answers as the room above', () => x.spec.copy(R[i - 1].spec.state), 'sm') : null, swap), x.spec.head] : null,
-      x.sz.node, was, x.spec ? [x.spec.node, needMsg] : null, h('label', {class:'tick'}, x.ok, 'I checked this room and these sizes are right'));
+      x.spec ? [h('div', {class:'bar'}, i > 0 && R[i - 1].spec ? btn('Same answers as the room above', () => x.spec.copy(R[i - 1].spec.state), 'sm') : null, x.isHsl ? null : swap), x.spec.head] : null,
+      x.sz.node, x.isHsl && swap ? h('div', {class:'bar'}, h('span', {class:'small muted', text:'No stairs or landing here?'}), swap) : null, was, x.spec ? [x.spec.node, needMsg] : null, h('label', {class:'tick'}, x.ok, 'I checked this room and these sizes are right'));
     return card;
   }
   R.forEach((x, i) => roomsBox.append(roomCard(x, i)));
