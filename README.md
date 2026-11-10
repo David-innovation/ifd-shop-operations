@@ -3,7 +3,7 @@
 One system for Innovation Flooring Direct: jobs, stock allocation, the diary, measures and site checks, deliveries and the fitters' own pages.
 Shopify stays the single stock authority. This system never keeps a second stock count.
 
-**Status: built and tested on a stand-in Shopify. Not deployed yet. Nothing here is live.**
+**Status: live on Render since 10 November 2026 and connected to the Innovation Flooring Direct store. Shop screens only so far: fitters and estimators cannot sign in to their own pages yet, and texts are not switched on.**
 
 ## How it fits together
 

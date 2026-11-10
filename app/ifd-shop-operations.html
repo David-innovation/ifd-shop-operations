@@ -100,6 +100,11 @@ textarea.in{min-height:84px;resize:vertical}
 .tile span{font-weight:600}
 .tile small{color:var(--muted);font-size:13px}
 .tile.hot{border-color:var(--bad);background:var(--bad-bg)} .tile.hot b{color:var(--bad)}
+.actnow h2{color:var(--bad)} .actnow .list{border:1.5px solid var(--bad)}
+.row.act{background:var(--bad-bg);align-items:flex-start}
+.row.act .why{margin:4px 0 2px;font-weight:600;overflow-wrap:anywhere}
+.actnone{margin:0;color:var(--muted);font-size:13px} .actnone b{color:var(--ink);margin-right:6px}
+.card.backcard{border-color:var(--bad);background:var(--bad-bg)}
 
 /* lists */
 .list{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -600,7 +605,8 @@ window.IFDLogic = (function(){
   }
   /* the diary lock: a job only goes in the diary when every item is in a numbered bay and its checks are done */
   function canConfirmDiary(job, off){
-    var why = [];
+    var why = [], bo = backOpen(job);
+    if (bo) why.push('Sent back to the shop by ' + (bo.fitter || 'the fitter') + '. Deal with that first.');
     offClashes(job, off).forEach(function(c){ if (!c.v) why.push(c.who + ' cannot work on ' + fmtDay(c.date) + '.'); });
     if (!linesOf(job).length) why.push('Nothing has been sold on this job yet.');
     if (!validISO(job.date)) why.push('Set a date first.');
@@ -615,6 +621,7 @@ window.IFDLogic = (function(){
   }
   function canComplete(job){
     var why = [];
+    if (backOpen(job)) why.push('The fitter sent this back to the shop. Deal with that first.');
     if (!linesOf(job).length) why.push('Nothing has been sold on this job yet.');
     checksOutstanding(job).forEach(function(t){ why.push(t); });
     stockLines(job).forEach(function(l){
@@ -642,11 +649,25 @@ window.IFDLogic = (function(){
     var v = (job && job.visits) || {};
     return Object.keys(v).map(function(k){ return v[k]; }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); });
   }
+  /* a job the fitter could not do and has handed back to the shop from site */
+  var BACK_REASONS = {nobody:'Nobody in or no access', floor:'Floor not ready', goods:'Wrong, short or damaged goods', sizes:'Sizes are wrong', customer:'Customer changed their mind', other:'Something else'};
+  function backsOf(job){
+    var o = (job && job.backs) || {};
+    return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); });
+  }
+  function backOpen(job){
+    if (!job || job.status !== 'open') return null;
+    var l = backsOf(job).filter(function(b){ return b.on === true; });
+    return l.length ? l[l.length - 1] : null;
+  }
+  function backReason(b){ return BACK_REASONS[b && b.reason] || 'Sent back'; }
   function hasShopifyDocs(job){ return !!(job.orderId || (job.drafts && Object.keys(job.drafts).length)); }
   function warningsOf(job, today, off){
     var w = [];
     if (!job) return w;
     if (job.status === 'open'){
+      var bo = backOpen(job);
+      if (bo) w.push({tone:'bad', text:'Sent back by ' + (bo.fitter || 'the fitter') + ': ' + backReason(bo)});
       offClashes(job, off).forEach(function(c){ w.push({tone:'bad', text:c.who + ' cannot work on ' + fmtDay(c.date) + ': move the ' + c.what.toLowerCase()}); });
       if (!linesOf(job).length){ /* an enquiry with a measure booked: there is no installation to date yet */ }
       else if (!validISO(job.date)) w.push({tone:'warn', text:'No date set'});
@@ -807,7 +828,7 @@ window.IFDLogic = (function(){
     levelFigures:levelFigures, isRoll:isRoll, unitFor:unitFor, fmtQty:fmtQty, ppmOf:ppmOf, rollPrice:rollPrice,
     linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
-    needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf,
+    needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
     isFinalBay:isFinalBay, lineAllocated:lineAllocated, supplyOf:supplyOf, supplyState:supplyState, dLines:dLines, dRecs:dRecs, dGot:dGot, dOutstanding:dOutstanding,
     deliveryState:deliveryState, deliveryTrouble:deliveryTrouble, needsSupply:needsSupply, countPlan:countPlan,
     shelfMaths:shelfMaths, expectedOnShelf:expectedOnShelf, countToOnHand:countToOnHand,
@@ -1061,7 +1082,12 @@ function startDb(){
   const dead = e => { clearTimeout(slow); S.db.state = 'off'; S.db.msg = (e && e.code) || ''; refresh(); };
   const quiet = () => {};
   db.collection('jobs').onSnapshot(snap => {
-    S.jobs = new Map(snap.docs.map(d => [d.id, Object.assign({id:d.id}, d.data())]));
+    const before = S.jobs, fresh = new Map(snap.docs.map(d => [d.id, Object.assign({id:d.id}, d.data())]));
+    if (S.db.state === 'ok' && !S.fitterMode) fresh.forEach((j, id) => {
+      const b = L.backOpen(j), was = L.backOpen(before.get(id));
+      if (b && (!was || was.k !== b.k)) toast((b.fitter || 'A fitter') + ' has sent ' + ((j.customer || {}).name || 'a job') + ' back to the shop. See Act now on Today.', true);
+    });
+    S.jobs = fresh;
     if (!snap.metadata.fromCache){ clearTimeout(slow); S.db.state = 'ok'; }
     onData();
   }, dead);
@@ -1110,9 +1136,23 @@ const TABS = [
 ];
 const VIEWS = {};
 function attentionJobs(){ const t = L.todayISO(); return jobsArr().filter(j => L.warningsOf(j, t, S.off).some(w => w.tone === 'bad' || j.status === 'done')); }
+/* jobs a fitter has handed back from site, and visits left unfinished with no return date: the shop acts on these first */
+function actNowJobs(){
+  const at = j => { const b = L.backOpen(j), vs = L.visitsOf(j); return b ? b.at : vs.length ? vs[vs.length - 1].at : ''; };
+  return openJobs().filter(j => L.backOpen(j) || j.ret === 'needed').sort((a, b) => String(at(b)).localeCompare(String(at(a))));
+}
+function actRow(job){
+  const c = job.customer || {}, b = L.backOpen(job), vs = L.visitsOf(job), last = vs[vs.length - 1];
+  const head = b ? 'Sent back by ' + (b.fitter || 'the fitter') + ' ' + whenText(b.at) : 'Not finished and no return date agreed' + (last ? ', ' + (last.fitter || 'the fitter') + ' ' + whenText(last.at) : '');
+  const what = b ? L.backReason(b) + (b.note ? '. ' + b.note : '') : [last && last.remains ? 'Left to do: ' + last.remains : '', job.retWhy ? 'No date because: ' + job.retWhy : ''].filter(Boolean).join('. ');
+  return h('button', {type:'button', class:'row act', onclick:() => openSheet(job.id)},
+    h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}), h('div', {class:'sub', text:head}), h('p', {class:'why', text:what}),
+      h('div', {class:'meta'}, chip(job.type || 'Job'), c.phone ? chip(c.phone) : null, b && L.validISO(b.date) ? chip('Was booked for ' + L.fmtDay(b.date) + (b.slot ? ' ' + b.slot : '')) : null, b && L.picsOf(b).length ? chip(L.picsOf(b).length + (L.picsOf(b).length === 1 ? ' photo' : ' photos')) : null)),
+    h('div', {class:'end'}, chip(b ? 'Sent back' : 'Return visit needed', 'bad')));
+}
 function paintTabs(){
   const box = $('#tabs'); box.replaceChildren();
-  const badge = {today:inboxList().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length};
+  const badge = {today:inboxList().length + actNowJobs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length};
   TABS.forEach(t => {
     const on = S.view === t.id || (t.id === 'more' && ['tasks','activity','setup','deliveries','stocktake','measures'].indexOf(S.view) !== -1 && window.matchMedia('(max-width: 760px)').matches);
     box.append(h('button', {type:'button', class:'tab' + (t.cls ? ' ' + t.cls : '') + (on ? ' on' : ''), onclick:() => { if (t.id === 'sale') saleDialog(); else go(t.id); }},
@@ -1231,7 +1271,7 @@ async function skipOrder(o){
 VIEWS.today = function(){
   const body = h('div', {style:'display:contents'});
   function draw(){
-    const t = L.todayISO(), open = openJobs(), inbox = inboxList(), att = attentionJobs();
+    const t = L.todayISO(), open = openJobs(), inbox = inboxList(), att = attentionJobs(), act = actNowJobs();
     const soon = open.filter(j => L.validISO(j.date) && L.daysBetween(t, j.date) >= 0 && L.daysBetween(t, j.date) <= 7);
     const owed = jobsArr().filter(j => j.status !== 'cancelled').reduce((s, j) => s + Math.max(0, L.balanceOf(j)), 0);
     const todayJobs = open.filter(j => j.date === t || j.date === L.addDays(t, 1)).sort(sortOpen);
@@ -1243,6 +1283,8 @@ VIEWS.today = function(){
     add(body, [
       h('div', {class:'head'}, h('div', {}, h('h1', {text:L.fmtDay(t)}), h('p', {text:'Every sale has a job. Every job has its stock in a bay before it goes in the diary.'})), btn('Book a measure', () => measureDialog(), 'pri')),
       banners(),
+      act.length ? h('section', {class:'sec actnow', id:'actSec'}, h('h2', {}, 'Act now', h('span', {text:'sent back from site'})), h('div', {class:'list'}, act.map(actRow)))
+        : h('p', {class:'actnone', id:'actSec'}, h('b', {text:'Act now'}), 'Nothing has been sent back from site.'),
       h('div', {class:'tiles'},
         h('button', {type:'button', class:'tile' + (inbox.length ? ' hot' : ''), onclick:() => { const el = document.getElementById('inboxSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(inbox.length)}), h('span', {text:'New from website'}), h('small', {text:'Waiting to be made into jobs'})),
         h('button', {type:'button', class:'tile' + (heldHot ? ' hot' : ''), onclick:() => { const el = document.getElementById('checksSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(held.length)}), h('span', {text:'Checks outstanding'}), h('small', {text:'Sizes, measures and inspections'})),
@@ -1301,7 +1343,7 @@ VIEWS.diary = function(){
     return h('button', {type:'button', class:'dj' + (pencil ? ' pencil' : ''), onclick:() => openSheet(j.id)},
       h('b', {text:c.name || 'No name'}),
       h('span', {class:'sub', text:[j.type, j.slot, c.postcode].filter(Boolean).join(' · ')}),
-      h('span', {class:'meta'}, pencil ? chip(held ? 'Awaiting checks' : 'Pencilled, not ready', 'warn') : chip(L.STAGE_LABEL[stage], L.STAGE_TONE[stage]), j.fitter ? chip(j.fitter) : null,
+      h('span', {class:'meta'}, L.backOpen(j) ? chip('Sent back to the shop', 'bad') : pencil ? chip(held ? 'Awaiting checks' : 'Pencilled, not ready', 'warn') : chip(L.STAGE_LABEL[stage], L.STAGE_TONE[stage]), j.fitter ? chip(j.fitter) : null,
         j.status === 'open' && j.ret === 'booked' ? chip('Return visit', 'info') : null, offDay ? chip('Day off', 'bad') : null,
         arr === 'overdue' ? chip('Time not confirmed', 'bad') : arr === 'ok' ? chip('Arrive ' + j.arrival.slot, 'ok') : null));
   }
@@ -1753,16 +1795,20 @@ function drawSheet(){
   }
   const logs = Object.keys(job.log || {}).map(k => job.log[k]).sort((a, b) => String(b.at).localeCompare(String(a.at)));
   learnNames(Array.from(new Set(logs.map(x => x.by))));
+  const bo = L.backOpen(job), earlier = L.backsOf(job).filter(b => b.on !== true);
+  const backCard = bo ? h('div', {class:'card backcard', id:'backCard'}, h('h3', {}, 'Sent back to the shop', chip('Act now', 'bad')), backBlock(job, bo, true)) : null;
+  const backLog = earlier.length ? h('div', {class:'card'}, h('h3', {}, 'Sent back before'), h('div', {class:'log'}, earlier.slice().reverse().map(b => h('div', {text:whenText(b.at) + '  ' + (b.fitter || 'Fitter') + ': ' + L.backReason(b) + (b.note ? '. ' + b.note : '') + (b.doneAt ? '  Dealt with ' + whenText(b.doneAt) + ' by ' + nameOf(b.doneBy) + (b.doneNote ? ': ' + b.doneNote : '') : '')})))) : null;
   const panel = h('div', {class:'panel', role:'dialog', 'aria-label':'Job ' + (job.ref || '')},
     h('div', {class:'panel-head'},
       h('div', {class:'grow'}, h('h2', {text:(c.name || 'No name') + '  ' + (job.ref || '')}),
         h('div', {class:'meta'}, chip(job.type || 'No type', 'info'), chip(L.STAGE_LABEL[stage], L.STAGE_TONE[stage]),
+          bo ? chip('Sent back', 'bad') : null,
           open && job.ret === 'booked' ? chip('Return visit booked', 'info') : null, open && job.ret === 'needed' ? chip('Return visit needed', 'bad') : null,
           job.status === 'done' ? chip((job.doneAs || 'Done') + ' ' + whenText(job.doneAt) + (job.signoff && job.signoff.fitter ? ', signed off by ' + job.signoff.fitter : '')) : null)),
       btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'},
-      warns.map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
-      custCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, moneyCard, notesCard, quoteCard, finishCard,
+      backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0)).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
+      custCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
       h('div', {class:'card'}, h('h3', {}, 'History'), h('div', {class:'log'}, logs.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': ' + x.text}))))));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -1794,7 +1840,7 @@ VIEWS.fitter = function(){
     return h('button', {type:'button', class:'fent', onclick:() => openFitterSheet(x.job.id, x.v ? x.v.k : '')},
       h('b', {text:(x.slot ? x.slot + '  ' : '') + (c.name || 'No name')}),
       h('span', {class:'sub', text:[x.label, [c.address, c.postcode].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}),
-      h('span', {class:'meta'}, x.v ? chip('Before the installation', 'info') : null, x.firm ? null : chip('Provisional, not confirmed', 'warn'), x.firm ? entryArrival(x, t) : null,
+      h('span', {class:'meta'}, x.v ? chip('Before the installation', 'info') : null, x.firm ? null : !x.v && L.backOpen(x.job) ? chip('Sent back to the shop', 'bad') : chip('Provisional, not confirmed', 'warn'), x.firm ? entryArrival(x, t) : null,
         x.v && L.preLate(x.v, t) ? chip('Findings not in', 'bad') : null));
   }
   function draw(){
@@ -1826,6 +1872,7 @@ function drawFitterSheet(){
   const c = job.customer || {}, t = L.todayISO(), open = job.status === 'open', v = vk ? L.preOf(job).find(x => x.k === vk) || null : null;
   const date = v ? v.date : job.date, slot = v ? v.slot : job.slot, label = v ? L.PRE_KINDS[v.kind] : job.ret === 'booked' ? 'Return visit' : job.type, firm = v ? true : job.diary === true;
   const arr = v ? L.preArrivalState(v, t) : L.arrivalState(job, t), tries = v ? L.preTries(v) : L.triesOf(job), agreed = v ? v.arrival : job.arrival;
+  const bo = v ? null : L.backOpen(job);
   const custCard = h('div', {class:'card'}, h('h3', {}, 'Customer'),
     h('dl', {class:'kv'}, h('dt', {text:'Phone'}), h('dd', {text:c.phone || 'None given'}), h('dt', {text:'Address'}), h('dd', {text:[c.address, c.postcode].filter(Boolean).join(', ') || 'None given'})),
     job.notes ? h('p', {}, h('b', {text:'From the shop: '}), job.notes) : null);
@@ -1857,12 +1904,14 @@ function drawFitterSheet(){
   if (!open) act = h('div', {class:'banner info'}, h('p', {text:job.status === 'done' ? 'Signed off as ' + (job.doneAs || 'done').toLowerCase() + ' ' + whenText(job.doneAt) + '.' : 'This job was cancelled.'}));
   else if (v) act = v.status === 'done' ? h('div', {class:'banner info'}, h('p', {text:'Findings submitted by ' + (v.doneBy || 'someone') + ' ' + whenText(v.doneAt) + '.'}))
     : h('div', {class:'card'}, h('h3', {}, 'When you have been'), h('p', {class:'muted', text:'Submit what you found. Nothing counts as checked until you say so.'}), h('div', {class:'bar'}, btn('Submit findings', () => findingsDialog(job, v), 'pri')));
+  else if (bo) act = h('div', {class:'card backcard', id:'backCard'}, h('h3', {}, 'Sent back to the shop', chip('With the shop', 'bad')), backBlock(job, bo, false),
+    h('p', {class:'small muted', text:'The shop has this now. It comes back into your diary when they have dealt with it.'}));
   else if (!firm) act = h('div', {class:'banner warn'}, h('p', {text:'Provisional. The shop has pencilled this in but it is not confirmed, so do not go yet.'}));
-  else act = h('div', {class:'card'}, h('h3', {}, 'When you are finished'), h('p', {class:'muted', text:'Every visit is signed off before you leave. If it is not finished, book the return visit with the customer or flag it to the shop.'}),
-    h('div', {class:'bar'}, btn(job.type === 'Fitting' ? 'Sign off this visit' : 'Mark as ' + (L.DONE_WORD[job.type] || 'done').toLowerCase(), () => completeDialog(job), 'pri')));
+  else act = h('div', {class:'card'}, h('h3', {}, 'When you are finished'), h('p', {class:'muted', text:'Every visit is signed off before you leave. If it is not finished, book the return visit with the customer. If you cannot do the job at all, send it back to the shop.'}),
+    h('div', {class:'bar'}, btn(job.type === 'Fitting' ? 'Sign off this visit' : 'Mark as ' + (L.DONE_WORD[job.type] || 'done').toLowerCase(), () => completeDialog(job), 'pri'), btn('Send back to the shop', () => backDialog(job), 'danger')));
   const panel = h('div', {class:'panel', role:'dialog', 'aria-label':'Job ' + (job.ref || '')},
     h('div', {class:'panel-head'}, h('div', {class:'grow'}, h('h2', {text:c.name || 'No name'}),
-      h('div', {class:'meta'}, chip(label || 'Job', 'info'), chip(L.validISO(date) ? L.fmtDay(date) + (slot ? ' ' + slot : '') : 'No date'), job.ref ? chip(job.ref) : null)), btn('Close', closeSheet, 'sm')),
+      h('div', {class:'meta'}, chip(label || 'Job', 'info'), chip(L.validISO(date) ? L.fmtDay(date) + (slot ? ' ' + slot : '') : 'No date'), job.ref ? chip(job.ref) : null, bo ? chip('Sent back', 'bad') : null)), btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'}, custCard, arrCard, takeCard, roomCard, subCard, visitsCard, act));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -2062,6 +2111,7 @@ async function storePic(blob){
 function picPatch(where, key, value){
   const o = {}; o[key] = value;
   if (where.room){ const p = {rooms:{}}; p.rooms[where.room] = {photos:o}; return p; }
+  if (where.back){ const p = {backs:{}}; p.backs[where.back] = {photos:o}; return p; }
   return visitPatch({k:where.visit}, {photos:o});
 }
 function picThumb(job, p, where){
@@ -2723,6 +2773,60 @@ function arrivalPopup(list){
       h('div', {class:'bar'}, btn('Record agreed time', () => arrivalDialog(j, it.v), 'sm pri'), btn('Could not reach them', () => noReachDialog(j, it.v), 'sm'))));
   });
   openModal(dlg('Arrival time not confirmed', body, [btn('Not now', closeModal)]));
+}
+/* ---------- sent back to the shop ----------
+   The fitter cannot do the job, so it goes back to the shop from site with the reason. It leaves the diary and
+   nothing else is touched: the stock, the price and the Shopify reservation stay as they are until the shop decides. */
+function backBlock(job, b, shop){
+  const pics = L.picsOf(b);
+  return [h('p', {}, h('b', {text:L.backReason(b) + '. '}), b.note || ''),
+    h('p', {class:'small muted', text:'Sent back by ' + (b.fitter || 'the fitter') + ' ' + whenText(b.at) + (L.validISO(b.date) ? '. It was booked for ' + L.fmtDay(b.date) + (b.slot ? ' ' + b.slot : '') : '') + '.'}),
+    pics.length ? h('div', {class:'thumbs'}, pics.map(p => picThumb(job, p, {back:b.k}))) : null,
+    shop ? h('p', {class:'small', text:'It is out of the diary until you deal with it. The stock, the price and the Shopify reservation have not been changed.'}) : null,
+    shop ? h('div', {class:'bar'}, btn('Deal with it', () => backDoneDialog(job, b), 'pri')) : null];
+}
+function backDialog(job){
+  if (!needDb()) return;
+  const s = sayer(); let reason = '';
+  const who = fitterPicker('backFitter', job.fitter || '');
+  const note = h('textarea', {class:'in', id:'backNote', placeholder:'What you found and what the shop needs to do'});
+  const box = h('div', {class:'radios', role:'radiogroup', 'aria-label':'Why it is going back'});
+  Object.keys(L.BACK_REASONS).forEach(k => box.append(h('label', {class:'radio'}, h('input', {type:'radio', name:'backReason', value:k, onchange:() => { reason = k; }}), h('span', {text:L.BACK_REASONS[k]}))));
+  const pics = picCollector();
+  const go = btn('Send back to the shop', async () => {
+    const fitter = String(who.value || '').trim(), text = note.value.trim();
+    if (!reason){ s.say('Choose why it is going back.', true); return; }
+    if (!text){ s.say('Say what happened, so the shop knows what to do.', true); return; }
+    if (!fitter){ s.say('Choose who is sending it back.', true); return; }
+    go.disabled = true;
+    const rec = {on:true, at:nowISO(), by:S.me.id || '', fitter:fitter, reason:reason, note:text, date:job.date || '', slot:job.slot || '', photos:{}};
+    pics.list.forEach((p, i) => { rec.photos['p' + i + uid()] = p; });
+    const p = {backs:{}, diary:false}; p.backs['b' + uid()] = rec;
+    try { await patchJob(job.id, p, 'Sent back to the shop by ' + fitter + ': ' + L.BACK_REASONS[reason] + '. ' + text); closeModal(); toast('Sent back to the shop'); }
+    catch (e){ go.disabled = false; dbFail(e); }
+  }, 'danger');
+  openModal(dlg('Send back to the shop', h('div', {class:'sec'},
+    h('p', {text:((job.customer || {}).name || 'This job') + ', ' + (job.ref || '') + '. Use this when you cannot do the job. The shop sees it straight away and takes it from there.'}),
+    h('h3', {text:'Why is it going back?'}), box, field('What happened', note), field('Sent back by', who), h('h3', {text:'Photographs'}), pics.node, s.box),
+    [btn('Cancel', closeModal), go]));
+}
+function backDoneDialog(job, b){
+  if (!needDb()) return;
+  const s = sayer(), what = h('textarea', {class:'in', id:'backDone', placeholder:'Rang the customer and rebooked, swapped the damaged roll, booked a subfloor inspection'});
+  const go = btn('Mark as dealt with', async () => {
+    const text = what.value.trim();
+    if (!text){ s.say('Say what was done about it.', true); return; }
+    go.disabled = true;
+    const p = {backs:{}}; p.backs[b.k] = {on:false, doneAt:nowISO(), doneBy:S.me.id || '', doneNote:text};
+    try { await patchJob(job.id, p, 'Sent-back job dealt with: ' + text); closeModal(); toast('Dealt with. Set the date and put it back in the diary when it is ready.'); }
+    catch (e){ go.disabled = false; dbFail(e); }
+  }, 'pri');
+  openModal(dlg('Deal with it', h('div', {class:'sec'},
+    h('p', {}, h('b', {text:L.backReason(b) + '. '}), b.note || ''),
+    h('p', {class:'small muted', text:'Sent back by ' + (b.fitter || 'the fitter') + ' ' + whenText(b.at) + '.'}),
+    field('What was done about it', what),
+    h('p', {class:'small muted', text:'This only records that it has been dealt with. Change the date, the fitter, the items or the price on the job yourself. It goes back in the diary when you press Put in the diary.'}), s.box),
+    [btn('Cancel', closeModal), go], true));
 }
 function signOffDialog(job){
   const s = sayer(), bal = L.balanceOf(job), c = job.customer || {};
