@@ -25,7 +25,7 @@ function make(){
     if (op === 'OpsProduct') return Object.assign(base, {product:vars.id === 'gid://shopify/Product/80' ? Object.assign(carpet(), {variants:{nodes:rolls()}}) : null});
     if (op === 'OpsVariants') return Object.assign(base, {nodes:(vars.ids || []).map(id => { const r = rolls().find(x => x.id === id); return id === 'gid://shopify/ProductVariant/701' ? variant() : r ? Object.assign(r, {product:carpet()}) : null; })});
     if (op === 'OpsAdjust'){ const c = vars.input.changes[0]; if (c.changeFromQuantity !== state.avail) return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:null, userErrors:[{field:['input'], message:'stale', code:'CHANGE_FROM_QUANTITY_STALE'}]}}; state.avail += c.delta; return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:{id:'g1'}, userErrors:[]}}; }
-    if (op === 'OpsDraftCreate'){ state.drafts++; return {draftOrderCreate:{draftOrder:{id:'gid://shopify/DraftOrder/' + (9000 + state.drafts), name:'#D' + state.drafts, status:'OPEN'}, userErrors:[]}}; }
+    if (op === 'OpsDraftCreate'){ state.drafts++; state.lastDraft = vars.input; return {draftOrderCreate:{draftOrder:{id:'gid://shopify/DraftOrder/' + (9000 + state.drafts), name:'#D' + state.drafts, status:'OPEN'}, userErrors:[]}}; }
     return base;
   }
   async function fetchImpl(url, init){

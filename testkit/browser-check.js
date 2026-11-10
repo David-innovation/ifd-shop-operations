@@ -403,13 +403,20 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/To price/.test(await pg.locator('#priceSec h2').innerText()) && /07700 900777/.test(pr) && /Measured by Eddie/.test(pr) && /3 rooms: Bedroom 1, Bedroom 2, Hall, stairs and landing/.test(pr) && /Chosen in the shop: Royale Oak/.test(pr)
       && /Measured today/.test(pr) && /Stairs to work out/.test(pr) && /Has drawings/.test(pr) && /Price it/.test(pr) && !/£/.test(pr),
       'a measured job lands on the shop’s dashboard under To price, with the customer, who measured, the rooms and what was chosen');
-    await pg.locator('#priceSec .row.price', {hasText:'Brief Customer'}).click(); await pg.waitForSelector('#toPriceBanner');
+    await pg.locator('#priceSec .row.price', {hasText:'Brief Customer'}).click(); await pg.waitForSelector('#quoteForm');
     ok(/Measured and ready to price/.test(await pg.locator('#toPriceBanner').innerText()) && /ring Brief Customer on 07700 900777/.test(await pg.locator('#toPriceBanner').innerText()) && await pg.locator('#toPriceBanner').getByRole('button', {name:'Price it'}).count() === 1,
-      'opening it says what to do next: check the summary, price it, ring the customer');
+      'opening it says what to do next: price it, then ring the customer');
+    const qf = await pg.locator('#quoteForm').innerText(), qlab = await pg.evaluate(() => Array.from(document.querySelectorAll('#quoteLines .qline input[type=text]')).map(i => i.value));
+    ok(/What was measured/.test(qf) && /Bedroom 1\s+3\.50 × 3\.00 m/.test(qf) && /Flooring: Royale Oak/.test(qf) && /Hall, stairs and landing\s+14\.78 m² in all/.test(qf) && /13 stairs, 86 cm wide/.test(qf)
+      && qlab.join('|') === 'Carpet|Flooring|Underlay|Gripper|Beading|Door bars|Fitting|Uplift and disposal|Moving furniture' && /18\.90 m² of floor, nothing added for wastage/.test(qf) && /3 rooms, 33\.68 m² of floor, 15 stairs/.test(qf),
+      'pricing opens straight from the dashboard: each room with its size and what it needs, then one price box for each thing to price');
+    await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden);
     await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
     ok(await pg.evaluate(() => { const L = window.IFDLogic, old = {hsl:{hall:{on:false}, stairs:{on:true, n:12, wid:80, tread:21, riser:21, winders:0, wdepth:0}, landing:{on:true, len:2.6, wid:2.2}}, area:432.92};
       return L.roomArea(old) === 9.99 && /12 stairs, 80 cm wide/.test(L.hslText(old)); }), 'a stair width that was saved in centimetres is read as centimetres, so the area is right');
     await openJobPlain('Brief Customer'); await pg.waitForSelector('#pricingCard');
+    ok(await pg.evaluate(() => !document.querySelector('#pricingMore').open) && /Bedroom 1/.test(await pg.locator('#measuredBlock').innerText()), 'the job shows the rooms simply, with the carpet working-out folded away');
+    await pg.locator('#pricingMore summary').click();
     const cc = await pg.locator('#checksCard').innerText();
     ok(/Hall 3\.20 × 1\.10 m at its longest and widest\. 13 stairs, 86 cm wide[\s\S]*?Landing 2\.60 × 1\.90 m at its longest and widest/.test(cc) && await pg.locator('#checksCard .thumbs img, #checksCard .thumb').count() >= 1,
       'the job shows the hall, the stairs and the landing in words, with the drawing beside them');
@@ -457,6 +464,155 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(app.store.getDoc('jobs/c1').data.rooms.r1.spec.dir === 'wid' && /kept that way round/.test(await pg.locator('#pricingCard').innerText()) && app.store.getDoc('jobs/c1').data.rooms.r1.spec.floor === 'carpet',
       'the shop can say a carpet has to run a set way, and the carpet ordered follows without being turned');
     await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
+    // ---- pricing a measured job, the quote waiting on the customer, the customer saying yes, the carpet allocated ----
+    const nowQ = new Date().toISOString(), preQ = {v1:{n:1, kind:'measure', who:'Eddie', date:day(0), slot:'', status:'done', at:nowQ, by:'', doneAt:nowQ, doneBy:'Eddie', role:'estimator'}};
+    const qJob = (id, ref, name, extra) => app.store.setDoc(docPath('jobs/' + id), Object.assign({v:1, ref:ref, source:'measure', status:'open', type:'Fitting', date:'', slot:'', fitter:'', diary:false, shopifyClosed:false, createdAt:nowQ,
+      customer:{name:name, phone:'07700 900321', email:'quote@example.com', address:'3 Test Street', postcode:'G81 6EE'}, lines:{}, total:0, pay:{}, notes:'', quote:[], drafts:{}, sizeCheck:'estimator', pre:preQ, log:{},
+      brief:{rooms:[{name:'Lounge', want:'c1'}], choices:[{k:'c1', title:'Silver twist carpet · Roll R-801 · 4m wide', variantId:'gid://shopify/ProductVariant/801', unit:'m', w:4, widths:[4, 5]}], also:[]},
+      rooms:{r1:Object.assign({n:1, name:'Lounge', len:3, wid:3.8, area:11.4, spec:cs('carpet', {underlay:true, gripper:true, bars:{cc:1, cf:0, ff:0}, old:true, uplift:true})}, vr)}}, extra || {}));
+    qJob('q1', 'M-QUOTE', 'Quentin Quote', {brief:{rooms:[{name:'Lounge', want:'c1'}, {name:'Hall, stairs and landing', want:'c1'}], choices:[{k:'c1', title:'Silver twist carpet · Roll R-801 · 4m wide', variantId:'gid://shopify/ProductVariant/801', unit:'m', w:4, widths:[4, 5]}], also:[]},
+      rooms:{r1:Object.assign({n:1, name:'Lounge', len:3, wid:3.8, area:11.4, spec:cs('carpet', {underlay:true, gripper:true, bars:{cc:1, cf:0, ff:0}, old:true, uplift:true})}, vr),
+        r2:Object.assign({n:2, name:'Hall, stairs and landing', len:0, wid:0, area:0, spec:cs('carpet'), hsl:{hall:{on:false, len:0, wid:0}, stairs:{on:true, n:12, wid:0.8, tread:21, riser:21, winders:0, wdepth:0}, landing:{on:true, len:2.6, wid:2.2}}}, vr)}});
+    const sentQ = {qa:{n:1, at:nowQ, by:'', byName:'Sam', lines:[{label:'Carpet', price:200}, {label:'Fitting', price:120}], total:320, sent:{email:{at:nowQ, to:'quote@example.com', byName:'Sam'}}}};
+    qJob('q2', 'M-ORDER', 'Olive Orderin', {quotes:sentQ});
+    qJob('q3', 'M-NOPE', 'Norman Notaken', {quotes:sentQ});
+    await pg.evaluate(() => fetch('/api/db/update', {method:'POST', headers:{'x-ifd':'1', 'content-type':'application/json'}, body:JSON.stringify({path:'jobs/q1', data:{notes:'in'}})}));
+    ok(await pg.evaluate(() => { const L = window.IFDLogic, t = L.todayISO(), at = n => new Date(Date.now() - n * 86400000).toISOString(), job = (sent, chase) => ({status:'open', lines:{}, quotes:{a:{at:at(9), lines:[{label:'Carpet', price:5}], sent:sent}}, chase:chase || {}});
+      const w0 = L.quoteWait(job({}), t), w1 = L.quoteWait(job({email:{at:at(0)}}), t), w4 = L.quoteWait(job({email:{at:at(4)}}), t), w5 = L.quoteWait(job({email:{at:at(5)}}), t);
+      const again = L.quoteWait(job({email:{at:at(6)}}, {c1:{at:at(0), outcome:'deciding'}}), t), noans = L.quoteWait(job({email:{at:at(6)}}, {c1:{at:at(0), outcome:'noanswer'}}), t), next = L.quoteWait(job({email:{at:at(6)}}, {c1:{at:at(1), outcome:'noanswer'}}), t);
+      const resent = L.quoteWait(job({email:{at:at(8)}, text:{at:at(1)}}, {c1:{at:at(7), outcome:'deciding'}}), t);
+      return w0.state === 'unsent' && w1.state === 'waiting' && w1.ringOn === L.addDays(t, 5) && w4.state === 'waiting' && w5.state === 'ring' && w5.days === 5
+        && again.state === 'waiting' && again.ringOn === L.addDays(t, 5) && again.calls === 1 && noans.state === 'waiting' && noans.ringOn === L.addDays(t, 1) && next.state === 'ring'
+        && resent.state === 'waiting' && resent.ringOn === L.addDays(t, 4) && resent.calls === 0; }),
+      'the five-day rule: a sent quote waits five days, then it is time to ring; a call restarts the wait, no answer comes back the next day, and sending it again starts afresh');
+    await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#priceSec');
+    await pg.locator('#priceSec .row.price', {hasText:'Quentin Quote'}).click(); await pg.waitForSelector('#quoteForm');
+    const qn = await pg.evaluate(() => Array.from(document.querySelectorAll('#quoteLines .qline')).map(q => [q.querySelector('input').value, (q.querySelector('.qnote') || {}).textContent || '']));
+    ok(qn.map(x => x[0]).join('|') === 'Carpet|Underlay|Gripper|Door bars|Fitting|Uplift and disposal' && /21\.60 m² to order: 5\.40 m off the 4 m roll, plus the stairs, a 5\.34 m run 80 cm wide/.test(qn[0][1]) && /1 carpet to carpet/.test(qn[3][1]) && /Lounge, 11\.40 m²/.test(qn[5][1])
+      && (await pg.locator('#quoteTotal').innerText()) === '£0.00', 'staff get one empty price box for each thing to price, with a note of what it covers');
+    for (const [i, v] of [[0, '300'], [1, '80'], [2, '20'], [3, '9.99'], [4, '150'], [5, '40']]) await pg.fill('#qp' + i, v);
+    ok((await pg.locator('#quoteTotal').innerText()) === '£599.99', 'the total adds up as the prices are typed');
+    await pg.fill('#ql0', 'Carpet 5.4m x 4m'); await pg.fill('#quoteBy', 'Sam'); await pg.locator('#modal').getByRole('button', {name:'Save the quote'}).click();
+    ok(/Take the sizes out of the wording/.test(await pg.locator('#modal').innerText()) && !Object.keys(app.store.getDoc('jobs/q1').data.quotes || {}).length, 'a size typed into the wording is refused: the customer is only given the figures');
+    await pg.fill('#ql0', 'Carpet'); await pg.locator('#modal').getByRole('button', {name:'Save the quote'}).click(); await pg.waitForSelector('#quoteSend');
+    const qmsg = await pg.inputValue('#quoteMsg'), qhref = await pg.getAttribute('#quoteEmailBtn', 'href');
+    ok(/^Hi Quentin,/.test(qmsg) && /Carpet: £300\.00\nUnderlay: £80\.00\nGripper: £20\.00\nDoor bars: £9\.99\nFitting: £150\.00\nUplift and disposal: £40\.00\n\nTotal: £599\.99/.test(qmsg) && /Thanks again,\nSam\nInnovation Flooring Direct$/.test(qmsg)
+      && !(await pg.evaluate(m => window.IFDLogic.hasSize(m), qmsg)) && /^mailto:quote%40example\.com\?subject=/.test(qhref), 'the customer’s copy has the figures and the total, a thank you and the name of who sent it, and no sizes');
+    await pg.evaluate(() => { const a = document.querySelector('#quoteEmailBtn'); a.addEventListener('click', e => e.preventDefault()); a.click(); });
+    await pg.waitForFunction(() => true); await pg.waitForTimeout(400);
+    const q1q = Object.entries(app.store.getDoc('jobs/q1').data.quotes)[0];
+    ok(q1q[1].total === 599.99 && q1q[1].byName === 'Sam' && q1q[1].sent.email.to === 'quote@example.com', 'the quote is saved on the job with who sent it and how');
+    await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden);
+    await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
+    // it waits on the dashboard, and after five days it is time to ring
+    await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#quotedSec');
+    const ringDay = await pg.evaluate(() => window.IFDLogic.fmtDay(window.IFDLogic.addDays(window.IFDLogic.todayISO(), 5)));
+    const qrow = await pg.locator('#quotedSec .row', {hasText:'Quentin Quote'}).innerText();
+    ok(/Quotes sent/.test(await pg.locator('#quotedSec h2').innerText()) && /Emailed/.test(qrow) && qrow.includes('Ring them on ' + ringDay + ' if they have not been back') && /£599\.99/.test(qrow) && !(await pg.locator('#priceSec .row', {hasText:'Quentin Quote'}).count())
+      && await pg.locator('#quotedSec.actnow').count() === 0, 'a sent quote leaves To price and waits under Quotes sent, with the day to ring them');
+    const six = new Date(Date.now() - 6 * 86400000).toISOString();
+    await pg.evaluate(a => fetch('/api/db/update', {method:'POST', headers:{'x-ifd':'1', 'content-type':'application/json'}, body:JSON.stringify({path:'jobs/q1', data:{quotes:{[a.k]:{sent:{email:{at:a.at}}}}}})}), {k:q1q[0], at:six});
+    await pg.waitForFunction(() => /No reply in 6 days: ring them/.test(document.querySelector('#quotedSec').innerText), null, {timeout:8000});
+    ok(await pg.locator('#quotedSec.actnow').count() === 1 && /Ring them/.test(await pg.locator('#quotedSec .row.act', {hasText:'Quentin Quote'}).innerText()), 'after five days with no reply it turns red and says to ring them');
+    await pg.locator('#quotedSec .row.act', {hasText:'Quentin Quote'}).click(); await pg.waitForSelector('#chaseForm');
+    ok(/07700 900321/.test(await pg.locator('#chaseForm').innerText()) && /£599\.99/.test(await pg.locator('#chaseForm').innerText()), 'opening it brings up the call, with the number and the quote');
+    await pg.locator('#modal').getByRole('button', {name:'Save the call'}).click();
+    ok(/Say what happened on the call/.test(await pg.locator('#modal').innerText()), 'the call has to say what happened');
+    await pg.locator('#chaseOut .radio', {hasText:'Still deciding'}).locator('input').check(); await pg.fill('#chaseNote', 'Waiting on her husband');
+    await pg.locator('#modal').getByRole('button', {name:'Save the call'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
+    const ch1 = Object.values(app.store.getDoc('jobs/q1').data.chase)[0];
+    ok(ch1.outcome === 'deciding' && ch1.byName === 'Sam' && ch1.note === 'Waiting on her husband' && /Sam rang\. Still deciding: Waiting on her husband/.test(await pg.locator('#quoteCalls').innerText())
+      && (await pg.locator('#quoteNext').innerText()).includes('Ring them on ' + ringDay), 'the call is logged on the job and the five days start again');
+    // the customer says yes: fitting, delivery or collection, and the carpet from our own rolls goes to be cut
+    await pg.locator('#quoteCard').getByRole('button', {name:'Customer said yes'}).click(); await pg.waitForSelector('#acceptForm');
+    await pg.waitForFunction(() => /In stock: 30\.0 m free on Silver twist carpet · Roll R-801 · 4m wide/.test(document.querySelector('#accSt0').innerText), null, {timeout:8000});
+    const af = await pg.locator('#acceptForm').innerText();
+    ok(await pg.inputValue('#accLen0') === '5.4' && /For Lounge, Hall, stairs and landing, landing/.test(af) && /The stairs are not in that length: a 5\.34 m run, 80 cm wide/.test(af) && await pg.locator('#accStock0.on').count() === 1 && /goes straight to the warehouse’s cutting list/.test(af)
+      && /Carpet\s+£300\.00/.test(af) && (await pg.locator('#accTotal').innerText()) === '£599.99', 'saying yes shows the carpet to cut, that it is in stock, and the quote the customer agreed');
+    await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click();
+    ok(/Choose fitting, delivery or collection/.test(await pg.locator('#modal').innerText()) && !app.store.getDoc('jobs/q1').data.accepted, 'it has to be entered as a fitting, a delivery or a collection');
+    await pg.fill('#accLen0', '40');
+    ok(/Only 30\.0 m free on our rolls/.test(await pg.locator('#accSt0').innerText()) && await pg.locator('#accStock0').isDisabled(), 'a cut longer than the roll cannot come from stock');
+    await pg.fill('#accLen0', '10.8'); await pg.click('#accStock0'); await pg.click('#accFitting');
+    await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:8000});
+    const a1 = app.store.getDoc('jobs/q1').data, a1l = Object.values(a1.lines).sort((x, y) => x.n - y.n), d1 = shopify.state.lastDraft;
+    ok(a1.type === 'Fitting' && a1.total === 599.99 && a1.accepted.byName === 'Sam' && a1.accepted.total === 599.99 && a1l.length === 7 && a1l[0].unit === 'm' && a1l[0].qty === 108 && a1l[0].w === 4 && a1l[0].hold === 'draft' && /^#D/.test(a1l[0].holdRef) && a1l[0].state === 'todo'
+      && a1l[0].variantId === 'gid://shopify/ProductVariant/801' && a1l[0].price === 0 && /Lounge/.test(a1l[0].rooms) && /the stairs/.test(a1l[0].rooms) && a1l.slice(1).map(l => l.title + ' ' + l.price).join('|') === 'Carpet 300|Underlay 80|Gripper 20|Door bars 9.99|Fitting 150|Uplift and disposal 40'
+      && a1l.slice(1).every(l => l.hold === 'none') && Object.keys(a1.drafts).length === 1, 'the job becomes a fitting at the quoted total, with the cut off our roll and every line of the quote on it');
+    ok(d1.lineItems.length === 7 && d1.lineItems[0].variantId === 'gid://shopify/ProductVariant/801' && d1.lineItems[0].quantity === 108 && !d1.lineItems.some(i => /Carpet cut/.test(i.title || '')) && d1.lineItems[1].title === 'Carpet' && d1.lineItems[1].originalUnitPriceWithCurrency.amount === '300.00'
+      && !!d1.reserveInventoryUntil && d1.customAttributes.some(x => x.key === 'Job type' && x.value === 'Fitting'), 'Shopify reserves the cut on that roll and holds the sale at the quoted figures');
+    await pg.waitForSelector('#cutBanner');
+    ok(/On the cutting list\. 10\.8 m of Silver twist carpet · Roll R-801 · 4m wide/.test(await pg.locator('#cutBanner').innerText()) && /To cut/.test(await pg.locator('#sheet .panel-head').innerText()) && /The customer said yes/.test(await pg.locator('#quoteAccepted').innerText())
+      && await pg.locator('#quoteCard').getByRole('button', {name:'Customer said yes'}).count() === 0, 'the job says it is on the cutting list, and the quote shows as accepted');
+    await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
+    await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#cutSec');
+    ok(/10\.8 m\s+off the 4 m roll/.test(await pg.locator('#cutSec .row', {hasText:'Quentin Quote'}).innerText()) && !(await pg.locator('#quotedSec .row', {hasText:'Quentin Quote'}).count()) && /1/.test(await pg.locator('#tabs .tab', {hasText:'Cutting'}).innerText()),
+      'the dashboard shows it under To cut, and it has left Quotes sent');
+    await pg.locator('#cutSec').getByRole('button', {name:'Open the cutting list'}).click(); await pg.waitForSelector('#cutList');
+    const crow = pg.locator('#cutList .row', {hasText:'Quentin Quote'});
+    ok(/10\.8 m/.test(await crow.innerText()) && /Silver twist carpet · Roll R-801 · 4m wide/.test(await crow.innerText()) && /Fitting/.test(await crow.innerText()) && /Rooms: Lounge/.test(await crow.innerText()) && !/£/.test(await pg.locator('#cutList').innerText()),
+      'the warehouse’s cutting list shows the length, the roll, who it is for and the rooms, and no prices');
+    await crow.getByRole('button', {name:'Cut done'}).click(); await pg.waitForSelector('#cutForm');
+    await pg.locator('#modal').getByRole('button', {name:'Save: it is cut'}).click();
+    ok(/Say where the cut piece is now/.test(await pg.locator('#modal').innerText()), 'a cut cannot be marked done without saying where the piece is');
+    await pg.selectOption('#cutBay', 'W4-01'); await pg.locator('#modal').getByRole('button', {name:'Save: it is cut'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
+    const cl = Object.values(app.store.getDoc('jobs/q1').data.lines).find(l => l.unit === 'm');
+    await pg.waitForFunction(() => !/Quentin Quote/.test(document.querySelector('#cutList').innerText), null, {timeout:6000});
+    ok(cl.state === 'allocated' && cl.bay === 'W4-01' && cl.picked === true && cl.cutBy === 'Sam', 'marking it cut records who cut it and where it is, and it leaves the list');
+    // ordering in: the job is held until the order details and the arrival date are in
+    await openJobPlain('Olive Orderin'); await pg.waitForSelector('#quoteCard');
+    await pg.locator('#quoteCard').getByRole('button', {name:'Customer said yes'}).click(); await pg.waitForSelector('#acceptForm');
+    await pg.waitForFunction(() => /In stock/.test(document.querySelector('#accSt0').innerText), null, {timeout:8000});
+    await pg.click('#accOrder0');
+    ok(/It goes under To order\. The job is held there until the order details and the arrival date are in/.test(await pg.locator('#accHint0').innerText()), 'choosing to order it in says the job will be held for the order details');
+    await pg.click('#accDelivery'); await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:8000});
+    const o1 = app.store.getDoc('jobs/q2').data, o1l = Object.values(o1.lines).find(l => l.unit === 'm');
+    ok(o1.type === 'Delivery' && o1.total === 320 && o1l.hold === 'supplier' && o1l.state === 'todo' && o1l.qty === 31 && o1l.variantId === '' && o1l.title === 'Silver twist carpet · 4m wide' && !shopify.state.lastDraft.reserveInventoryUntil && shopify.state.lastDraft.lineItems.length === 2,
+      'carpet that is ordered in takes nothing off our rolls, and the sale is still held in Shopify at the quoted figures');
+    await pg.waitForSelector('#orderBanner');
+    ok(/held here until the order details and the arrival date are in/.test(await pg.locator('#orderBanner').innerText()) && /Order details needed/.test(await pg.locator('#sheet .panel-head').innerText()), 'the job says it is held for its order details');
+    await pg.evaluate(d => { const i = document.querySelector('#jobDate'); i.value = d; i.dispatchEvent(new Event('change', {bubbles:true})); }, day(3));
+    await pg.waitForFunction(() => /still has to be ordered/.test(document.body.innerText), null, {timeout:6000});
+    ok(app.store.getDoc('jobs/q2').data.date === '', 'it cannot be given a date until the order details are in');
+    await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
+    await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#orderSec');
+    const orow = pg.locator('#orderSec .row', {hasText:'Olive Orderin'});
+    ok(/To order: 3\.1 m of Silver twist carpet · 4m wide/.test(await orow.innerText()) && /Delivery/.test(await orow.innerText()), 'the dashboard lists it under To order with what to order');
+    await orow.getByRole('button', {name:'Enter order details'}).click(); await pg.waitForSelector('#ordForm');
+    await pg.locator('#modal').getByRole('button', {name:'Save the order details'}).click();
+    ok(/Enter who it is ordered from/.test(await pg.locator('#modal').innerText()) && /Enter the day it is due to arrive/.test(await pg.locator('#modal').innerText()), 'the order details need the supplier and the arrival date');
+    await pg.fill('#ordSupplier', 'Carpet Co'); await pg.fill('#ordRef', 'PO-77'); await pg.click('#ordIn10');
+    const etaDay = await pg.evaluate(() => window.IFDLogic.addDays(window.IFDLogic.todayISO(), 10)), etaTxt = await pg.evaluate(d => window.IFDLogic.fmtDay(d), etaDay);
+    await pg.locator('#modal').getByRole('button', {name:'Save the order details'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
+    const o2l = Object.values(app.store.getDoc('jobs/q2').data.lines).find(l => l.unit === 'm');
+    await pg.waitForSelector('#onOrderSec');
+    ok(o2l.state === 'ordered' && o2l.supplier === 'Carpet Co' && o2l.orderRef === 'PO-77' && o2l.due === etaDay && o2l.orderedBy === 'Sam' && !(await pg.locator('#orderSec').count())
+      && (await pg.locator('#onOrderSec .row', {hasText:'Olive Orderin'}).innerText()).includes('Due in ' + etaTxt) && /from Carpet Co, order PO-77/.test(await pg.locator('#onOrderSec .row', {hasText:'Olive Orderin'}).innerText()),
+      'once the order details are in it moves to On order, showing when it is due');
+    await openJobPlain('Olive Orderin'); await pg.waitForSelector('#quoteCard');
+    ok(/On order/.test(await pg.locator('#sheet .panel-head').innerText()) && !(await pg.locator('#orderBanner').count()), 'the job is no longer held');
+    await pg.evaluate(d => { const i = document.querySelector('#jobDate'); i.value = d; i.dispatchEvent(new Event('change', {bubbles:true})); }, day(3));
+    await pg.waitForFunction(() => /is not due in until/.test(document.body.innerText), null, {timeout:6000});
+    ok(app.store.getDoc('jobs/q2').data.date === '', 'it cannot be dated for before the carpet is due in');
+    await pg.evaluate(d => { const i = document.querySelector('#jobDate'); i.value = d; i.dispatchEvent(new Event('change', {bubbles:true})); }, etaDay);
+    await pg.waitForFunction(d => document.querySelector('#jobDate') && document.querySelector('#jobDate').value === d, etaDay, {timeout:6000});
+    await pg.waitForTimeout(300);
+    ok(app.store.getDoc('jobs/q2').data.date === etaDay, 'and can be dated from the day it arrives');
+    await pg.locator('#sheet').getByRole('button', {name:'It has arrived: book it in'}).click(); await pg.selectOption('#allocBay', 'W4-01'); await pg.locator('#modal').getByRole('button', {name:'Save'}).click();
+    await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
+    const o3l = Object.values(app.store.getDoc('jobs/q2').data.lines).find(l => l.unit === 'm');
+    ok(o3l.state === 'allocated' && o3l.bay === 'W4-01', 'when it arrives it is booked into a bay');
+    await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
+    // a customer who is not going ahead
+    await openJobPlain('Norman Notaken'); await pg.waitForSelector('#quoteCard');
+    await pg.locator('#quoteCard').getByRole('button', {name:'Rang them'}).click(); await pg.waitForSelector('#chaseForm');
+    await pg.locator('#chaseOut .radio', {hasText:'Not going ahead'}).locator('input').check(); await pg.locator('#modal').getByRole('button', {name:'Save the call'}).click();
+    ok(/Say why they are not going ahead/.test(await pg.locator('#modal').innerText()), 'a quote cannot be closed as not going ahead without a reason');
+    await pg.fill('#chaseNote', 'Went with a cheaper quote'); await pg.locator('#modal').getByRole('button', {name:'Save the call'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
+    const n1 = app.store.getDoc('jobs/q3').data;
+    ok(n1.status === 'cancelled' && n1.lost.why === 'Went with a cheaper quote' && n1.lost.byName === 'Sam', 'it is closed with the reason kept');
+    await pg.waitForFunction(() => /Quote not taken/.test(document.querySelector('#sheet .panel-head').innerText), null, {timeout:6000});
+    await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
     // a screen left open brings itself up to date when the screens have been replaced, without losing work in hand
     await pg.locator('#tabs .tab', {hasText:'Today'}).click();
     await pg.evaluate(() => { window.__mark = 1; document.querySelector('meta[name="ifd-version"]').content = 'an-older-build'; });
@@ -476,6 +632,15 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.locator('#tabs .tab', {hasText:'Jobs'}).click();
     await pg.waitForFunction(() => /Late Arrival/.test(document.querySelector('#view').innerText), null, {timeout:10000});
     ok(true, 'live updates keep arriving after the connection has been dropped and picked up again');
+    // a first read that lands while the server is still starting is tried again by itself
+    await pg.locator('#tabs .tab', {hasText:'Today'}).click();
+    let failedOnce = false;
+    await pg.route('**/api/db/list?coll=jobs*', r => { if (!failedOnce){ failedOnce = true; r.fulfill({status:502, contentType:'text/html', body:'Bad Gateway'}); } else r.continue(); });
+    await pg.reload();
+    await pg.waitForFunction(() => /saved jobs cannot be reached/.test(document.body.innerText), null, {timeout:8000});
+    await pg.waitForFunction(() => !/saved jobs cannot be reached/.test(document.body.innerText) && /Quentin Quote/.test(document.querySelector('#view').innerText), null, {timeout:12000});
+    await pg.unroute('**/api/db/list?coll=jobs*');
+    ok(failedOnce, 'a first read that fails while the server is restarting is tried again by itself, with no reload needed');
     ok(shopify.state.calls.includes('OpsShop') && shopify.state.calls.includes('OpsInbox') && shopify.state.tokens === 1, 'every Shopify question went through one server-held key');
     ok(await pg.getByRole('button', {name:'Sign out'}).isVisible(), 'the shared screen has a way to sign out');
     await pg.getByRole('button', {name:'Sign out'}).click(); await pg.waitForSelector('#mobile');

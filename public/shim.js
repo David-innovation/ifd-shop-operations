@@ -26,11 +26,21 @@
   }
   /* ---- a newer build of the screens is running: bring this screen up to date without losing anything half typed ---- */
   let stale = false, reloading = false;
-  /* only refresh once the server is answering again, so a restart never leaves the screen on an error page */
+  /* Only refresh once the new build is the one answering, and has answered twice running a few seconds apart. During an
+     update the old server and the new one overlap for a minute or two, and a refresh in that gap lands on an error page. */
+  let tries = 0;
   function safeReload(){
     if (reloading) return; reloading = true;
+    const mine = (document.querySelector('meta[name="ifd-version"]') || {}).content || '';
     const again = () => { reloading = false; setTimeout(safeReload, 3000); };
-    fetch('/', {cache:'no-store', credentials:'same-origin'}).then(r => { if (r.ok) location.reload(); else again(); }, again);
+    const look = () => fetch('/', {cache:'no-store', credentials:'same-origin'}).then(r => r.ok ? r.text() : Promise.reject(new Error('not ready'))).then(t => {
+      const m = /<meta name="ifd-version" content="([^"]*)"/.exec(t);
+      if (!m) return 'signed-out';                                  /* the sign-in page: nothing to wait for */
+      if (m[1] === mine && tries < 40) throw new Error('old build'); /* still the old server: wait for the new one */
+      return m[1];
+    });
+    tries++;
+    look().then(v => v === 'signed-out' ? location.reload() : new Promise(res => setTimeout(res, 2500)).then(look).then(v2 => { if (v2 === v) location.reload(); else again(); }, again), again);
   }
   function outOfDate(){
     if (stale) return; stale = true;
@@ -51,7 +61,8 @@
   }
   function watch(coll, read, next, err){
     listen(); let seq = 0, live = true;
-    const run = () => { const n = ++seq; read().then(r => { if (live && n === seq) next(r); }, e => { if (live && n === seq && err) err(e); }); };
+    /* a read that fails is tried again every few seconds: after an update the first read can land while the server is still starting */
+    const run = () => { const n = ++seq; read().then(r => { if (live && n === seq) next(r); }, e => { if (!live || n !== seq) return; if (err) err(e); if (e && e.code === 'signed_out') return; setTimeout(() => { if (live && n === seq) run(); }, 3000); }); };
     if (!subs.has(coll)) subs.set(coll, new Set());
     subs.get(coll).add(run); run();
     return () => { live = false; subs.get(coll).delete(run); };

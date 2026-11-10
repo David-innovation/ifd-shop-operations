@@ -145,10 +145,30 @@ textarea.in{min-height:84px;resize:vertical}
 .fwrap h2.dh{margin:6px 0 0;font-family:var(--font-display);font-size:20px}
 .fday.shopside > header small{color:var(--muted)}
 .row.act{background:var(--bad-bg);align-items:flex-start}
+.mroom{padding:8px 0;border-top:1px solid var(--line)} .mroom:first-child{border-top:0;padding-top:0}
+.mroom .mt{display:flex;gap:10px;justify-content:space-between;align-items:baseline;flex-wrap:wrap}
+.mroom p{margin:2px 0 0}
+.qline{display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:4px 10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.qline:first-child{border-top:0}
+.qline .qnote{grid-column:1 / -1;margin:0}
+.qline .in.price{text-align:right}
+.qtotal{display:flex;justify-content:space-between;align-items:baseline;border-top:2px solid var(--ink);padding-top:10px;font-size:18px}
+.qtotal b{font-family:var(--font-display);font-size:28px}
+.qmsg{min-height:260px;font-family:inherit;white-space:pre-wrap}
+a.btn{text-decoration:none;color:inherit} a.btn.pri{color:var(--on-brand)} a.btn.off{opacity:.45;pointer-events:none}
 .pricenow h2{color:var(--info)} .pricenow .list{border:1.5px solid var(--info)}
 .row.price{background:var(--info-bg);align-items:flex-start}
 .row.price .sub{overflow-wrap:anywhere}
 .row.price .go{font-weight:700;text-decoration:underline;white-space:nowrap}
+.row .go{font-weight:700;text-decoration:underline;white-space:nowrap}
+.row.static.act:hover{background:var(--bad-bg)}
+.row.cut{align-items:flex-start}
+.cutlen{flex:0 0 auto;min-width:96px;text-align:center;padding:6px 8px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface)}
+.cutlen b{display:block;font-family:var(--font-display);font-size:24px;line-height:1.15} .cutlen small{display:block;font-size:11px;color:var(--muted)}
+.row.cut.held .cutlen{opacity:.55}
+.accitem{display:flex;flex-direction:column;gap:6px;padding:12px 0;border-top:1px solid var(--line)} .accitem:first-child{border-top:0;padding-top:0}
+.accitem .st{margin:0;font-weight:600} .accitem .st.ok{color:var(--ok)} .accitem .st.bad{color:var(--bad)}
+.accitem .lenrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap} .accitem .lenrow .in{width:120px}
 .row.act .why{margin:4px 0 2px;font-weight:600;overflow-wrap:anywhere}
 .actnone{margin:0;color:var(--muted);font-size:13px} .actnone b{color:var(--ink);margin-right:6px}
 .card.backcard{border-color:var(--bad);background:var(--bad-bg)}
@@ -465,11 +485,13 @@ window.IFDLogic = (function(){
     if (!job) return 'waiting';
     if (job.status === 'cancelled') return 'cancelled';
     if (job.status === 'done') return 'done';
-    if (!linesOf(job).length) return 'enquiry';
+    if (!linesOf(job).length) return toPrice(job) ? 'toprice' : quoted(job) ? 'quoted' : 'enquiry';
+    if (orderNeeded(job).length) return 'toorder';
     var sl = stockLines(job), held = checksOutstanding(job).length > 0;
     if (sl.every(function(l){ return lineAllocated(l) && l.picked && l.checked; })) return held ? 'checks' : 'ready';
     if (sl.every(lineAllocated)) return held ? 'checks' : 'allocated';
-    return 'waiting';
+    if (sl.some(function(l){ return l.state === 'ordered' || l.state === 'part'; })) return 'onorder';
+    return cutsOf(job).length ? 'tocut' : 'waiting';
   }
   /* supplier orders */
   function dLines(d){ var o = (d && d.lines) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).sort(function(a, b){ return (a.n || 0) - (b.n || 0); }); }
@@ -504,8 +526,9 @@ window.IFDLogic = (function(){
     var onHand = countToOnHand(counted, m), free = onHand - ((Number(level.on_hand) || 0) - (Number(level.available) || 0));
     return {onHand:onHand, free:free, change:free - (Number(level.available) || 0), conflict:free < 0};
   }
-  var STAGE_LABEL = {waiting:'Not ready', allocated:'Allocated', checks:'Awaiting checks', ready:'Ready to go', enquiry:'No order yet', done:'Done', cancelled:'Cancelled'};
-  var STAGE_TONE = {waiting:'warn', allocated:'info', checks:'warn', ready:'ok', enquiry:'info', done:'', cancelled:''};
+  var STAGE_LABEL = {waiting:'Not ready', allocated:'Allocated', checks:'Awaiting checks', ready:'Ready to go', enquiry:'No order yet', done:'Done', cancelled:'Cancelled',
+    toprice:'To price', quoted:'Quoted', toorder:'Order details needed', onorder:'On order', tocut:'To cut'};
+  var STAGE_TONE = {waiting:'warn', allocated:'info', checks:'warn', ready:'ok', enquiry:'info', done:'', cancelled:'', toprice:'info', quoted:'info', toorder:'bad', onorder:'info', tocut:'warn'};
 
   /* ----- measurements and site checks -----
      A room holds the measured floor and nothing else. Wastage, pack rounding and carpet cut lengths stay on the order lines. */
@@ -687,7 +710,7 @@ window.IFDLogic = (function(){
       if (lineAllocated(l)) return;
       var sp = supplyOf(l);
       if (l.state === 'part') why.push(l.title + (sp.outstanding > 0 ? ': ' + fmtQty(sp.outstanding, l.unit) + ' still to come.' : ' has arrived but is not put away.'));
-      else why.push(l.title + (l.state === 'ordered' ? ' is still on order.' : ' has no bay yet.'));
+      else why.push(l.title + (l.state === 'ordered' ? ' is still on order.' : l.hold === 'supplier' ? ' needs its order details and arrival date.' : l.unit === 'm' && !l.picked ? ' has not been cut yet.' : ' has no bay yet.'));
     });
     return {ok: why.length === 0, why: why};
   }
@@ -888,11 +911,72 @@ window.IFDLogic = (function(){
     need(p.furniture.length, 'moving furniture', /furniture/i);
     return out;
   }
+  /* ---------- the quote ----------
+     Staff type the prices against what was measured. The customer is only ever given the figures: no sizes. */
+  var SIZE_RE = /\d\s*(?:m²|m2|sq\.?\s?m|metres?|meters?|cm|mm|m)\b|\d\s*[x×]\s*\d/i;
+  function hasSize(text){ return SIZE_RE.test(String(text || '')); }
+  function quotesOf(job){ var o = (job && job.quotes) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).filter(function(q){ return !q.gone; }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
+  function quoteOf(job){ var q = quotesOf(job); return q.length ? q[q.length - 1] : null; }
+  function quoteLines(q){ return (Array.isArray(q && q.lines) ? q.lines : []).filter(function(l){ return l && l.label && num(l.price) > 0; }); }
+  function quoteTotal(q){ return round2(quoteLines(q).reduce(function(t, l){ return t + num(l.price); }, 0)); }
+  function firstName(name){ return String(name || '').trim().replace(/^(mr|mrs|ms|miss|mx|dr)\.?\s+/i, '').split(/\s+/)[0] || ''; }
+  function quoteMessage(job, q, from, shop){
+    var first = firstName((job.customer || {}).name), lines = quoteLines(q).map(function(l){ return l.label + ': ' + money(l.price); });
+    return ['Hi ' + (first || 'there') + ',', '', 'Thank you for having us out to measure. Here is your quote from ' + shop.name + '.', ''].concat(lines,
+      ['', 'Total: ' + money(quoteTotal(q)), '', 'If you would like to go ahead, or want anything changed, give us a ring on ' + shop.phone + '.', '', 'Thanks again,', from, shop.name]).join('\n');
+  }
+  /* the lines a quote starts from, with what staff need to price each one. The notes are for staff only. */
+  function quoteRows(job){
+    var p = pricingOf(job), out = [], rooms = roomsOf(job).filter(function(r){ return specOf(r); });
+    var sq = round2(p.rolls.reduce(function(t, g){ return t + g.sq; }, 0)), unfit = carpetGroups(job, roomsOf(job)).unfit;
+    if (p.carpets.length || p.stairs.length) out.push({key:'carpet', label:'Carpet', note:[sq ? fmtM(sq) + ' m² to order: ' + p.rolls.map(function(g){ return fmtM(g.cut) + ' m off the ' + g.w + ' m roll'; }).join(' and ') : '',
+      p.stairs.length ? 'plus the stairs, ' + p.stairs.map(function(z){ return 'a ' + fmtM(z.run) + ' m run ' + Math.round(z.wid * 100) + ' cm wide'; }).join(' and ') : '', unfit.length ? unfit.join(', ') + ' needs a join or a review first' : ''].filter(Boolean).join(', ')});
+    if (p.flooringRooms.length) out.push({key:'flooring', label:'Flooring', note:fmtM(p.flooringArea) + ' m² of floor, nothing added for wastage'});
+    if (p.underlayCarpet || p.underlayFlooring) out.push({key:'underlay', label:'Underlay', note:[p.underlayCarpet ? fmtM(p.underlayCarpet) + ' m² under carpet' : '', p.underlayFlooring ? fmtM(p.underlayFlooring) + ' m² under flooring' : ''].filter(Boolean).join(', ')});
+    var gh = p.byHand.filter(function(x){ return x.indexOf('gripper') === 0; }), bh = p.byHand.filter(function(x){ return x.indexOf('beading') === 0; });
+    if (p.gripper || gh.length) out.push({key:'gripper', label:'Gripper', note:[p.gripper ? 'about ' + fmtM(p.gripper) + ' m round the walls' : '', gh.length ? gh.join(', ') + ' to work out' : ''].filter(Boolean).join(', ')});
+    if (p.beading || bh.length) out.push({key:'beading', label:'Beading', note:[p.beading ? 'about ' + fmtM(p.beading) + ' m round the walls' : '', bh.length ? bh.join(', ') + ' to work out' : ''].filter(Boolean).join(', ')});
+    var bars = Object.keys(BAR_KINDS).filter(function(k){ return p.bars[k]; }).map(function(k){ return p.bars[k] + ' ' + BAR_KINDS[k].toLowerCase(); });
+    if (bars.length) out.push({key:'bars', label:'Door bars', note:bars.join(', ')});
+    var floor = round2(rooms.reduce(function(t, r){ return t + roomArea(r); }, 0)), steps = p.stairs.length ? roomsOf(job).reduce(function(t, r){ var st = hslPart(hslOf(r), 'stairs'); return t + (st ? Math.floor(num(st.n)) + Math.floor(num(st.winders)) : 0); }, 0) : 0;
+    out.push({key:'fitting', label:'Fitting', note:rooms.length + (rooms.length === 1 ? ' room, ' : ' rooms, ') + fmtM(floor) + ' m² of floor' + (steps ? ', ' + steps + ' stairs' : '')});
+    if (p.uplift.length) out.push({key:'uplift', label:'Uplift and disposal', note:p.uplift.join(', ') + ', ' + fmtM(p.upliftArea) + ' m²'});
+    if (p.furniture.length) out.push({key:'furniture', label:'Moving furniture', note:p.furniture.join(', ')});
+    return out;
+  }
   /* measured, the sizes are in, and nothing has been priced yet: the shop's next move */
   function toPrice(job){
-    if (!job || job.status !== 'open' || linesOf(job).length) return false;
+    if (!job || job.status !== 'open' || linesOf(job).length || quoteOf(job)) return false;
     var pre = preOf(job);
     return pre.length > 0 && pre.every(function(v){ return v.status === 'done'; }) && roomsOf(job).length > 0;
+  }
+  function quoted(job){ return !!job && job.status === 'open' && !linesOf(job).length && !!quoteOf(job); }
+  /* ---------- after the quote ----------
+     A sent quote waits on the customer. Five days with no word and the shop rings them. A call nobody answered is
+     tried again the next day. Sending the quote again starts the five days afresh. */
+  var CHASE_DAYS = 5, RETRY_DAYS = 1;
+  var CHASE_OUT = {yes:'They want to go ahead', deciding:'Still deciding', noanswer:'No answer', changes:'They want something changed', no:'Not going ahead'};
+  function stampDay(at){ var d = new Date(at); return isNaN(d.getTime()) ? '' : isoOf(d); }
+  function quoteSent(q){ var st = (q && q.sent) || {}, at = ''; Object.keys(st).forEach(function(k){ if (st[k] && String(st[k].at || '') > at) at = String(st[k].at); }); return at; }
+  function chasesOf(job){ var o = (job && job.chase) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
+  function quoteWait(job, today){
+    var q = quoteOf(job); if (!q) return null;
+    var sent = quoteSent(q);
+    if (!sent) return {state:'unsent', days:0, ringOn:'', last:null, sentAt:'', sentOn:'', calls:0};
+    var calls = chasesOf(job).filter(function(c){ return String(c.at) >= sent; }), last = calls.length ? calls[calls.length - 1] : null;
+    var sentOn = stampDay(sent), ringOn = addDays(stampDay(last ? last.at : sent), last && last.outcome === 'noanswer' ? RETRY_DAYS : CHASE_DAYS);
+    return {state:today >= ringOn ? 'ring' : 'waiting', days:Math.max(0, daysBetween(sentOn, today)), ringOn:ringOn, last:last, sentAt:sent, sentOn:sentOn, calls:calls.length};
+  }
+  /* ---------- once the customer has said yes ----------
+     Goods ordered in hold the job where it is until the order details and the arrival date are entered. Carpet sold
+     from our own rolls goes on the warehouse's cutting list, and nothing on it is cut while a size check is outstanding. */
+  function orderNeeded(job){ return !job || job.status !== 'open' ? [] : stockLines(job).filter(function(l){ return l.hold === 'supplier' && l.state !== 'allocated' && l.state !== 'part' && !(validISO(l.due) && (l.supplier || l.deliveryId)); }); }
+  function onOrder(job){ return !job || job.status !== 'open' ? [] : stockLines(job).filter(function(l){ return l.hold === 'supplier' && l.state === 'ordered' && validISO(l.due); }); }
+  function cutsOf(job){ return !job || job.status !== 'open' ? [] : stockLines(job).filter(function(l){ return l.unit === 'm' && l.hold !== 'supplier' && l.hold !== 'reserved' && !l.picked && !l.returned; }); }
+  function toCut(jobs){
+    var out = [];
+    (jobs || []).forEach(function(j){ var cs = cutsOf(j); if (!cs.length) return; var hold = checksOutstanding(j); cs.forEach(function(l){ out.push({job:j, line:l, hold:hold}); }); });
+    return out;
   }
   function lastFindings(job){ return preOf(job).filter(function(v){ return v.status === 'done'; }).sort(function(a, b){ return String(b.doneAt).localeCompare(String(a.doneAt)); })[0] || null; }
   function briefLine(job){
@@ -994,8 +1078,12 @@ window.IFDLogic = (function(){
       if (hc) w.push({tone:'bad', text:'Second hall, stairs and landing for ' + job.fitter + ' on ' + fmtDay(job.date)});
       if (fc) w.push({tone:'warn', text:Math.round(fc.miles) + ' miles from ' + job.fitter + '’s other work that day (' + fc.from.name + ', ' + fc.from.out + ')'});
       offClashes(job, off).forEach(function(c){ w.push({tone:'bad', text:c.who + ' cannot work on ' + fmtDay(c.date) + ': move the ' + c.what.toLowerCase()}); });
-      if (!linesOf(job).length){ /* an enquiry with a measure booked: there is no installation to date yet */ }
-      else if (!validISO(job.date)) w.push({tone:'warn', text:'No date set'});
+      if (!linesOf(job).length){ /* an enquiry with a measure booked: there is no installation to date yet */
+        var qw = quoted(job) ? quoteWait(job, today) : null;
+        if (qw && qw.state === 'unsent') w.push({tone:'bad', text:'Quote not sent to the customer yet'});
+        else if (qw && qw.state === 'ring') w.push({tone:'bad', text:qw.last ? 'Quote: time to ring them again' : 'No reply to the quote in ' + qw.days + ' days: ring them'});
+      }
+      else if (!validISO(job.date)){ if (!orderNeeded(job).length) w.push({tone:'warn', text:'No date set'}); }
       else {
         var d = daysBetween(today, job.date);
         if (d < 0) w.push({tone:'bad', text:'Date passed (' + fmtDay(job.date) + ')'});
@@ -1003,6 +1091,7 @@ window.IFDLogic = (function(){
       }
       if (job.diary && !allAllocated(job)) w.push({tone:'bad', text:'In the diary but stock is not allocated'});
       stockLines(job).forEach(function(l){ if (l.state === 'ordered' && validISO(l.due) && l.due < today) w.push({tone:'warn', text:'Supplier delivery overdue: ' + l.title}); });
+      if (validISO(job.date)) onOrder(job).forEach(function(l){ if (l.due > job.date) w.push({tone:'bad', text:l.title + ' is not due in until ' + fmtDay(l.due) + ', after the job date'}); });
       var as = arrivalState(job, today), tries = triesOf(job).length;
       if (as === 'overdue') w.push({tone:'bad', text:'Arrival time not confirmed with the customer' + (tries ? ' (' + tries + (tries === 1 ? ' try' : ' tries') + ' logged)' : '')});
       else if (as === 'soon') w.push({tone:'warn', text:'Confirm the arrival time by ' + fmtDay(addDays(job.date, -1))});
@@ -1160,7 +1249,7 @@ window.IFDLogic = (function(){
     linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
-    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, toPrice:toPrice, lastFindings:lastFindings, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
+    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, toPrice:toPrice, quoted:quoted, CHASE_DAYS:CHASE_DAYS, CHASE_OUT:CHASE_OUT, quoteSent:quoteSent, chasesOf:chasesOf, quoteWait:quoteWait, orderNeeded:orderNeeded, onOrder:onOrder, cutsOf:cutsOf, toCut:toCut, quotesOf:quotesOf, quoteOf:quoteOf, quoteLines:quoteLines, quoteTotal:quoteTotal, quoteMessage:quoteMessage, quoteRows:quoteRows, hasSize:hasSize, firstName:firstName, lastFindings:lastFindings, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
     BRIEF_ROOMS:BRIEF_ROOMS, BRIEF_ALSO:BRIEF_ALSO, briefOf:briefOf, briefHas:briefHas, briefChoice:briefChoice, briefName:briefName, briefLine:briefLine,
     hasHSL:hasHSL, limitsOf:limitsOf, measureLimits:measureLimits, planMeasure:planMeasure, toArrange:toArrange, milesBetween:milesBetween, dayWork:dayWork, dayReach:dayReach, hslClash:hslClash, farClash:farClash, hslWhy:hslWhy,
     isFinalBay:isFinalBay, lineAllocated:lineAllocated, supplyOf:supplyOf, supplyState:supplyState, dLines:dLines, dRecs:dRecs, dGot:dGot, dOutstanding:dOutstanding,
@@ -1469,7 +1558,7 @@ function learnNames(ids){
 /* ---------- shell ---------- */
 const TABS = [
   {id:'today', label:'Today'}, {id:'jobs', label:'Jobs'}, {id:'sale', label:'New sale', cls:'only-phone sale'},
-  {id:'diary', label:'Diary'}, {id:'measures', label:'Measures', cls:'only-desk'}, {id:'stock', label:'Stock'}, {id:'deliveries', label:'Deliveries', cls:'only-desk'},
+  {id:'diary', label:'Diary'}, {id:'measures', label:'Measures', cls:'only-desk'}, {id:'stock', label:'Stock'}, {id:'cut', label:'Cutting', cls:'only-desk'}, {id:'deliveries', label:'Deliveries', cls:'only-desk'},
   {id:'tasks', label:'Tasks', cls:'only-desk'}, {id:'activity', label:'Activity', cls:'only-desk'}, {id:'setup', label:'Setup', cls:'only-desk'},
   {id:'more', label:'More', cls:'only-phone'}
 ];
@@ -1539,7 +1628,70 @@ function attentionJobs(){ const t = L.todayISO(), cx = dayCtx(); return jobsArr(
 /* jobs a fitter has handed back from site, and visits left unfinished with no return date: the shop acts on these first */
 /* measured and ready for the shop: price it, then ring the customer. The longest wait is first. */
 function toPriceJobs(){ const at = j => (L.lastFindings(j) || {}).doneAt || ''; return openJobs().filter(L.toPrice).sort((a, b) => String(at(a)).localeCompare(String(at(b)))); }
-function openToPrice(id){ openSheet(id); setTimeout(() => { const el = document.getElementById('toPriceBanner'); if (el) el.scrollIntoView({block:'start'}); }, 80); }
+function openToPrice(id){ openSheet(id); const j = S.jobs.get(id); if (j) quoteDialog(j); }
+/* quotes that are out with the customer: the ones to ring come first, then the ones still inside their five days */
+function quotedJobs(){
+  const t = L.todayISO(), rank = j => { const w = L.quoteWait(j, t); return w.state === 'waiting' ? '1' + w.ringOn : '0' + (w.ringOn || ''); };
+  return openJobs().filter(L.quoted).sort((a, b) => rank(a).localeCompare(rank(b)));
+}
+function sentHow(q){ const st = (q && q.sent) || {}; return st.email ? 'Emailed' : st.text ? 'Texted' : st.copy ? 'Sent' : ''; }
+/* one plain line on where a quoted job stands */
+function quoteStatus(job){
+  const q = L.quoteOf(job), w = L.quoteWait(job, L.todayISO());
+  if (w.state === 'unsent') return {text:'Not sent to the customer yet', tone:'bad', sent:''};
+  const sent = sentHow(q) + ' ' + L.fmtDay(w.sentOn);
+  if (w.state === 'ring') return {text:w.last && w.last.outcome === 'noanswer' ? 'No answer last time: ring them again' : w.last ? 'Time to ring them again' : 'No reply in ' + w.days + ' days: ring them', tone:'bad', sent:sent};
+  return {text:'Ring them on ' + L.fmtDay(w.ringOn) + ' if they have not been back', tone:'', sent:sent};
+}
+function openQuoted(id){
+  openSheet(id); const j = S.jobs.get(id), w = j ? L.quoteWait(j, L.todayISO()) : null; if (!w) return;
+  if (w.state === 'ring') chaseDialog(j); else if (w.state === 'unsent') sendQuoteDialog(j, L.quoteOf(j));
+}
+function quotedRow(job){
+  const c = job.customer || {}, q = L.quoteOf(job), w = L.quoteWait(job, L.todayISO()), st = quoteStatus(job), hot = w.state !== 'waiting';
+  return h('button', {type:'button', class:'row' + (hot ? ' act' : ''), onclick:() => openQuoted(job.id)},
+    h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
+      h('div', {class:'sub', text:[c.phone, 'Quoted by ' + (q.byName || 'someone')].filter(Boolean).join(' · ')}),
+      h('div', {class:'meta'}, st.sent ? chip(st.sent, 'ok') : null, chip(st.text, st.tone), w.calls ? chip(w.calls + (w.calls === 1 ? ' call logged' : ' calls logged')) : null)),
+    h('div', {class:'end'}, h('span', {class:'num', text:L.money(L.quoteTotal(q))}), hot ? h('span', {class:'go', text:w.state === 'unsent' ? 'Send it' : 'Ring them'}) : null));
+}
+/* the customer has said yes and something has to be ordered in: nothing more happens to the job until the order details are in */
+function toOrderJobs(){ return openJobs().filter(j => L.orderNeeded(j).length).sort((a, b) => String((a.accepted || {}).at || '').localeCompare(String((b.accepted || {}).at || ''))); }
+function orderDetailsFor(job){ const l = L.orderNeeded(job)[0]; if (!l) return; if (l.unit === 'm') orderDetailsDialog(job, l); else orderDialog({jobId:job.id, lineK:l.k}); }
+function orderRow(job){
+  const c = job.customer || {};
+  return h('div', {class:'row static act'},
+    h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
+      L.orderNeeded(job).map(l => h('div', {class:'sub', text:'To order: ' + L.fmtQty(l.qty, l.unit) + ' of ' + l.title})),
+      h('div', {class:'meta'}, chip(job.type || 'No type'), c.phone ? chip(c.phone) : null, chip('Held here until the order details and arrival date are in', 'bad'))),
+    h('div', {class:'bar'}, btn('Enter order details', () => orderDetailsFor(job), 'sm pri'), btn('Open', () => openSheet(job.id), 'sm')));
+}
+function onOrderJobs(){ const due = j => L.onOrder(j).map(l => l.due).sort()[0] || ''; return openJobs().filter(j => !L.orderNeeded(j).length && L.onOrder(j).length).sort((a, b) => due(a).localeCompare(due(b))); }
+function onOrderRow(job){
+  const c = job.customer || {}, ls = L.onOrder(job), due = ls.map(l => l.due).sort()[0], late = due < L.todayISO();
+  return h('div', {class:'row static'}, dateBlock({date:due, status:'open'}),
+    h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
+      ls.map(l => h('div', {class:'sub', text:L.fmtQty(l.qty, l.unit) + ' of ' + l.title + ' from ' + (l.supplier || 'the supplier') + (l.orderRef ? ', order ' + l.orderRef : '')})),
+      h('div', {class:'meta'}, chip(job.type || 'No type'), chip(late ? 'Was due ' + L.fmtDay(due) + ': chase the supplier' : 'Due in ' + L.fmtDay(due), late ? 'bad' : 'info'))),
+    h('div', {class:'bar'}, btn('It has arrived', () => { const l = ls[0]; if (l.deliveryId && S.deliveries.has(l.deliveryId)) openDelivery(l.deliveryId); else allocDialog(job, l, 'bay'); }, 'sm pri'), btn('Open', () => openSheet(job.id), 'sm')));
+}
+/* the warehouse's cutting list: dated jobs first, then in the order the customers said yes */
+function cutAll(){
+  const key = x => (L.validISO(x.job.date) ? x.job.date : '9999') + String((x.job.accepted || {}).at || x.job.createdAt || '');
+  return L.toCut(openJobs()).sort((a, b) => key(a).localeCompare(key(b)));
+}
+function cutReady(){ return cutAll().filter(x => !x.hold.length); }
+function cutRow(x, brief){
+  const j = x.job, l = x.line, c = j.customer || {}, held = x.hold.length > 0;
+  return h('div', {class:'row static cut' + (held ? ' held' : '')},
+    h('div', {class:'cutlen'}, h('b', {class:'num', text:(Number(l.qty) / 10).toFixed(1) + ' m'}), h('small', {text:l.w ? 'off the ' + l.w + ' m roll' : 'to cut'})),
+    h('div', {class:'grow'}, h('div', {class:'who', text:l.title}),
+      h('div', {class:'sub', text:'For ' + (c.name || 'No name') + '  ' + (j.ref || '') + ' · ' + (j.type || 'No type') + ' · ' + (L.validISO(j.date) ? L.fmtDay(j.date) : 'no date yet')}),
+      l.rooms ? h('div', {class:'sub', text:'Rooms: ' + l.rooms}) : null,
+      held ? h('p', {class:'why', text:'Do not cut yet. ' + x.hold[0]}) : null,
+      h('div', {class:'meta'}, l.holdRef ? chip('Reserved in Shopify ' + l.holdRef) : null, l.state === 'allocated' && l.bay ? bayTag(l.bay) : null)),
+    brief ? null : h('div', {class:'bar'}, held ? null : btn('Cut done', () => cutDialog(j, l), 'sm pri'), btn('Open job', () => openSheet(j.id), 'sm')));
+}
 function priceRow(job){
   const c = job.customer || {}, v = L.lastFindings(job) || {}, rooms = L.roomsOf(job), b = L.briefOf(job), p = L.pricingOf(job), cg = L.carpetGroups(job, rooms);
   const days = v.doneAt ? Math.max(0, L.daysBetween(String(v.doneAt).slice(0, 10), L.todayISO())) : 0;
@@ -1572,9 +1724,9 @@ function actRow(job){
 }
 function paintTabs(){
   const box = $('#tabs'); box.replaceChildren();
-  const badge = {today:inboxList().length + actNowJobs().length + toPriceJobs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length};
+  const badge = {today:inboxList().length + actNowJobs().length + toPriceJobs().length + quotedJobs().filter(j => L.quoteWait(j, L.todayISO()).state !== 'waiting').length + toOrderJobs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length, cut:cutReady().length};
   TABS.forEach(t => {
-    const on = S.view === t.id || (t.id === 'more' && ['tasks','activity','setup','deliveries','stocktake','measures'].indexOf(S.view) !== -1 && window.matchMedia('(max-width: 760px)').matches);
+    const on = S.view === t.id || (t.id === 'more' && ['tasks','activity','setup','deliveries','stocktake','measures','cut'].indexOf(S.view) !== -1 && window.matchMedia('(max-width: 760px)').matches);
     box.append(h('button', {type:'button', class:'tab' + (t.cls ? ' ' + t.cls : '') + (on ? ' on' : ''), onclick:() => { if (t.id === 'sale') saleDialog(); else go(t.id); }},
       t.label, badge[t.id] ? h('span', {class:'badge', text:String(badge[t.id])}) : null));
   });
@@ -1697,7 +1849,7 @@ VIEWS.today = function(){
     const todayJobs = open.filter(j => j.date === t || j.date === L.addDays(t, 1)).sort(sortOpen);
     const dueTasks = S.tasks.filter(x => !x.done && (!x.due || x.due <= t));
     const held = open.filter(j => L.checksOutstanding(j).length).sort(sortOpen);
-    const price = toPriceJobs(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j)).sort(sortOpen);
+    const price = toPriceJobs(), quotedNow = quotedJobs(), ringN = quotedNow.filter(j => L.quoteWait(j, t).state !== 'waiting').length, toOrd = toOrderJobs(), onOrd = onOrderJobs(), cuts = cutReady(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j) && !L.quoted(j)).sort(sortOpen);
     const heldHot = held.some(j => (j.review && j.review.on) || j.diary || (L.validISO(j.date) && L.daysBetween(t, j.date) <= 7));
     body.replaceChildren();
     add(body, [
@@ -1708,6 +1860,10 @@ VIEWS.today = function(){
       S.estimators.length ? h('div', {class:'estrip', id:'estStrip'}, S.estimators.map(e => { const ld = estimatorLoad(e);
         return h('button', {type:'button', class:'estrow' + (ld.urgent.length || ld.late.length ? ' hot' : ''), onclick:() => openPersonPage(e)}, h('b', {text:e}), h('span', {class:'what', text:estimatorLine(ld)}), h('span', {class:'open', text:'Open dashboard'})); })) : null,
       price.length ? h('section', {class:'sec pricenow', id:'priceSec'}, h('h2', {}, 'To price', h('span', {text:'measured and waiting on the shop: price it, then ring the customer'})), h('div', {class:'list'}, price.map(priceRow))) : null,
+      quotedNow.length ? h('section', {class:'sec' + (ringN ? ' actnow' : ''), id:'quotedSec'}, h('h2', {}, 'Quotes sent', h('span', {text:ringN ? ringN + (ringN === 1 ? ' to deal with now' : ' to deal with now') + ', the rest waiting on the customer' : 'waiting on the customer: ring them after ' + L.CHASE_DAYS + ' days with no reply'})), h('div', {class:'list'}, quotedNow.map(quotedRow))) : null,
+      toOrd.length ? h('section', {class:'sec actnow', id:'orderSec'}, h('h2', {}, 'To order', h('span', {text:'the customer said yes: put the order in, then enter its details and arrival date'})), h('div', {class:'list'}, toOrd.map(orderRow))) : null,
+      cuts.length ? h('section', {class:'sec', id:'cutSec'}, h('h2', {}, 'To cut', h('span', {text:'in stock and waiting in the warehouse'}), h('span', {class:'grow'}), btn('Open the cutting list', () => go('cut'), 'sm pri')), h('div', {class:'list'}, cuts.map(x => cutRow(x, true)))) : null,
+      onOrd.length ? h('section', {class:'sec', id:'onOrderSec'}, h('h2', {}, 'On order', h('span', {text:'waiting on the supplier'})), h('div', {class:'list'}, onOrd.map(onOrderRow))) : null,
       h('div', {class:'tiles'},
         h('button', {type:'button', class:'tile' + (inbox.length ? ' hot' : ''), onclick:() => { const el = document.getElementById('inboxSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(inbox.length)}), h('span', {text:'New from website'}), h('small', {text:'Waiting to be made into jobs'})),
         h('button', {type:'button', class:'tile' + (heldHot ? ' hot' : ''), onclick:() => { const el = document.getElementById('checksSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(held.length)}), h('span', {text:'Checks outstanding'}), h('small', {text:'Sizes, measures and inspections'})),
@@ -2106,12 +2262,30 @@ VIEWS.setup = function(){
   }
   return {nodes:[h('div', {class:'head'}, h('h1', {text:'Setup'})), body], refresh:draw};
 };
+VIEWS.cut = function(){
+  const body = h('div', {style:'display:contents'});
+  function draw(){
+    const all = cutAll(), ready = all.filter(x => !x.hold.length), held = all.filter(x => x.hold.length);
+    body.replaceChildren();
+    add(body, [
+      h('section', {class:'sec', id:'cutList'}, h('h2', {}, 'To cut', h('span', {text:String(ready.length)})),
+        listOf(ready.map(x => cutRow(x)), 'Nothing to cut', 'Carpet sold from our own rolls shows here the moment the customer says yes.')),
+      held.length ? h('section', {class:'sec', id:'cutHeld'}, h('h2', {}, 'Not to be cut yet', h('span', {text:'a size check or a review is outstanding'})), listOf(held.map(x => cutRow(x)), '', '')) : null]);
+  }
+  return {nodes:[h('div', {class:'head'}, h('div', {}, h('h1', {text:'Cutting list'}), h('p', {text:'Carpet sold from our own rolls. Cut it, label it with the customer’s name and job number, then say where you put it.'}))), body], refresh:draw};
+};
 VIEWS.more = function(){
   return {nodes:[h('div', {class:'head'}, h('h1', {text:'More'})),
-    h('div', {class:'sec'}, btn('Fitter’s page', () => go('fitter'), 'block'), btn('Measures', () => go('measures'), 'block'), btn('Deliveries', () => go('deliveries'), 'block'), btn('Opening stocktake', () => go('stocktake'), 'block'), btn('Tasks', () => go('tasks'), 'block'), btn('Activity', () => go('activity'), 'block'), btn('Setup', () => go('setup'), 'block'))], refresh:null};
+    h('div', {class:'sec'}, btn('Fitter’s page', () => go('fitter'), 'block'), btn('Measures', () => go('measures'), 'block'), btn('Cutting list', () => go('cut'), 'block'), btn('Deliveries', () => go('deliveries'), 'block'), btn('Opening stocktake', () => go('stocktake'), 'block'), btn('Tasks', () => go('tasks'), 'block'), btn('Activity', () => go('activity'), 'block'), btn('Setup', () => go('setup'), 'block'))], refresh:null};
 };
 
 /* ---------- the job sheet ---------- */
+/* a job cannot be dated while something for it still has to be ordered, or for a day before its goods are due in */
+function supplyMsg(job, date){
+  if (L.orderNeeded(job).length) return 'Something for this job still has to be ordered. Enter the order details and its arrival date first.';
+  const late = L.onOrder(job).filter(l => l.due > date).sort((a, b) => b.due.localeCompare(a.due))[0];
+  return late ? late.title + ' is not due in until ' + L.fmtDay(late.due) + '. Pick that day or a later one.' : '';
+}
 function openSheet(id){
   S.fitterSheet = null; S.openDelivery = null; S.openJob = id; S.live = {}; $('#sheet').hidden = false; drawSheet();
   const od = contactItems(['overdue']).filter(x => x.job.id === id);
@@ -2128,13 +2302,17 @@ function lineBlock(job, l){
   const open = job.status === 'open', needs = l.hold && l.hold !== 'none', sp = L.supplyOf(l);
   const viaDelivery = l.hold === 'supplier' || l.hold === 'reserved' || l.state === 'ordered' || l.state === 'part';
   const live = S.live[L.gidNum(l.variantId)];
+  const rollIn = l.unit === 'm' && l.hold === 'supplier' && !l.deliveryId, hasEta = L.validISO(l.due), toCutLine = open && l.unit === 'm' && !viaDelivery && !l.picked;
   const state = h('div', {class:'meta'});
   if (needs){
     state.append(chip(HOLD_TEXT[l.hold] + (l.holdRef && l.hold !== 'web' ? ' ' + l.holdRef : ''), ''));
     if (l.state === 'allocated'){ state.append(bayTag(l.bay || 'BAY?')); }
     else if (l.state === 'part'){ state.append(chip(sp.outstanding > 0 ? 'Part arrived' : 'Arrived, not put away', 'warn')); }
-    else if (l.state === 'ordered'){ state.append(chip('On order' + (l.supplier ? ' from ' + l.supplier : '') + (l.due ? ', due ' + L.fmtDay(l.due) : ''), L.validISO(l.due) && l.due < L.todayISO() ? 'bad' : 'info')); }
+    else if (l.state === 'ordered'){ state.append(chip('On order' + (l.supplier ? ' from ' + l.supplier : '') + (l.orderRef ? ', order ' + l.orderRef : '') + (l.due ? ', due ' + L.fmtDay(l.due) : ''), L.validISO(l.due) && l.due < L.todayISO() ? 'bad' : 'info')); }
+    else if (l.hold === 'supplier') state.append(chip('Order details needed', 'bad'));
+    else if (toCutLine) state.append(chip('On the cutting list', 'warn'));
     else state.append(chip('No bay yet', 'warn'));
+    if (l.cutBy) state.append(chip('Cut by ' + l.cutBy));
     if (l.returned) state.append(chip('Put back into stock'));
   } else state.append(chip(HOLD_TEXT.none));
   return h('div', {class:'ln'},
@@ -2143,8 +2321,10 @@ function lineBlock(job, l){
     live ? h('p', {class:'small muted', text:'Shopify right now: ' + L.fmtQty(live.available, l.unit) + ' free to sell, ' + L.fmtQty(live.on_hand, l.unit) + ' on hand.'}) : null,
     needs && (sp.got > 0 || l.deliveryId) ? h('p', {class:'small muted', text:'Arrived ' + L.fmtQty(sp.got, l.unit) + ' of ' + L.fmtQty(l.qty, l.unit) + (sp.put ? ', ' + L.fmtQty(sp.put, l.unit) + ' put away' + (sp.bay ? ' in ' + sp.bay : '') : '') + (sp.waiting ? ', ' + L.fmtQty(sp.waiting, l.unit) + ' in GOODS-IN' : '') + (sp.outstanding ? ', ' + L.fmtQty(sp.outstanding, l.unit) + ' still to come' : '') + '.'}) : null,
     needs && open ? h('div', {class:'bar'},
-      viaDelivery && l.state !== 'allocated' ? (l.deliveryId && S.deliveries.has(l.deliveryId) ? btn('Open the delivery', () => openDelivery(l.deliveryId), 'sm pri') : btn('Order it or book it in', () => orderDialog({jobId:job.id, lineK:l.k}), 'sm pri')) : null,
-      !viaDelivery || (l.state === 'allocated' && !l.rx) ? btn(l.state === 'allocated' ? 'Move' : 'Put in a bay', () => allocDialog(job, l, 'bay'), 'sm' + (l.state === 'allocated' ? '' : ' pri')) : null,
+      rollIn && l.state !== 'allocated' ? [hasEta ? btn('It has arrived: book it in', () => allocDialog(job, l, 'bay'), 'sm pri') : null, btn(hasEta ? 'Change the order details' : 'Enter order details', () => orderDetailsDialog(job, l), 'sm' + (hasEta ? '' : ' pri'))]
+        : viaDelivery && l.state !== 'allocated' ? (l.deliveryId && S.deliveries.has(l.deliveryId) ? btn('Open the delivery', () => openDelivery(l.deliveryId), 'sm pri') : btn('Order it or book it in', () => orderDialog({jobId:job.id, lineK:l.k}), 'sm pri')) : null,
+      toCutLine && l.state !== 'allocated' ? btn('Cut done', () => cutDialog(job, l), 'sm pri') : null,
+      (!viaDelivery && !(toCutLine && l.state !== 'allocated')) || (l.state === 'allocated' && !l.rx) ? btn(l.state === 'allocated' ? 'Move' : 'Put in a bay', () => allocDialog(job, l, 'bay'), 'sm' + (l.state === 'allocated' ? '' : ' pri')) : null,
       !viaDelivery && l.state !== 'allocated' ? btn('It needs ordering', () => allocDialog(job, l, 'order'), 'sm') : null,
       l.state === 'allocated' ? h('span', {class:'ticks'},
         h('label', {class:'tick'}, h('input', {type:'checkbox', checked:!!l.picked, onchange:e => tickLine(job, l, 'picked', e.target.checked)}), l.unit === 'm' ? 'Cut' : 'Picked'),
@@ -2188,7 +2368,7 @@ function drawSheet(){
 
   const typeSeg = h('div', {class:'seg sm'}, L.TYPES.map(t => h('button', {type:'button', class:job.type === t ? 'on' : '', disabled:!open, onclick:() => { if (job.type !== t) set({type:t}, 'Changed to ' + t); }}, t)));
   const slotSeg = h('div', {class:'seg sm'}, [['', 'Any time'], ['AM', 'AM'], ['PM', 'PM']].map(x => h('button', {type:'button', class:(job.slot || '') === x[0] ? 'on' : '', disabled:!open, onclick:() => { if ((job.slot || '') !== x[0]) set({slot:x[0]}, 'Time slot set to ' + x[1]); }}, x[1])));
-  const pickDate = v => { const om = offMsg(job.fitter, v) || (v ? hslMsg(job, job.fitter, v) : ''); if (om){ toast(om, true); drawSheet(); return; } const p = {date:v}; if (!v) p.diary = false; if (v && job.ret === 'needed'){ p.ret = 'booked'; p.retWhy = ''; } set(p, v ? 'Date set to ' + L.fmtDay(v) : 'Date cleared'); };
+  const pickDate = v => { const om = offMsg(job.fitter, v) || (v ? hslMsg(job, job.fitter, v) : '') || (v ? supplyMsg(job, v) : ''); if (om){ toast(om, true); drawSheet(); return; } const p = {date:v}; if (!v) p.diary = false; if (v && job.ret === 'needed'){ p.ret = 'booked'; p.retWhy = ''; } set(p, v ? 'Date set to ' + L.fmtDay(v) : 'Date cleared'); };
   const dateIn = h('input', {class:'in sm', id:'jobDate', type:'date', value:L.validISO(job.date) ? job.date : '', disabled:!open, onchange:e => { e.target.blur(); pickDate(e.target.value); }});
   const areaOut = L.outwardOf(c.postcode);
   const areaDet = open && job.type !== 'Collection' ? h('details', {}, h('summary', {class:'small', text:areaOut ? 'When are we next in ' + areaOut + '?' : 'When are we next in that area?'}),
@@ -2263,20 +2443,39 @@ function drawSheet(){
   const lf = L.toPrice(job) ? L.lastFindings(job) || {} : null;
   const toPriceBanner = lf ? h('div', {class:'banner info', id:'toPriceBanner'}, h('div', {class:'grow'}, h('b', {text:'Measured and ready to price. '}),
       'The sizes came in from ' + (lf.doneBy || 'the measure') + ' ' + whenText(lf.doneAt) + '. Check the summary below, press Price it to build the quote, then ring ' + (c.name || 'the customer') + (c.phone ? ' on ' + c.phone : '') + '.'),
-    btn('Price it', () => saleDialog(job), 'pri sm')) : null;
+    btn('Price it', () => quoteDialog(job), 'pri sm')) : null;
+  const pq = L.quoteOf(job), sentBits = pq ? ['email', 'text', 'copy'].filter(k => pq.sent && pq.sent[k]).map(k => (k === 'email' ? 'Email opened to ' + pq.sent[k].to : k === 'text' ? 'Text opened to ' + pq.sent[k].to : 'Copied to send') + ' ' + whenText(pq.sent[k].at) + ' by ' + (pq.sent[k].byName || 'someone')) : [];
+  const qw = pq && L.quoted(job) ? L.quoteWait(job, L.todayISO()) : null, qs = qw ? quoteStatus(job) : null, acc = job.accepted || null, calls = L.chasesOf(job);
+  const priceQuoteCard = pq ? h('div', {class:'card', id:'quoteCard'}, h('h3', {}, 'Quote', chip(L.money(L.quoteTotal(pq)), 'info'),
+      acc ? chip('Accepted', 'ok') : job.lost ? chip('Not taken') : qw ? chip(qw.state === 'unsent' ? 'Not sent yet' : qw.state === 'ring' ? 'Ring them' : 'Waiting on the customer', qw.state === 'waiting' ? 'warn' : 'bad') : null),
+    L.quoteLines(pq).map(l => h('div', {class:'ln-top'}, h('span', {text:l.label}), h('b', {class:'num', text:L.money(l.price)}))),
+    h('div', {class:'qtotal'}, h('span', {text:'Total'}), h('b', {class:'num', text:L.money(L.quoteTotal(pq))})),
+    h('p', {class:'small muted', text:'Saved by ' + (pq.byName || 'someone') + ' ' + whenText(pq.at) + '. ' + (sentBits.length ? sentBits.join('. ') + '.' : 'Not sent to the customer yet.')}),
+    qs && qw.state !== 'unsent' ? h('p', {id:'quoteNext', style:qw.state === 'ring' ? 'font-weight:700;color:var(--bad)' : 'font-weight:600', text:qs.text + '.'}) : null,
+    calls.length ? h('div', {class:'log', id:'quoteCalls'}, calls.map(x => h('div', {text:whenText(x.at) + '  ' + (x.byName || 'Someone') + ' rang. ' + (L.CHASE_OUT[x.outcome] || x.outcome) + (x.note ? ': ' + x.note : '')}))) : null,
+    acc ? h('p', {class:'small', id:'quoteAccepted', text:'The customer said yes ' + whenText(acc.at) + '. Taken by ' + (acc.byName || 'someone') + '.'}) : null,
+    job.lost ? h('p', {class:'small', text:'Not going ahead: ' + (job.lost.why || 'no reason given') + '.'}) : null,
+    open && qw ? h('div', {class:'bar'}, btn('Customer said yes', () => acceptDialog(job), 'pri'), btn('Rang them', () => chaseDialog(job), 'sm'),
+      btn(qw.state === 'unsent' ? 'Send it' : 'Send it again', () => sendQuoteDialog(job, pq), 'sm' + (qw.state === 'unsent' ? ' pri' : '')), btn('Change it', () => quoteDialog(job), 'sm')) : null) : null;
+  const needOrd = open ? L.orderNeeded(job) : [], cutsNow = open ? L.cutsOf(job) : [];
+  const orderBanner = needOrd.length ? h('div', {class:'banner bad', id:'orderBanner'}, h('div', {class:'grow'}, h('b', {text:'To order. '}),
+      needOrd.map(l => L.fmtQty(l.qty, l.unit) + ' of ' + l.title).join('; ') + '. This job is held here until the order details and the arrival date are in.'), btn('Enter order details', () => orderDetailsFor(job), 'pri sm')) : null;
+  const cutBanner = cutsNow.length ? h('div', {class:'banner info', id:'cutBanner'}, h('div', {class:'grow'}, h('b', {text:'On the cutting list. '}),
+      cutsNow.map(l => L.fmtQty(l.qty, l.unit) + ' of ' + l.title).join('; ') + '. Waiting to be cut in the warehouse.'), btn('Cutting list', () => { closeSheet(); go('cut'); }, 'sm')) : null;
   const priceBlock = pricingBlock(job, lines.length ? lines.map(l => l.title) : null, open);
-  const pricingCard = priceBlock ? h('div', {class:'card', id:'pricingCard'}, h('h3', {}, 'For pricing, from the measure'), priceBlock) : null;
+  const more = priceBlock ? h('details', {id:'pricingMore', open:S.ui.priceMore === true, ontoggle:e => { S.ui.priceMore = e.target.open; }}, h('summary', {class:'small', text:'Carpet working-out and checks'}), priceBlock) : null;
+  const pricingCard = priceBlock ? h('div', {class:'card', id:'pricingCard'}, h('h3', {}, 'What was measured'), measuredBlock(job), more) : null;
   const panel = h('div', {class:'panel', role:'dialog', 'aria-label':'Job ' + (job.ref || '')},
     h('div', {class:'panel-head'},
       h('div', {class:'grow'}, h('h2', {text:(c.name || 'No name') + '  ' + (job.ref || '')}),
         h('div', {class:'meta'}, chip(job.type || 'No type', 'info'), chip(L.STAGE_LABEL[stage], L.STAGE_TONE[stage]),
-          bo ? chip('Sent back', 'bad') : null,
+          bo ? chip('Sent back', 'bad') : null, job.lost ? chip('Quote not taken') : null,
           open && job.ret === 'booked' ? chip('Return visit booked', 'info') : null, open && job.ret === 'needed' ? chip('Return visit needed', 'bad') : null,
           job.status === 'done' ? chip((job.doneAs || 'Done') + ' ' + whenText(job.doneAt) + (job.signoff && job.signoff.fitter ? ', signed off by ' + job.signoff.fitter : '')) : null)),
       btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'},
       backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0)).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
-      toPriceBanner, custCard, briefCard, pricingCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
+      toPriceBanner, orderBanner, cutBanner, priceQuoteCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
       h('div', {class:'card'}, h('h3', {}, 'History'), h('div', {class:'log'}, logs.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': ' + x.text}))))));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -2681,6 +2880,308 @@ function pricingBlock(job, titles, edit){
     miss.length ? h('div', {class:'banner warn', id:'pricingMiss'}, h('p', {}, h('b', {text:'Not on it yet: ' + miss.join(', ') + '. '}), 'The measure says these are needed. Add them, or carry on if they are covered another way.')) : null,
     p.unasked.length ? h('p', {class:'small muted', text:'No answers recorded for ' + p.unasked.join(', ') + '.'}) : null,
     h('p', {class:'small muted', text:'Carpet is bought at the full width of the roll, so it is roll width × cut length, not the floor area. The cut is the side running along the roll plus 10 cm, rounded up to the next 10 cm. A hall or landing is ordered at its longest and widest and cut down on the day. A stair run is the depth plus the height of every step, plus 30 cm. Flooring, underlay, gripper and beading are the bare floor: nothing is added for wastage and doorways are not taken off.'}));
+}
+/* ---------- what was measured, kept simple: each room, its size and what it needs ---------- */
+function measuredBlock(job){
+  const rooms = L.roomsOf(job), b = L.briefOf(job);
+  if (!rooms.length) return h('p', {class:'muted', text:'No room sizes are in yet.'});
+  return h('div', {id:'measuredBlock'}, rooms.map(r => {
+    const s = L.specOf(r), hx = L.hslOf(r), ch = r.want ? L.briefChoice(b, r.want) : null, needs = [], notes = [];
+    if (s){
+      if (s.underlay) needs.push('underlay'); if (s.gripper) needs.push('gripper'); if (s.beading) needs.push('beading');
+      L.specBars(s).forEach(z => needs.push(z.n + (z.n === 1 ? ' door bar (' : ' door bars (') + z.label.toLowerCase() + ')'));
+      if (s.old) notes.push(s.uplift ? 'Old flooring down: the customer wants a price to uplift and dispose of it.' : 'Old flooring down: the customer is lifting it.');
+      if (s.furniture) notes.push('The customer wants a price to move furniture.');
+    }
+    const pl = s && s.floor === 'carpet' && !hx ? L.planFor(job, r) : null;
+    return h('div', {class:'mroom'},
+      h('div', {class:'mt'}, h('b', {text:r.name || 'Room'}), h('span', {class:'num', text:hx ? L.fmtM(L.roomArea(r)) + ' m² in all' : L.roomSize(r)})),
+      hx ? h('p', {class:'small', text:L.hslText(r)}) : null,
+      h('p', {class:'small', text:(s ? (s.floor === 'carpet' ? 'Carpet' : 'Flooring') : 'Not said whether carpet or flooring') + (ch ? ': ' + ch.title : '') + '. ' + (s ? (needs.length ? 'Needs ' + needs.join(', ') + '.' : 'Nothing else needed.') : '')}),
+      pl && !pl.fits ? h('p', {class:'small', style:'color:var(--bad);font-weight:700', text:'This room needs a join or a fitting review before the carpet is priced.'}) : null,
+      notes.map(n => h('p', {class:'small', text:n})));
+  }));
+}
+/* ---------- the quote: staff type the prices, the customer gets the figures only ---------- */
+const SHOP = {name:'Innovation Flooring Direct', phone:'0141 952 5200'};
+function myName(set){
+  try { if (set !== undefined){ localStorage.setItem('ifd-my-name', set); return set; } const v = localStorage.getItem('ifd-my-name'); if (v) return v; } catch (e) {}
+  return S.me.name && S.me.name !== 'Shop' ? S.me.name : '';
+}
+function quoteDialog(job){
+  if (!needDb()) return;
+  const s = sayer(), c = job.customer || {}, cur = L.quoteOf(job), base = L.quoteRows(job);
+  const rows = cur ? L.quoteLines(cur).map(l => ({label:l.label, price:String(l.price), note:(base.find(z => z.label === l.label) || {}).note || ''}))
+    .concat(base.filter(z => !L.quoteLines(cur).some(l => l.label === z.label)).map(z => ({label:z.label, price:'', note:z.note}))) : base.map(z => ({label:z.label, price:'', note:z.note}));
+  const box = h('div', {id:'quoteLines'}), total = h('b', {class:'num', id:'quoteTotal'}), who = h('input', {class:'in', id:'quoteBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const sum = () => { total.textContent = L.money(L.round2(rows.reduce((t, r) => t + (Number(r.price) > 0 ? Number(r.price) : 0), 0))); };
+  function draw(){
+    box.replaceChildren();
+    rows.forEach((r, i) => box.append(h('div', {class:'qline'},
+      h('input', {class:'in', id:'ql' + i, type:'text', value:r.label, placeholder:'What it is for', 'aria-label':'Line ' + (i + 1), oninput:e => { r.label = e.target.value; }}),
+      h('input', {class:'in price', id:'qp' + i, type:'number', min:'0', step:'0.01', inputmode:'decimal', placeholder:'£', value:r.price, 'aria-label':'Price for ' + (r.label || 'line ' + (i + 1)), oninput:e => { r.price = e.target.value; sum(); }}),
+      r.note ? h('p', {class:'small muted qnote', text:r.note}) : null)));
+    sum();
+  }
+  draw();
+  const save = btn('Save the quote', async () => {
+    const lines = rows.map(r => ({label:String(r.label || '').trim(), price:L.round2(Number(r.price) || 0)})).filter(l => l.price > 0), name = who.value.trim(), errs = [];
+    if (!lines.length) errs.push('Type at least one price.');
+    if (lines.some(l => !l.label)) errs.push('Every price needs to say what it is for.');
+    if (lines.some(l => L.hasSize(l.label))) errs.push('Take the sizes out of the wording. The customer is only given the figures.');
+    if (!name) errs.push('Type your name, so the customer knows who the quote is from.');
+    if (errs.length){ s.say(errs.join(' '), true); return; }
+    myName(name);
+    const k = 'q' + uid(), q = {n:L.quotesOf(job).length + 1, at:nowISO(), by:S.me.id || '', byName:name, lines:lines, total:L.round2(lines.reduce((t, l) => t + l.price, 0))}, pt = {quotes:{}}; pt.quotes[k] = q;
+    save.disabled = true;
+    try { await patchJob(job.id, pt, 'Quote of ' + L.money(q.total) + ' saved by ' + name + ': ' + lines.map(l => l.label + ' ' + L.money(l.price)).join(', ')); toast('Quote saved'); sendQuoteDialog(Object.assign({}, job, {quotes:Object.assign({}, job.quotes, pt.quotes)}), Object.assign({k:k}, q)); }
+    catch (e){ save.disabled = false; dbFail(e); }
+  }, 'pri');
+  openModal(dlg('Price the job', h('div', {class:'sec', id:'quoteForm'},
+    h('div', {class:'card tight'}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '')}), h('p', {class:'small muted', text:[c.phone, [c.address, c.postcode].filter(Boolean).join(', ')].filter(Boolean).join(' · ')})),
+    h('div', {class:'card'}, h('h3', {}, 'What was measured'), measuredBlock(job)),
+    h('div', {class:'card'}, h('h3', {}, 'Prices'), h('p', {class:'small muted', text:'Type the price for each line. Leave a line empty to leave it off the quote. The grey notes are for you: the customer only sees the wording and the price.'}),
+      box, h('div', {class:'bar'}, btn('Add another line', () => { rows.push({label:'', price:'', note:''}); draw(); try { box.querySelector('#ql' + (rows.length - 1)).focus(); } catch (e) {} }, 'sm')),
+      h('div', {class:'qtotal'}, h('span', {text:'Total'}), total)),
+    field('Your name, shown on the quote', who), s.box), [btn('Cancel', closeModal), save]));
+}
+function sendQuoteDialog(job, q){
+  if (!needDb()) return;
+  const s = sayer(), c = job.customer || {}, name = q.byName || myName();
+  const msg = h('textarea', {class:'in qmsg', id:'quoteMsg'}); msg.value = L.quoteMessage(job, q, name, SHOP);
+  const email = h('input', {class:'in', id:'quoteEmail', type:'email', value:c.email || '', placeholder:'Customer’s email'}), phone = h('input', {class:'in', id:'quotePhone', type:'tel', value:c.phone || '', placeholder:'Customer’s mobile'});
+  const warn = h('p', {class:'small', id:'quoteWarn', style:'color:var(--bad);font-weight:700', hidden:true, text:'There is a size in the message. Take it out: customers are only given the figures.'});
+  const mail = h('a', {class:'btn pri', id:'quoteEmailBtn', text:'Email it'}), text = h('a', {class:'btn pri', id:'quoteTextBtn', text:'Text it'});
+  const sent = async (how, to) => {
+    const pt = {quotes:{}}, rec = {}; rec[how] = {at:nowISO(), to:to, byName:name}; pt.quotes[q.k] = {sent:rec};
+    if (how === 'email' && to && to !== (c.email || '')) pt.customer = {email:to};
+    try { await patchJob(job.id, pt, 'Quote of ' + L.money(L.quoteTotal(q)) + (how === 'email' ? ' opened in email to ' + to : how === 'text' ? ' opened as a text to ' + to : ' copied to send') + ' by ' + name); s.say(''); } catch (e){ dbFail(e); }
+  };
+  function links(){
+    const bad = L.hasSize(msg.value), em = email.value.trim(), ph = phone.value.replace(/[^\d+]/g, '');
+    warn.hidden = !bad;
+    const okMail = !bad && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em), okText = !bad && ph.length >= 10;
+    mail.className = 'btn pri' + (okMail ? '' : ' off'); text.className = 'btn pri' + (okText ? '' : ' off');
+    if (okMail) mail.href = 'mailto:' + encodeURIComponent(em) + '?subject=' + encodeURIComponent('Your quote from ' + SHOP.name) + '&body=' + encodeURIComponent(msg.value); else mail.removeAttribute('href');
+    if (okText) text.href = 'sms:' + ph + '?&body=' + encodeURIComponent(msg.value); else text.removeAttribute('href');
+  }
+  [msg, email, phone].forEach(el => el.addEventListener('input', links)); links();
+  mail.addEventListener('click', () => { if (mail.href) sent('email', email.value.trim()); });
+  text.addEventListener('click', () => { if (text.href) sent('text', phone.value.trim()); });
+  const copy = btn('Copy the message', async () => {
+    if (L.hasSize(msg.value)){ links(); return; }
+    try { await navigator.clipboard.writeText(msg.value); toast('Copied'); } catch (e){ try { msg.focus(); msg.select(); } catch (x) {} toast('Select the message and copy it'); }
+    sent('copy', '');
+  });
+  openModal(dlg('Send the quote', h('div', {class:'sec', id:'quoteSend'},
+    h('p', {}, h('b', {text:'Quote saved: ' + L.money(L.quoteTotal(q)) + '. '}), 'This is what the customer gets. It has the figures and no sizes. Change the wording if you want to.'),
+    msg, warn,
+    h('div', {class:'grid2'}, field('Email', email), field('Mobile', phone)),
+    h('div', {class:'bar'}, mail, text, copy),
+    h('p', {class:'small muted', text:'Email it opens your email with the quote ready to send. Text it opens the messages app, so use it on a phone. Nothing goes to the customer until you press send there.'}),
+    s.box), [btn('Done', closeModal, 'pri')]));
+}
+/* ---------- ringing a customer about their quote ---------- */
+function chaseDialog(job){
+  if (!needDb()) return;
+  const s = sayer(), c = job.customer || {}, q = L.quoteOf(job); if (!q) return;
+  const st = quoteStatus(job); let out = '';
+  const note = h('textarea', {class:'in', id:'chaseNote', placeholder:'What was said'}), who = h('input', {class:'in', id:'chaseBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const OPTS = [['yes', 'They want to go ahead'], ['deciding', 'Still deciding. Ring again in ' + L.CHASE_DAYS + ' days'], ['noanswer', 'No answer. Try again tomorrow'], ['changes', 'They want something changed. Change the quote'], ['no', 'Not going ahead']];
+  const box = h('div', {class:'radios', role:'radiogroup', 'aria-label':'What happened', id:'chaseOut'}, OPTS.map(o => h('label', {class:'radio'}, h('input', {type:'radio', name:'chaseOut', value:o[0], onchange:() => { out = o[0]; }}), h('span', {text:o[1]}))));
+  const save = btn('Save the call', async () => {
+    const name = who.value.trim(), said = note.value.trim(), errs = [];
+    if (!out) errs.push('Say what happened on the call.');
+    if (out === 'no' && !said) errs.push('Say why they are not going ahead, so it is on record.');
+    if (!name) errs.push('Type your name.');
+    if (errs.length){ s.say(errs.join(' '), true); return; }
+    myName(name);
+    const p = {chase:{}}; p.chase['c' + uid()] = {at:nowISO(), by:S.me.id || '', byName:name, outcome:out, note:said};
+    if (out === 'no'){ p.status = 'cancelled'; p.diary = false; p.cancelledAt = nowISO(); p.lost = {at:nowISO(), byName:name, why:said}; }
+    save.disabled = true;
+    try {
+      await patchJob(job.id, p, name + ' rang about the quote of ' + L.money(L.quoteTotal(q)) + '. ' + L.CHASE_OUT[out] + (said ? ': ' + said : ''));
+      closeModal();
+      if (out === 'yes') acceptDialog(job); else if (out === 'changes') quoteDialog(job);
+      else toast(out === 'no' ? 'Closed as not going ahead' : out === 'noanswer' ? 'Logged. It comes back up tomorrow' : 'Logged. It comes back up in ' + L.CHASE_DAYS + ' days');
+    } catch (e){ save.disabled = false; dbFail(e); }
+  }, 'pri');
+  openModal(dlg('Ring about the quote', h('div', {class:'sec', id:'chaseForm'},
+    h('div', {class:'card tight'}, h('b', {text:(c.name || 'No name') + '  ' + (c.phone || 'no phone number')}),
+      h('p', {class:'small', text:'Quote of ' + L.money(L.quoteTotal(q)) + ' from ' + (q.byName || 'the shop') + '. ' + (st.sent ? st.sent + '. ' : '') + st.text + '.'})),
+    h('p', {class:'muted', text:'Ring them, see what can be done, then say what happened.'}),
+    box, field('Notes', note), field('Your name', who), s.box), [btn('Cancel', closeModal), save], true));
+}
+/* ---------- the customer said yes ----------
+   The job becomes a fitting, a delivery or a collection, and the carpet is allocated there and then. From our own rolls
+   it is reserved in Shopify and goes to the warehouse's cutting list. Otherwise it is ordered in, and the job is held
+   until the order details and the arrival date are entered. What the customer pays is the quote, line for line. */
+function acceptDialog(job){
+  if (!needShop() || !needDb()) return;
+  const q = L.quoteOf(job); if (!q) return;
+  const s = sayer(), c = job.customer || {}, b = L.briefOf(job), rooms = L.roomsOf(job), runs = L.pricingOf(job).stairs;
+  const F = {type:'', busy:false, saved:null}, items = [], covered = {};
+  b.choices.forEach(ch => {
+    const mine = rooms.filter(r => r.want === ch.k || (b.choices.length === 1 && !r.want)), cg = L.carpetGroups(job, mine);
+    mine.forEach(r => { covered[r.k] = 1; });
+    const st = cg.stairs.map(n => { const z = runs.find(x => x.name === n); return z ? 'a ' + L.fmtM(z.run) + ' m run, ' + Math.round(z.wid * 100) + ' cm wide' : n; });
+    const mk = (w, len, names, first) => ({key:uid(), ch:ch, w:w, len:len, names:names, stairs:first ? st : [], unfit:first ? cg.unfit : [], pv:null, free:0, tracked:false, look:'loading', err:'', how:'', el:null});
+    cg.groups.forEach((g, i) => items.push(mk(g.w, String(g.cut), g.names, i === 0)));
+    if (!cg.groups.length && (cg.stairs.length || cg.unfit.length)){ const ws = (mine[0] && L.roomWidths(job, mine[0])) || [4]; items.push(mk(Math.min.apply(null, ws), '', [], true)); }
+  });
+  const carpetRooms = rooms.filter(r => (L.specOf(r) || {}).floor === 'carpet'), loose = carpetRooms.filter(r => !covered[r.k]).map(r => r.name || 'Room');
+  const flooring = rooms.filter(r => (L.specOf(r) || {}).floor === 'flooring').map(r => r.name || 'Room');
+  const unitsOf10 = it => Math.ceil(Number(it.len) * 10 - 1e-9) || 0;
+  const canStock = it => it.look === 'ok' && it.tracked && unitsOf10(it) > 0 && it.free >= unitsOf10(it);
+  const label = it => it.ch.title + ', ' + it.w + ' m roll';
+  function paint(it){
+    const e = it.el; if (!e) return;
+    const u = unitsOf10(it), ok = canStock(it);
+    e.st.className = 'st' + (it.look === 'loading' ? '' : ok ? ' ok' : ' bad'); e.st.replaceChildren();
+    if (it.look === 'loading') add(e.st, [h('span', {class:'spin'}), ' Checking our rolls in Shopify']);
+    else if (it.look === 'fail') add(e.st, ['The stock could not be checked. ' + it.err + ' ', btn('Check again', () => look(it), 'sm')]);
+    else if (it.look === 'none') e.st.textContent = it.ch.variantId ? 'We have no ' + it.w + ' m roll of this in Shopify, so it has to be ordered in.' : 'This was typed in when the measure was booked and is not one of our rolls, so it has to be ordered in.';
+    else if (!it.tracked) e.st.textContent = 'Shopify is not tracking stock for this roll, so it has to be ordered in.';
+    else if (!(u > 0)) e.st.textContent = L.fmtQty(Math.max(0, it.free), 'm') + ' free on ' + variantTitle(it.pv.p, it.pv.v) + '. Type the length to cut.';
+    else if (ok) e.st.textContent = 'In stock: ' + L.fmtQty(it.free, 'm') + ' free on ' + variantTitle(it.pv.p, it.pv.v) + '.';
+    else add(e.st, ['Only ' + L.fmtQty(Math.max(0, it.free), 'm') + ' free on our rolls. It has to be ordered in. ', btn('Check again', () => look(it), 'sm')]);
+    e.stock.disabled = !ok; e.stock.className = it.how === 'stock' && ok ? 'on' : ''; e.order.className = it.how === 'order' ? 'on' : '';
+    e.hint.textContent = it.how === 'stock' && ok ? 'Reserved in Shopify when you save, then it goes straight to the warehouse’s cutting list.'
+      : it.how === 'order' ? 'It goes under To order. The job is held there until the order details and the arrival date are in.' : it.look === 'loading' ? '' : 'Choose where it is coming from.';
+  }
+  async function look(it){
+    it.look = 'loading'; paint(it);
+    try {
+      const pv = it.ch.variantId ? await rollOf(it.ch, it.w, Math.max(1, unitsOf10(it))) : null;
+      if (!pv) it.look = 'none';
+      else { const f = L.levelFigures(pv.v); it.pv = pv; it.free = f.total.available; it.tracked = f.tracked; it.look = 'ok'; }
+    } catch (e){ it.look = 'fail'; it.err = explain(e); }
+    if (it.look !== 'fail' && (!it.how || (it.how === 'stock' && !canStock(it)))) it.how = canStock(it) ? 'stock' : unitsOf10(it) > 0 || it.look === 'none' ? 'order' : '';
+    paint(it);
+  }
+  const typeSeg = h('div', {class:'seg', id:'accType'});
+  const drawType = () => { typeSeg.replaceChildren(); L.TYPES.forEach(t => typeSeg.append(h('button', {type:'button', id:'acc' + t, class:F.type === t ? 'on' : '', onclick:() => { F.type = t; drawType(); }}, t))); };
+  drawType();
+  const itemsBox = h('div', {id:'accItems'});
+  items.forEach((it, i) => {
+    const st = h('p', {class:'st', id:'accSt' + i}), hint = h('p', {class:'small muted', id:'accHint' + i});
+    const stock = h('button', {type:'button', id:'accStock' + i, onclick:() => { if (canStock(it)){ it.how = 'stock'; paint(it); } }}, 'From our stock'), order = h('button', {type:'button', id:'accOrder' + i, onclick:() => { it.how = 'order'; paint(it); }}, 'Order it in');
+    const len = h('input', {class:'in', id:'accLen' + i, type:'number', min:'0', step:'0.1', inputmode:'decimal', value:it.len, 'aria-label':'Length to cut in metres for ' + label(it),
+      oninput:e => { it.len = e.target.value; if (it.how === 'stock' && !canStock(it)) it.how = ''; paint(it); }});
+    it.el = {st:st, hint:hint, stock:stock, order:order};
+    itemsBox.append(h('div', {class:'accitem'},
+      h('b', {text:label(it)}),
+      it.names.length ? h('p', {class:'small', text:'For ' + it.names.join(', ') + '.'}) : null,
+      h('div', {class:'lenrow'}, h('span', {text:'Length to cut'}), len, h('span', {text:'metres'})),
+      it.stairs.length ? h('p', {class:'small', style:'font-weight:700', text:'The stairs are not in that length: ' + it.stairs.join('; ') + '. Add what they need to it.'}) : null,
+      it.unfit.length ? h('p', {class:'small', style:'font-weight:700;color:var(--bad)', text:it.unfit.join(', ') + ' needs a join or a fitting review, so it is not in that length.'}) : null,
+      st, h('div', {class:'seg'}, stock, order), hint));
+    paint(it);
+  });
+  const who = h('input', {class:'in', id:'accBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const save = btn('Save: the customer said yes', run, 'pri');
+  async function run(){
+    if (F.busy) return;
+    const name = who.value.trim();
+    if (!F.saved){
+      const errs = [];
+      if (!F.type) errs.push('Choose fitting, delivery or collection.');
+      items.forEach(it => {
+        const u = unitsOf10(it);
+        if (!(u > 0)) errs.push('Type the length to cut for ' + label(it) + '.');
+        else if (it.look === 'loading') errs.push('Still checking the stock for ' + label(it) + '. Give it a moment.');
+        else if (!it.how) errs.push('Say whether ' + label(it) + ' comes from our stock or is ordered in.');
+        else if (it.how === 'stock' && !canStock(it)) errs.push('There is not enough of ' + label(it) + ' in stock. Choose Order it in, or shorten the length.');
+      });
+      if (!name) errs.push('Type your name.');
+      if (errs.length){ s.say(errs.join(' '), true); return; }
+    }
+    F.busy = true; save.disabled = true; myName(name);
+    const lines = items.map(it => { const stock = it.how === 'stock', pv = it.pv;
+      return {key:it.key, kind:'stock', onQuote:true, variantId:stock ? pv.v.id : '', title:stock ? variantTitle(pv.p, pv.v) : (pv ? pv.p.title : it.ch.title) + ' · ' + it.w + 'm wide', sub:'', unit:'m', roll:true, widthM:it.w, cov:0, ppm:0,
+        unitPrice:stock ? Number(pv.v.price) || 0 : 0, price:0, qty:String(Number(it.len)), available:it.free, tracked:it.tracked, source:stock ? 'stock' : 'supplier', supplier:'', due:'', rooms:it.names.concat(it.stairs.length ? ['the stairs'] : []).join(', ')}; })
+      .concat(L.quoteLines(q).map(l => ({key:uid(), kind:'other', title:l.label, price:l.price, qty:1})));
+    const ctx = {customer:c, lines:lines, note:'Quote accepted. Job ' + (job.ref || '') + ' in IFD Shop Operations. The prices are the quote the customer agreed.', type:F.type, date:''};
+    try {
+      if (!F.saved){ F.saved = await reserveInShopify(ctx, s.say, true); dialog.querySelectorAll('input,select,textarea,button').forEach(el => { if (el !== save) el.disabled = true; }); }
+      s.say('Saving the job');
+      const draft = F.saved.draft, startN = L.linesOf(job).reduce((mx, l) => Math.max(mx, l.n || 0), 0), total = L.quoteTotal(q);
+      const patch = {type:F.type, lines:toJobLines(lines, startN, draft ? draft.name : ''), total:total, accepted:{at:nowISO(), by:S.me.id || '', byName:name, q:q.k, total:total, type:F.type}};
+      if (draft){ patch.drafts = {}; patch.drafts[L.gidNum(draft.id)] = {id:draft.id, name:draft.name, closed:false}; }
+      const say = list => list.map(it => Number(it.len).toFixed(1) + ' m of ' + label(it)).join(', '), fromStock = items.filter(it => it.how === 'stock'), toOrder = items.filter(it => it.how === 'order');
+      await patchJob(job.id, patch, 'The customer said yes to the quote of ' + L.money(total) + '. Taken by ' + name + '. ' + F.type + '.'
+        + (fromStock.length ? ' From our stock, reserved in Shopify' + (draft ? ' on draft ' + draft.name : '') + ' and sent to the cutting list: ' + say(fromStock) + '.' : '') + (toOrder.length ? ' To be ordered in: ' + say(toOrder) + '.' : ''));
+      closeModal(); toast(F.saved.warn || (toOrder.length ? 'Saved. Now put the order in and enter its details' : fromStock.length ? 'Saved. The carpet is on the cutting list' : 'Saved'), !!F.saved.warn);
+    } catch (e){
+      F.busy = false; save.disabled = false;
+      if (F.saved) s.say('Shopify has the sale' + (F.saved.draft ? ' as ' + F.saved.draft.name : '') + ', but the job did not save here. Press the button again to finish.', true);
+      else s.say(e.user || explain(e, true), true);
+    }
+  }
+  const dialog = dlg('The customer said yes', h('div', {class:'sec', id:'acceptForm'},
+    h('div', {class:'card tight'}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '')}), h('p', {class:'small muted', text:'Quote of ' + L.money(L.quoteTotal(q)) + ' from ' + (q.byName || 'the shop') + '.'})),
+    h('div', {class:'card'}, h('h3', {}, 'How are they getting it?'), typeSeg),
+    h('div', {class:'card'}, h('h3', {}, 'The carpet'),
+      takeDone() ? null : h('p', {class:'small muted', text:'Awaiting opening stocktake: the stock figures shown here are not confirmed yet.'}),
+      items.length ? itemsBox : h('p', {class:'muted', id:'accNone', text:carpetRooms.length ? 'No carpet was picked for this job when the measure was booked, so there is nothing to allocate here. Add it on the job with Add items once this is saved.' : 'There is no carpet on this job.'}),
+      items.length && loose.length ? h('p', {class:'small', style:'font-weight:700', text:'No carpet was picked for ' + loose.join(', ') + '. Add it on the job with Add items once this is saved.'}) : null,
+      flooring.length ? h('p', {class:'small', id:'accFlooring', text:'The flooring for ' + flooring.join(', ') + ' is not allocated from here yet. Add it on the job with Add items once this is saved.'}) : null),
+    h('div', {class:'card'}, h('h3', {}, 'What they are paying'), L.quoteLines(q).map(l => h('div', {class:'ln-top'}, h('span', {text:l.label}), h('b', {class:'num', text:L.money(l.price)}))),
+      h('div', {class:'qtotal'}, h('span', {text:'Total'}), h('b', {class:'num', id:'accTotal', text:L.money(L.quoteTotal(q))}))),
+    field('Your name', who), s.box), [btn('Cancel', closeModal), save]);
+  openModal(dialog);
+  items.forEach(look);
+}
+/* ---------- order details for carpet that is being ordered in ----------
+   The job is held where it is until this is filled in: who it is ordered from and the day it is due to arrive. */
+function orderDetailsDialog(job, l){
+  if (!needDb()) return;
+  const s = sayer(), t = L.todayISO();
+  const sup = h('input', {class:'in', id:'ordSupplier', type:'text', placeholder:'Who it is ordered from', value:l.supplier || ''});
+  const ref = h('input', {class:'in', id:'ordRef', type:'text', placeholder:'Their order number, if you have it', value:l.orderRef || ''});
+  const due = h('input', {class:'in', id:'ordDue', type:'date', value:L.validISO(l.due) ? l.due : ''});
+  const eta = h('p', {class:'small', id:'ordEta', style:'font-weight:600'}), showEta = () => { eta.textContent = L.validISO(due.value) ? 'Due in ' + L.fmtDay(due.value) + '.' : ''; };
+  due.addEventListener('input', showEta); showEta();
+  const quick = h('div', {class:'seg sm', id:'ordQuick'}, [7, 10, 14].map(n => h('button', {type:'button', id:'ordIn' + n, onclick:() => { due.value = L.addDays(t, n); showEta(); }}, 'In ' + n + ' days')));
+  const who = h('input', {class:'in', id:'ordBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const save = btn('Save the order details', async () => {
+    const su = sup.value.trim(), d = due.value, name = who.value.trim(), errs = [];
+    if (!su) errs.push('Enter who it is ordered from.');
+    if (!L.validISO(d)) errs.push('Enter the day it is due to arrive.');
+    if (!name) errs.push('Type your name.');
+    if (errs.length){ s.say(errs.join(' '), true); return; }
+    myName(name);
+    const p = {lines:{}}; p.lines[l.k] = {state:'ordered', supplier:su, orderRef:ref.value.trim(), due:d, orderedAt:nowISO(), orderedBy:name, picked:false, checked:false};
+    save.disabled = true;
+    try { await patchJob(job.id, p, L.fmtQty(l.qty, l.unit) + ' of ' + l.title + ' ordered from ' + su + (ref.value.trim() ? ', order ' + ref.value.trim() : '') + ', due in ' + L.fmtDay(d) + '. Entered by ' + name); closeModal(); toast('Order details saved. Due in ' + L.fmtDay(d)); }
+    catch (e){ save.disabled = false; dbFail(e); }
+  }, 'pri');
+  openModal(dlg('Order details', h('div', {class:'sec', id:'ordForm'},
+    h('p', {}, h('b', {text:L.fmtQty(l.qty, l.unit) + ' of ' + l.title}), ' for ' + ((job.customer || {}).name || 'this job') + ' ' + (job.ref || '') + '.'),
+    h('p', {class:'muted', text:'Put the order in with the supplier, then fill this in. The job is held where it is until you do.'}),
+    field('Ordered from', sup), field('Order number', ref), field('Arriving on', due), quick, eta, field('Your name', who), s.box), [btn('Cancel', closeModal), save], true));
+}
+/* ---------- a cut is done ---------- */
+function cutDialog(job, l){
+  if (!needDb()) return;
+  const s = sayer(), len = (Number(l.qty) / 10).toFixed(1);
+  const pick = bayPicker('cutBay', l.bay || '', 'Choose where it is'), who = h('input', {class:'in', id:'cutBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const save = btn('Save: it is cut', async () => {
+    const bay = String(pick.value || '').trim().toUpperCase(), name = who.value.trim(), errs = [];
+    if (!bay) errs.push('Say where the cut piece is now.');
+    else if (!L.isFinalBay(bay)) errs.push('GOODS-IN is not a final place. Choose where the cut piece has been put.');
+    if (!name) errs.push('Type your name.');
+    if (errs.length){ s.say(errs.join(' '), true); return; }
+    myName(name);
+    const p = {lines:{}}; p.lines[l.k] = {state:'allocated', bay:bay, picked:true, cutAt:nowISO(), cutBy:name};
+    save.disabled = true;
+    try { await patchJob(job.id, p, len + ' m of ' + l.title + ' cut by ' + name + ' and put in ' + bay); closeModal(); toast('Cut saved'); }
+    catch (e){ save.disabled = false; dbFail(e); }
+  }, 'pri');
+  openModal(dlg('Cut done', h('div', {class:'sec', id:'cutForm'},
+    h('p', {}, h('b', {text:len + ' m' + (l.w ? ' off the ' + l.w + ' m roll' : '')}), ' of ' + l.title + ', for ' + ((job.customer || {}).name || 'this job') + ' ' + (job.ref || '') + '.'),
+    h('p', {class:'muted', text:'Roll it up, label it with the customer’s name and job number, then say where you have put it.'}),
+    field('Where is it now', pick), field('Cut by', who), s.box), [btn('Cancel', closeModal), save], true));
 }
 /* ---------- what a measure is for: rooms, what the customer picked, extras to price ---------- */
 function briefBox(init, P){
@@ -3557,7 +4058,7 @@ function allocDialog(job, l, mode){
       h('p', {class:'muted', text:L.fmtQty(l.qty, l.unit) + ' of ' + l.title + '. The job stays out of the diary until this arrives and is put in a bay.'}),
       h('div', {class:'grid2'}, field('Ordered from', sup), field('Due in', due)), s.box),
       [btn('Cancel', closeModal), btn('Save', async () => {
-        if (!sup.value.trim() && !due.value){ s.say('Enter who it is ordered from or when it is due.', true); return; }
+        if (!sup.value.trim() || !L.validISO(due.value)){ s.say('Enter who it is ordered from and the day it is due to arrive.', true); return; }
         const p = {lines:{}}; p.lines[l.k] = {state:'ordered', supplier:sup.value.trim(), due:due.value || '', picked:false, checked:false};
         try { await patchJob(job.id, p, l.title + ' marked as on order' + (sup.value.trim() ? ' from ' + sup.value.trim() : '') + (due.value ? ', due ' + L.fmtDay(due.value) : '')); closeModal(); } catch (e){ dbFail(e); }
       }, 'pri')], true));
@@ -3967,9 +4468,11 @@ function draftInput(ctx, tag){
     if (l.kind === 'other'){ items.push({title:l.title, quantity:Math.max(1, parseInt(l.qty, 10) || 1), originalUnitPriceWithCurrency:gbp(l.price), requiresShipping:false}); return; }
     const units = unitsOf(l), size = l.roll ? ' ' + l.widthM + 'm x ' + Number(l.qty).toFixed(1) + 'm' : '';
     if (l.source === 'stock'){
-      if (l.roll){ items.push({variantId:l.variantId, quantity:units}); items.push({title:'Carpet cut: ' + l.title + size, quantity:1, originalUnitPriceWithCurrency:gbp(l.price), requiresShipping:false}); }
+      if (l.onQuote){ const it = {variantId:l.variantId, quantity:units}; if (Number(l.unitPrice) > 0) it.appliedDiscount = {valueType:'PERCENTAGE', value:100, title:'Priced on the quote'}; items.push(it); }
+      else if (l.roll){ items.push({variantId:l.variantId, quantity:units}); items.push({title:'Carpet cut: ' + l.title + size, quantity:1, originalUnitPriceWithCurrency:gbp(l.price), requiresShipping:false}); }
       else { const it = {variantId:l.variantId, quantity:units}; if (Math.abs(Number(l.price) - Number(l.unitPrice)) > 0.004) it.priceOverride = gbp(l.price); items.push(it); }
-    } else if (l.roll) items.push({title:l.title + size + ' (ordered in)', quantity:1, originalUnitPriceWithCurrency:gbp(l.price)});
+    } else if (l.onQuote){ /* ordered in and priced on the quote's own lines: nothing to add */ }
+    else if (l.roll) items.push({title:l.title + size + ' (ordered in)', quantity:1, originalUnitPriceWithCurrency:gbp(l.price)});
     else items.push({title:l.title + (l.sub ? ' ' + l.sub : '') + ' (ordered in)', quantity:units, originalUnitPriceWithCurrency:gbp(l.price)});
   });
   const input = {lineItems:items, tags:['ifd-ops', 'shop-sale', tag]};
@@ -4037,10 +4540,20 @@ function toJobLines(lines, startN, draftName){
     if (l.kind === 'other'){ out[k] = {n:n, title:l.title, sub:'', unit:'items', qty:Math.max(1, parseInt(l.qty, 10) || 1), hold:'none', price:lineTotal(l)}; return; }
     const base = {n:n, variantId:l.variantId, title:l.title, sub:l.sub || '', unit:l.unit, qty:unitsOf(l), price:lineTotal(l), state:'todo', picked:false, checked:false};
     if (l.roll && l.widthM > 0) base.w = l.widthM; else if (l.cov > 0) base.cov = l.cov;
+    if (l.rooms) base.rooms = l.rooms;
     if (l.source === 'stock') out[k] = Object.assign(base, {hold:'draft', holdRef:draftName || ''});
     else out[k] = Object.assign(base, {hold:'supplier', holdRef:'', supplier:l.supplier || '', due:l.due || '', state:(l.supplier || l.due) ? 'ordered' : 'todo'});
   });
   return out;
+}
+/* the roll of this carpet that is the right width for the cut: the one picked in the shop when it is, otherwise another roll of the same carpet */
+async function rollOf(c, w, units){
+  const d = await sq(Q_VARIANTS, {ids:[c.variantId]}), v0 = (d.nodes || [])[0]; if (!v0 || !v0.product) return null;
+  const wOf = v => Number(v.rollWidth && v.rollWidth.value) || 0, free = v => L.levelFigures(v).total.available, same = v => Math.abs(wOf(v) - w) < 0.01;
+  if (same(v0) && free(v0) >= units) return {p:v0.product, v:v0};
+  const d2 = await sq(Q_PRODUCT, {id:v0.product.id}), p = d2.product, vs = ((p && p.variants && p.variants.nodes) || []).filter(same).sort((a, b) => free(b) - free(a));
+  const pick = vs.find(v => free(v) >= units) || vs[0] || (same(v0) ? v0 : null);
+  return pick ? {p:p || v0.product, v:pick} : null;
 }
 function saleDialog(job){
   if (!needShop() || !needDb()) return;
@@ -4129,15 +4642,6 @@ function saleDialog(job){
     if (roll && preLen > 0){ ln.qty = String(preLen); ln.price = rollCost(ln, preLen); }
     F.lines.push(ln);
     drawLines();
-  }
-  /* the roll of this carpet that is the right width for the cut: the one picked in the shop when it is, otherwise another roll of the same carpet */
-  async function rollOf(c, w, units){
-    const d = await sq(Q_VARIANTS, {ids:[c.variantId]}), v0 = (d.nodes || [])[0]; if (!v0 || !v0.product) return null;
-    const wOf = v => Number(v.rollWidth && v.rollWidth.value) || 0, free = v => L.levelFigures(v).total.available, same = v => Math.abs(wOf(v) - w) < 0.01;
-    if (same(v0) && free(v0) >= units) return {p:v0.product, v:v0};
-    const d2 = await sq(Q_PRODUCT, {id:v0.product.id}), p = d2.product, vs = ((p && p.variants && p.variants.nodes) || []).filter(same).sort((a, b) => free(b) - free(a));
-    const pick = vs.find(v => free(v) >= units) || vs[0] || (same(v0) ? v0 : null);
-    return pick ? {p:p || v0.product, v:pick} : null;
   }
   const addedFrom = {};
   const bfS = adding ? L.briefOf(job) : null, fromBox = h('div', {class:'guide', id:'saleFromMeasure', hidden:true});
