@@ -108,6 +108,16 @@ textarea.in{min-height:84px;resize:vertical}
 .estrow:hover{border-color:var(--ink)} .estrow.hot{border-color:var(--bad);background:var(--bad-bg)}
 .estrow b{font-size:16px} .estrow .what{flex:1 1 220px;min-width:0;color:var(--muted);overflow-wrap:anywhere} .estrow.hot .what{color:var(--ink);font-weight:600}
 .estrow .open{font-weight:600;text-decoration:underline}
+.qadd{display:flex;flex-wrap:wrap;gap:6px}
+.qadd button{appearance:none;font:inherit;font-weight:600;font-size:13px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;min-height:38px;cursor:pointer}
+.qadd button:hover{border-color:var(--ink)}
+.brow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.brow > .in{flex:1 1 150px;min-width:0;width:auto}
+.broom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:6px;align-items:center}
+.broom.one{grid-template-columns:minmax(0,1fr) auto}
+.bchoice{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.bchoice b{overflow-wrap:anywhere} .bchoice p{margin:2px 0 0}
+.ticks{display:flex;flex-wrap:wrap;gap:2px 18px}
 .fwrap h2.dh{margin:6px 0 0;font-family:var(--font-display);font-size:20px}
 .fday.shopside > header small{color:var(--muted)}
 .row.act{background:var(--bad-bg);align-items:flex-start}
@@ -271,6 +281,7 @@ textarea.in{min-height:84px;resize:vertical}
   .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
   .tiles .tile:first-child{grid-column:1 / -1}
   .etiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .broom{grid-template-columns:minmax(0,1fr) auto} .broom select{grid-column:1 / -1;grid-row:2}
   .rd{grid-template-columns:minmax(0,1fr)}
   .week{grid-template-columns:minmax(0,1fr)}
   .day{min-height:0}
@@ -688,7 +699,37 @@ window.IFDLogic = (function(){
   function hasHSL(job){
     if (!job) return false;
     if (job.hsl === true || job.hsl === false) return job.hsl;
-    return roomsOf(job).some(function(r){ return HSL_RE.test(r.name || ''); });
+    return roomsOf(job).some(function(r){ return HSL_RE.test(r.name || ''); }) || briefOf(job).rooms.some(function(r){ return HSL_RE.test(r.name); });
+  }
+  /* ---------- what a measure is for ----------
+     Most measures are booked with the customer in the shop, having picked a floor. The rooms, what they picked and
+     the extras to price go with the visit: whoever measures knows what to look at, and the shop can quote from it. */
+  var BRIEF_ROOMS = ['Living room', 'Bedroom', 'Hall, stairs and landing', 'Hall', 'Kitchen', 'Bathroom', 'Dining room'];
+  var BRIEF_ALSO = ['Underlay', 'Grippers', 'Door bars', 'Uplift and take away the old flooring', 'Furniture to move', 'Doors to trim'];
+  function briefOf(job){
+    var b = (job && job.brief) || {};
+    return {rooms:(Array.isArray(b.rooms) ? b.rooms : []).filter(function(r){ return r && r.name; }),
+      choices:(Array.isArray(b.choices) ? b.choices : []).filter(function(c){ return c && c.k && c.title; }),
+      also:(Array.isArray(b.also) ? b.also : []).filter(Boolean)};
+  }
+  function briefHas(job){ var b = briefOf(job); return b.rooms.length + b.choices.length + b.also.length > 0; }
+  function briefChoice(b, k){ for (var i = 0; i < b.choices.length; i++) if (b.choices[i].k === k) return b.choices[i]; return null; }
+  /* a second room of the same kind gets a number: Bedroom, then Bedroom 2 */
+  function briefName(base, names){
+    var n = 0, low = String(base).toLowerCase();
+    (names || []).forEach(function(x){
+      var t = String(x || '').trim().toLowerCase();
+      if (t === low) n = Math.max(n, 1);
+      else if (t.indexOf(low + ' ') === 0 && /^\d+$/.test(t.slice(low.length + 1))) n = Math.max(n, Number(t.slice(low.length + 1)));
+    });
+    return n ? base + ' ' + (n + 1) : base;
+  }
+  function briefLine(job){
+    var b = briefOf(job), out = [];
+    if (b.rooms.length) out.push(b.rooms.map(function(r){ return r.name; }).join(', '));
+    if (b.choices.length) out.push('chosen: ' + b.choices.map(function(c){ return c.title; }).join(', '));
+    if (b.also.length) out.push('also to price: ' + b.also.join(', ').toLowerCase());
+    return out.join('. ');
   }
   function limitsOf(l){ var hs = Number(l && l.hsl), mi = Number(l && l.miles); return {hsl:hs >= 1 ? Math.floor(hs) : LIMITS.hsl, miles:mi > 0 ? mi : LIMITS.miles}; }
   function milesBetween(a, b){
@@ -948,6 +989,7 @@ window.IFDLogic = (function(){
     linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
+    BRIEF_ROOMS:BRIEF_ROOMS, BRIEF_ALSO:BRIEF_ALSO, briefOf:briefOf, briefHas:briefHas, briefChoice:briefChoice, briefName:briefName, briefLine:briefLine,
     hasHSL:hasHSL, limitsOf:limitsOf, measureLimits:measureLimits, planMeasure:planMeasure, toArrange:toArrange, milesBetween:milesBetween, dayWork:dayWork, dayReach:dayReach, hslClash:hslClash, farClash:farClash, hslWhy:hslWhy,
     isFinalBay:isFinalBay, lineAllocated:lineAllocated, supplyOf:supplyOf, supplyState:supplyState, dLines:dLines, dRecs:dRecs, dGot:dGot, dOutstanding:dOutstanding,
     deliveryState:deliveryState, deliveryTrouble:deliveryTrouble, needsSupply:needsSupply, countPlan:countPlan,
@@ -2023,6 +2065,8 @@ function drawSheet(){
   const bo = L.backOpen(job), earlier = L.backsOf(job).filter(b => b.on !== true);
   const backCard = bo ? h('div', {class:'card backcard', id:'backCard'}, h('h3', {}, 'Sent back to the shop', chip('Act now', 'bad')), backBlock(job, bo, true)) : null;
   const backLog = earlier.length ? h('div', {class:'card'}, h('h3', {}, 'Sent back before'), h('div', {class:'log'}, earlier.slice().reverse().map(b => h('div', {text:whenText(b.at) + '  ' + (b.fitter || 'Fitter') + ': ' + L.backReason(b) + (b.note ? '. ' + b.note : '') + (b.doneAt ? '  Dealt with ' + whenText(b.doneAt) + ' by ' + nameOf(b.doneBy) + (b.doneNote ? ': ' + b.doneNote : '') : '')})))) : null;
+  const briefCard = L.briefHas(job) || (open && job.source === 'measure') ? h('div', {class:'card', id:'briefCard'}, h('h3', {}, 'What the measure is for', open ? h('span', {class:'bar'}, btn(L.briefHas(job) ? 'Change' : 'Add', () => briefDialog(job), 'sm')) : null),
+    L.briefHas(job) ? briefBlock(job) : h('p', {class:'muted', text:'Nothing listed. Add the rooms and what the customer picked, so whoever measures knows what to look at.'})) : null;
   const panel = h('div', {class:'panel', role:'dialog', 'aria-label':'Job ' + (job.ref || '')},
     h('div', {class:'panel-head'},
       h('div', {class:'grow'}, h('h2', {text:(c.name || 'No name') + '  ' + (job.ref || '')}),
@@ -2033,7 +2077,7 @@ function drawSheet(){
       btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'},
       backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0)).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
-      custCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
+      custCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
       h('div', {class:'card'}, h('h3', {}, 'History'), h('div', {class:'log'}, logs.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': ' + x.text}))))));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -2187,7 +2231,7 @@ function drawFitterSheet(){
   const panel = h('div', {class:'panel', role:'dialog', 'aria-label':'Job ' + (job.ref || '')},
     h('div', {class:'panel-head'}, h('div', {class:'grow'}, h('h2', {text:c.name || 'No name'}),
       h('div', {class:'meta'}, chip(label || 'Job', 'info'), chip(L.validISO(date) ? L.fmtDay(date) + (slot ? ' ' + slot : '') : 'No date'), job.ref ? chip(job.ref) : null, bo ? chip('Sent back', 'bad') : null)), btn('Close', closeSheet, 'sm')),
-    h('div', {class:'panel-body'}, custCard, arrCard, takeCard, roomCard, coverCard, subCard, visitsCard, act));
+    h('div', {class:'panel-body'}, custCard, arrCard, v && L.briefHas(job) ? h('div', {class:'card', id:'briefCard'}, h('h3', {}, 'What to measure'), briefBlock(job)) : null, takeCard, roomCard, coverCard, subCard, visitsCard, act));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
 }
@@ -2319,20 +2363,98 @@ function dayStrip(input, o){
     if (!L.validISO(cur)){ detail.className = 'small muted ddetail'; detail.textContent = dis ? 'No date set.' : 'Tap a day to choose it.'; return; }
     const on = loadOf(who, cur), whoText = who || 'The diary', cw = who ? L.dayWork(jobsArr(), who, cur, o.skipJob, o.skipVisit) : [], cr = who && out ? L.dayReach(cw, out, S.geo) : null;
     const list = who && cw.length ? cw.map(x => x.name + ' (' + x.what.toLowerCase() + (x.slot ? ' ' + x.slot : '') + (x.out ? ', ' + x.out : '') + (x.hsl ? ', hall stairs and landing' : '') + ')') : on;
-    detail.replaceChildren(h('b', {text:'Chosen: ' + L.fmtDay(cur) + '. '}), o.quiet && !cr ? '' : list.length ? whoText + ' already has on: ' + list.join(', ') + '.' : whoText + ' has nothing else booked that day.',
-      cr && cr.miles > lim.miles ? h('span', {style:'color:var(--bad);font-weight:700', text:' ' + Math.round(cr.miles) + ' miles apart, over the ' + lim.miles + ' mile limit.'}) : null);
+    detail.replaceChildren(h('b', {text:'Chosen: ' + L.fmtDay(cur) + '. '}), o.quiet && !cr ? '' : list.length ? whoText + ' already has on: ' + list.join(', ') + '.' : whoText + ' has nothing else booked that day.');
+    if (cr && cr.miles > lim.miles) detail.append(h('span', {style:'color:var(--bad);font-weight:700', text:' ' + Math.round(cr.miles) + ' miles apart, over the ' + lim.miles + ' mile limit.'}));
   }
   draw();
   return {node:h('div', {class:'dpick'}, input, h('div', {class:'dhead'}, h('div', {class:'grow'}, title, ' ', range), clear, jump, earlier, later), grid, prompt, detail), refresh:draw, show:d => setWeek(L.validISO(d) ? d : today)};
 }
 /* ---------- book a measure for someone who has not ordered yet ---------- */
+/* ---------- what a measure is for: rooms, what the customer picked, extras to price ---------- */
+function briefBox(init, P){
+  const b0 = L.briefOf({brief:init || {}});
+  const rooms = b0.rooms.map(r => ({name:r.name, want:r.want || ''})), choices = b0.choices.map(c => Object.assign({}, c)), also = new Set(b0.also);
+  const roomsBox = h('div', {class:'sec', id:P + 'Rooms'}), choiceBox = h('div', {class:'sec', id:P + 'Choices'}), alsoBox = h('div', {class:'ticks', id:P + 'Also'});
+  const typed = h('input', {class:'in', id:P + 'Typed', type:'text', placeholder:'Or type it: the range and colour, or where it is in the shop', onkeydown:e => { if (e.key === 'Enter'){ e.preventDefault(); addTyped(); } }});
+  const finder = shopOK() ? productFinder(P + 'Find', (pr, v) => addChoice({title:variantTitle(pr, v), variantId:v.id, unit:L.unitFor(v, pr), w:Number(v.rollWidth && v.rollWidth.value) || 0})) : null;
+  if (finder) finder.input.placeholder = 'Search the floor they picked, then press Enter';
+  function addChoice(c){
+    if (choices.some(x => (c.variantId && x.variantId === c.variantId) || x.title.toLowerCase() === c.title.toLowerCase())) return;
+    c.k = 'c' + uid(); choices.push(c);
+    rooms.forEach(r => { if (!r.want) r.want = c.k; });
+    draw();
+  }
+  function addTyped(){ const t = typed.value.trim(); if (!t) return; typed.value = ''; addChoice({title:t, typed:true}); }
+  function addRoom(base){
+    let name = '';
+    if (base){
+      name = L.briefName(base, rooms.map(r => r.name));
+      if (name !== base) rooms.forEach(r => { if (r.name.trim().toLowerCase() === base.toLowerCase()) r.name = base + ' 1'; });
+    }
+    rooms.push({name:name, want:choices.length === 1 ? choices[0].k : rooms.length ? rooms[rooms.length - 1].want : ''});
+    draw();
+    if (!base){ const ins = roomsBox.querySelectorAll('input'); if (ins.length) try { ins[ins.length - 1].focus(); } catch (e) {} }
+  }
+  function draw(){
+    roomsBox.replaceChildren();
+    if (!rooms.length) roomsBox.append(h('p', {class:'small muted', text:'No rooms yet. Tap each room the customer wants measured.'}));
+    rooms.forEach((r, i) => {
+      const nm = h('input', {class:'in', id:P + 'Room' + i, type:'text', placeholder:'Name of the room', value:r.name, 'aria-label':'Room ' + (i + 1), oninput:e => { r.name = e.target.value; }});
+      const sel = choices.length > 1 ? h('select', {class:'in', id:P + 'Want' + i, 'aria-label':'Flooring for room ' + (i + 1), onchange:e => { r.want = e.target.value; }},
+        h('option', {value:'', text:'Flooring not said'}), choices.map(c => h('option', {value:c.k, text:c.title, selected:r.want === c.k}))) : null;
+      roomsBox.append(h('div', {class:'broom' + (sel ? '' : ' one')}, nm, sel, btn('Remove', () => { rooms.splice(i, 1); draw(); }, 'sm')));
+    });
+    choiceBox.replaceChildren();
+    if (!choices.length) choiceBox.append(h('p', {class:'small muted', text:'Nothing added yet. If they picked a floor in the shop, add it, so the measure and the quote are for the right product.'}));
+    choices.forEach((c, i) => choiceBox.append(h('div', {class:'bchoice'},
+      h('div', {class:'grow'}, h('b', {text:c.title}), h('div', {class:'meta'}, c.typed ? chip('Typed in, not linked to stock', 'warn') : chip('From Shopify', 'ok'), c.w ? chip(c.w + ' m wide roll') : null)),
+      btn('Remove', () => { const k = c.k; choices.splice(i, 1); rooms.forEach(r => { if (r.want === k) r.want = choices.length === 1 ? choices[0].k : ''; }); draw(); }, 'sm'))));
+    alsoBox.replaceChildren();
+    L.BRIEF_ALSO.forEach((a, i) => alsoBox.append(h('label', {class:'tick'}, h('input', {type:'checkbox', id:P + 'Also' + i, checked:also.has(a), onchange:e => { if (e.target.checked) also.add(a); else also.delete(a); }}), a)));
+  }
+  draw();
+  const quick = h('div', {class:'qadd', id:P + 'Quick'}, L.BRIEF_ROOMS.map(x => h('button', {type:'button', onclick:() => addRoom(x)}, '+ ' + x)), h('button', {type:'button', onclick:() => addRoom('')}, '+ Other'));
+  const node = h('div', {class:'sec'},
+    h('p', {class:'subh', text:'Rooms to measure'}), quick, roomsBox,
+    h('p', {class:'subh', text:'What the customer has chosen'}), finder ? [finder.input, finder.results] : null, h('div', {class:'brow'}, typed, btn('Add', addTyped, 'sm')), choiceBox,
+    h('p', {class:'subh', text:'Also to price'}), alsoBox);
+  return {node:node, read:() => {
+    addTyped();
+    return {rooms:rooms.map(r => ({name:r.name.trim(), want:r.want && choices.some(c => c.k === r.want) ? r.want : choices.length === 1 ? choices[0].k : ''})).filter(r => r.name),
+      choices:choices.map(c => { const o = {k:c.k, title:c.title}; if (c.typed) o.typed = true; if (c.variantId) o.variantId = c.variantId; if (c.unit) o.unit = c.unit; if (c.w) o.w = c.w; return o; }),
+      also:L.BRIEF_ALSO.filter(a => also.has(a))};
+  }};
+}
+/* the same thing read back. No prices on it, so it is safe on anyone's screen. */
+function briefBlock(job){
+  const b = L.briefOf(job);
+  return h('div', {class:'sec'},
+    b.rooms.length ? h('div', {}, b.rooms.map(r => { const c = r.want ? L.briefChoice(b, r.want) : null;
+      return h('div', {class:'ln'}, h('div', {class:'ln-top'}, h('b', {text:r.name}), h('span', {class:'small', text:c ? c.title : b.choices.length ? 'Flooring not said' : ''}))); }))
+      : h('p', {class:'small muted', text:'No rooms were listed.'}),
+    b.choices.length ? h('div', {class:'sec'}, h('p', {class:'subh', text:'Chosen in the shop'}), b.choices.map(c => h('div', {class:'meta'}, h('b', {text:c.title}), c.w ? chip(c.w + ' m wide roll') : null, c.typed ? chip('Typed in', 'warn') : null)))
+      : h('p', {class:'small muted', text:'The customer has not chosen a floor yet.'}),
+    b.also.length ? h('p', {class:'small'}, h('b', {text:'Also to price: '}), b.also.join(', ')) : null);
+}
+function briefDialog(job){
+  if (!needDb()) return;
+  const s = sayer(), box = briefBox(job.brief, 'bd');
+  const save = btn('Save', async () => {
+    const b = box.read();
+    save.disabled = true;
+    try { await patchJob(job.id, {brief:Object.assign(b, {at:nowISO(), by:S.me.id || ''})}, 'What the measure is for was updated. ' + (L.briefLine({brief:b}) || 'Nothing listed')); closeModal(); toast('Saved'); }
+    catch (e){ save.disabled = false; dbFail(e); }
+  }, 'pri');
+  openModal(dlg('What the measure is for', h('div', {class:'sec'}, h('p', {class:'small muted', text:'Whoever measures sees this on the visit, without prices. The shop quotes from it once the sizes are in.'}), box.node, s.box), [btn('Cancel', closeModal), save]));
+}
 function measureDialog(){
   if (!needDb()) return;
   const s = sayer(); let kind = 'measure', slot = '', shopifyId = '', busy = false;
   const inp = (id, type, ph) => h('input', {class:'in', id:id, type:type, placeholder:ph || ''});
   const post = inp('mPost', 'text', 'G81 1XP'), name = inp('mName', 'text', 'Full name'), phone = inp('mPhone', 'tel', 'Mobile'), email = inp('mEmail', 'email', 'Optional'), addr = inp('mAddr', 'text', 'Street and town');
   const who = diaryPicker('mWho', '', () => { area.refresh(); dayPick.refresh(); showClash(); }), date = inp('mDate', 'date'); date.min = L.todayISO();
-  const notes = h('textarea', {class:'in', id:'mNotes', placeholder:'Which rooms, the flooring they are looking at, parking and access'});
+  const notes = h('textarea', {class:'in', id:'mNotes', placeholder:'Parking, access, anything else whoever goes should know'});
+  const brief = briefBox(null, 'mb');
   const kinds = h('div', {class:'radios', role:'radiogroup', 'aria-label':'Kind of visit'}), slotSeg = h('div', {class:'seg sm'}), clash = h('p', {class:'small muted'}), linked = h('p', {class:'small muted'});
   const showClash = () => {
     const p = who.value(), d = date.value;
@@ -2378,6 +2500,8 @@ function measureDialog(){
     if (!L.validISO(date.value) || date.value < L.todayISO()) errs.push('Choose the date of the visit.');
     if (!p) errs.push('Choose whose diary it goes in.');
     if (offMsg(p, date.value)) errs.push(offMsg(p, date.value));
+    const bf = brief.read();
+    if (kind !== 'subfloor' && !bf.rooms.length) errs.push('Say which rooms are being measured.');
     if (errs.length){ s.say(errs.join(' '), true); return; }
     busy = true; go.disabled = true;
     await who.commit();
@@ -2387,11 +2511,13 @@ function measureDialog(){
       customer:{shopifyId:shopifyId, name:name.value.trim(), phone:phone.value.trim(), email:email.value.trim(), address:addr.value.trim(), postcode:L.tidyPost(post.value)},
       type:'Fitting', date:'', slot:'', fitter:'', diary:false, status:'open', shopifyClosed:false, lines:{}, total:0, pay:{}, notes:notes.value.trim(), quote:[], drafts:{},
       sizeCheck:kind === 'subfloor' ? 'fitter' : 'estimator', rooms:{}, pre:pre};
-    try { await createJob(id, job, L.PRE_KINDS[kind] + ' booked for ' + L.fmtDay(date.value) + (slot ? ' ' + slot : '') + ' with ' + p + '. Nothing ordered yet'); closeModal(); toast('Measure booked for ' + L.fmtDay(date.value)); openSheet(id); }
+    if (bf.rooms.length || bf.choices.length || bf.also.length) job.brief = Object.assign(bf, {at:now, by:S.me.id || ''});
+    try { await createJob(id, job, L.PRE_KINDS[kind] + ' booked for ' + L.fmtDay(date.value) + (slot ? ' ' + slot : '') + ' with ' + p + '. Nothing ordered yet' + (L.briefLine(job) ? '. ' + L.briefLine(job) : '')); closeModal(); toast('Measure booked for ' + L.fmtDay(date.value)); openSheet(id); }
     catch (e){ busy = false; go.disabled = false; dbFail(e); }
   }, 'pri');
   openModal(dlg('Book a measure', h('div', {class:'sec'},
     h('div', {class:'card'}, h('h3', {}, 'The visit'), kinds),
+    h('div', {class:'card', id:'mBrief'}, h('h3', {}, 'What is being measured'), brief.node),
     h('div', {class:'card'}, h('h3', {}, 'Whose diary'), h('p', {class:'small muted', text:'Pick who this is for first. The postcode check below then looks at their diary.'}), who.node),
     h('div', {class:'card tight'}, h('h3', {}, 'Where and when'), field('Customer’s postcode', post), area.node, dayPick.node, field('Time of day', slotSeg), clash),
     h('div', {class:'card'}, h('h3', {}, 'Customer'), shopOK() ? [custFind, custRes, linked] : null,
@@ -2728,17 +2854,21 @@ function findingsDialog(job, v){
   let role = v.who === 'Shop' ? 'shop' : S.estimators.indexOf(v.who) !== -1 && S.fitters.indexOf(v.who) === -1 ? 'estimator' : S.fitters.indexOf(v.who) !== -1 && S.estimators.indexOf(v.who) === -1 ? 'fitter' : v.kind === 'measure' ? 'estimator' : 'fitter', outcome = '';
   const roleSeg = h('div', {class:'seg sm'}), outSeg = h('div', {class:'seg'}), roomsBox = h('div', {class:'sec'}), readBox = h('div', {class:'sec'});
   const R = L.roomsOf(job).map(r => ({k:r.k, name:r.name || 'Room', old:r, isNew:false}));
+  const bf = L.briefOf(job), haveRooms = R.map(x => x.name.trim().toLowerCase());
+  if (measure) bf.rooms.forEach(r => { if (haveRooms.indexOf(r.name.trim().toLowerCase()) === -1) R.push({k:'', name:r.name, old:{}, isNew:true, seed:true, want:r.want || ''}); });
   const reads = [];
   function roomCard(x, i){
     x.sz = sizeInputs('fr' + i, x.isNew ? null : x.old);
     x.ok = h('input', {type:'checkbox', id:'fr' + i + 'Ok'});
-    x.nameIn = x.isNew ? h('input', {class:'in', id:'fr' + i + 'Name', type:'text', placeholder:'Name of the room'}) : null;
+    x.nameIn = x.isNew ? h('input', {class:'in', id:'fr' + i + 'Name', type:'text', placeholder:'Name of the room', value:x.seed ? x.name : ''}) : null;
+    const wantC = x.seed && x.want ? L.briefChoice(bf, x.want) : null;
     const was = h('p', {class:'small muted'});
     const show = () => { was.textContent = !x.isNew && L.roomChanged(x.old, x.sz.read()) ? 'Recorded as ' + L.roomSize(x.old) + '. Your size replaces it, the old one is kept in the history and the shop is asked to review.' : ''; };
     [x.sz.len, x.sz.wid, x.sz.area].forEach(el => el.addEventListener('input', show));
     return h('div', {class:'card tight'},
-      x.isNew ? field('New room', x.nameIn) : h('div', {class:'ln-top'}, h('b', {text:x.name}), chip(L.ROOM_STATUS[x.old.status] || 'Unverified', L.ROOM_TONE[x.old.status] || 'warn')),
+      x.isNew ? field(x.seed ? 'Room to measure' : 'New room', x.nameIn) : h('div', {class:'ln-top'}, h('b', {text:x.name}), chip(L.ROOM_STATUS[x.old.status] || 'Unverified', L.ROOM_TONE[x.old.status] || 'warn')),
       !x.isNew && x.old.note ? h('p', {class:'small muted', text:x.old.note}) : null,
+      wantC ? h('p', {class:'small muted', text:'For: ' + wantC.title + (wantC.w ? ' (' + wantC.w + ' m wide roll)' : '')}) : null,
       x.sz.node, was, h('label', {class:'tick'}, x.ok, 'I checked this room and these sizes are right'));
   }
   R.forEach((x, i) => roomsBox.append(roomCard(x, i)));
@@ -2773,13 +2903,15 @@ function findingsDialog(job, v){
     if (!nm) errs.push('Say who attended.');
     R.forEach(x => {
       x.c = x.sz.read(); x.nm = x.isNew ? x.nameIn.value.trim() : x.name; x.changed = x.isNew || L.roomChanged(x.old, x.c);
-      x.blank = x.isNew && !x.nm && !(L.roomArea(x.c) > 0) && !x.ok.checked;
+      x.blank = x.isNew && (!x.nm || x.seed) && !(L.roomArea(x.c) > 0) && !x.ok.checked;
       if (x.blank) return;
       if (x.isNew && !x.nm) errs.push('Give the new room a name.');
       if (x.ok.checked && !(L.roomArea(x.c) > 0)) errs.push('Enter the size of ' + (x.nm || 'the new room') + '.');
       if (!x.ok.checked && x.changed) errs.push(x.isNew ? 'Tick ' + (x.nm || 'the new room') + ' as checked, or clear it.' : 'Tick ' + x.nm + ' as checked, or put its size back.');
     });
     const ticked = R.filter(x => !x.blank && x.ok.checked);
+    const skipped = R.filter(x => x.blank && x.seed && x.nm).map(x => x.nm);
+    if (measure && skipped.length && !notes.value.trim() && !(none.checked && noneWhy.value.trim())) errs.push('No size has been given for ' + skipped.join(', ') + '. Enter it and tick the room, or say in the notes why it was not measured.');
     if (measure && !ticked.length && !(none.checked && noneWhy.value.trim())) errs.push('Tick each room whose sizes you verified. If you could not verify any, tick that box and say why.');
     const sub = {type:subType.value === 'Other' ? subOther.value.trim() : subType.value, condition:subCond.value.trim(), findings:subFind.value.trim(), prep:subPrep.value.trim(), materials:subMat.value.trim(), access:subAccess.value.trim(), outcome:outcome, readings:{}};
     if (inspect){
@@ -2800,8 +2932,8 @@ function findingsDialog(job, v){
     ticked.forEach(x => {
       const rec = {status:'verified', verBy:nm, verRole:role, verOn:on, verAt:now, verById:S.me.id || '', verVia:v.k, checkWhy:''}, key = x.isNew ? 'r' + uid() : x.k;
       if (x.isNew){
-        Object.assign(rec, {n:++n, name:x.nm, len:x.c.len, wid:x.c.wid, area:L.roomArea(x.c), note:'', source:role, line:fl.length === 1 ? fl[0].k : '', at:now, by:S.me.id || ''});
-        changes.push(x.nm + ' was not on the job and measures ' + L.roomSize(rec) + '.');
+        Object.assign(rec, {n:++n, name:x.nm, len:x.c.len, wid:x.c.wid, area:L.roomArea(x.c), note:'', source:role, line:fl.length === 1 ? fl[0].k : '', at:now, by:S.me.id || ''}, x.seed && x.want ? {want:x.want} : {});
+        changes.push(x.seed ? x.nm + ' measures ' + L.roomSize(rec) + '.' : x.nm + ' was not on the job and measures ' + L.roomSize(rec) + '.');
       } else if (x.changed){
         Object.assign(rec, {len:x.c.len, wid:x.c.wid, area:L.roomArea(x.c), source:role, hist:{}});
         rec.hist['h' + uid()] = roomSnap(x.old, 'Measured on the ' + L.PRE_KINDS[v.kind].toLowerCase() + ' by ' + nm);
@@ -2814,7 +2946,7 @@ function findingsDialog(job, v){
     if (pics.list.length){ rec.photos = {}; pics.list.forEach(x => { rec.photos['p' + uid()] = x; }); }
     Object.assign(p, visitPatch(v, rec));
     const short = L.newlyShort(job, Object.assign({}, job, {rooms:mergeRooms(job.rooms, p.rooms)}));
-    const differs = ticked.some(x => !x.isNew && x.changed) || (ticked.some(x => x.isNew) && L.roomsOf(job).length > 0);
+    const differs = ticked.some(x => !x.isNew && x.changed) || (ticked.some(x => x.isNew && !x.seed) && L.roomsOf(job).length > 0);
     /* sizes that differ: the person who measured says what was wrong, then either signs them off as a small adjustment or sends the job back */
     const said = wrong.value.trim();
     if (differs && !said){ s.say('Say what was wrong with the sizes on the job.', true); return; }
@@ -3555,7 +3687,24 @@ function saleDialog(job){
       price:roll ? 0 : Number(v.price) || 0, priceEdited:false, qty:roll ? '' : '1', available:f.total.available, tracked:f.tracked, source:canStock ? 'stock' : 'supplier', supplier:'', due:''});
     drawLines();
   }
-  function recalc(){ totalEl.textContent = L.money(F.lines.reduce((t, l) => t + lineTotal(l), 0)); }
+  const bfS = adding ? L.briefOf(job) : null, fromBox = h('div', {class:'guide', id:'saleFromMeasure', hidden:true});
+  function drawFrom(){
+    if (!bfS || !(bfS.choices.length || bfS.also.length)){ fromBox.hidden = true; return; }
+    fromBox.hidden = false; fromBox.replaceChildren(h('p', {}, h('b', {text:'Chosen when the measure was booked'})));
+    const rooms = L.roomsOf(job);
+    bfS.choices.forEach(c => {
+      const mine = rooms.filter(r => r.want === c.k || (bfS.choices.length === 1 && !r.want)), sizes = mine.map(r => r.name + ' ' + L.roomSize(r)).join('; ');
+      const on = !!c.variantId && (F.lines.some(l => l.variantId === c.variantId) || L.linesOf(job).some(l => l.variantId === c.variantId));
+      fromBox.append(h('div', {class:'bchoice'}, h('div', {class:'grow'}, h('b', {text:c.title}), h('p', {class:'small', text:sizes ? 'Measured: ' + sizes : 'No measured room is set against this yet.'})),
+        on ? chip('On the sale', 'ok') : c.variantId ? btn('Add to the sale', async e => {
+          const b = e.currentTarget; b.disabled = true;
+          try { const d = await sq(Q_VARIANTS, {ids:[c.variantId]}), v = (d.nodes || [])[0]; if (v && v.product) addStockLine(v.product, v); else { b.disabled = false; toast('That product is no longer in Shopify. Search for it instead.', true); } }
+          catch (err){ b.disabled = false; toast(explain(err), true); }
+        }, 'sm pri') : btn('Search for it', () => { prodFind.value = c.title; findProducts(); try { prodFind.focus(); } catch (e) {} }, 'sm')));
+    });
+    if (bfS.also.length) fromBox.append(h('p', {class:'small'}, h('b', {text:'Also to price: '}), bfS.also.join(', ')));
+  }
+  function recalc(){ totalEl.textContent = L.money(F.lines.reduce((t, l) => t + lineTotal(l), 0)); drawFrom(); }
   function drawLines(){
     linesBox.replaceChildren();
     if (!F.lines.length) linesBox.append(h('p', {class:'muted', text:'Nothing added yet. Search for the flooring above, or add fitting and other charges.'}));
@@ -3656,7 +3805,7 @@ function saleDialog(job){
       h('div', {class:'grid2'}, field('Name', cName), field('Phone', cPhone)), h('div', {class:'grid2'}, field('Email', cEmail), field('Postcode', cPost)), field('Address', cAddr)),
     adding ? null : h('div', {class:'card'}, h('h3', {}, 'How and when'), typeSeg, saleHsl, field('Fitter', fitSel), salePick.node, slotSeg, saleArea.node),
     adding ? null : h('div', {class:'card'}, h('h3', {}, 'Sizes'), h('p', {class:'small muted', text:'Say how the sizes will be checked. The date above stays pencilled in until they are. Choosing the estimator sends the measure to them straight away.'}), sizeBox, estBox),
-    h('div', {class:'card'}, h('h3', {}, 'Items'), takeDone() ? null : h('p', {class:'small muted', text:'Awaiting opening stocktake: the stock figures shown here are not confirmed yet.'}), prodFind, prodRes, linesBox,
+    h('div', {class:'card'}, h('h3', {}, 'Items'), takeDone() ? null : h('p', {class:'small muted', text:'Awaiting opening stocktake: the stock figures shown here are not confirmed yet.'}), fromBox, prodFind, prodRes, linesBox,
       h('div', {class:'bar'}, btn('Add another charge', () => { F.lines.push({key:uid(), kind:'other', title:'', price:'', qty:1}); drawLines(); }, 'sm'), h('span', {class:'grow'}), h('span', {}, 'Total  ', totalEl))),
     adding ? null : h('div', {class:'card'}, h('h3', {}, 'Paid today'), h('div', {class:'grid2'}, field('Amount', paid), field('How', how)), field('Notes', notes)),
     s.box), [btn('Cancel', closeModal), saveBtn]);

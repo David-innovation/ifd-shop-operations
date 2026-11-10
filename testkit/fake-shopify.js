@@ -17,6 +17,7 @@ function make(){
     const base = {shop:{myshopifyDomain:DOMAIN}};
     if (op === 'OpsShop') return {shop:{name:'Innovation Flooring Direct', myshopifyDomain:DOMAIN}, locations:{nodes:[{id:'gid://shopify/Location/1', name:'South Elgin Place', isActive:true}]}};
     if (op === 'OpsInbox') return Object.assign(base, {orders:{nodes:[order]}});
+    if (op === 'OpsSearch') return Object.assign(base, {products:{nodes:/royale|oak|laminate/i.test(String(vars.q || '')) ? [Object.assign({}, variant().product, {variants:{nodes:[variant()]}})] : []}});
     if (op === 'OpsVariants') return Object.assign(base, {nodes:(vars.ids || []).map(id => (id === 'gid://shopify/ProductVariant/701' ? variant() : null))});
     if (op === 'OpsAdjust'){ const c = vars.input.changes[0]; if (c.changeFromQuantity !== state.avail) return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:null, userErrors:[{field:['input'], message:'stale', code:'CHANGE_FROM_QUANTITY_STALE'}]}}; state.avail += c.delta; return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:{id:'g1'}, userErrors:[]}}; }
     if (op === 'OpsDraftCreate'){ state.drafts++; return {draftOrderCreate:{draftOrder:{id:'gid://shopify/DraftOrder/' + (9000 + state.drafts), name:'#D' + state.drafts, status:'OPEN'}, userErrors:[]}}; }

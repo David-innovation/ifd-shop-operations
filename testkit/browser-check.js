@@ -160,6 +160,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     mkJob('h3', 'Far Bedrooms', 'ML5 1AA');
     mkJob('h4', 'Near Bedrooms', 'G82 1AA');
     await pg.reload(); await live();
+    const openJobPlain = async name => { await pg.keyboard.press('Escape'); await pg.locator('#tabs .tab', {hasText:'Jobs'}).click(); await pg.locator('#view .row', {has:pg.locator('.who', {hasText:name})}).first().click(); await pg.waitForSelector('#sheet .panel'); };
     const openJob = async name => { await pg.keyboard.press('Escape'); await pg.locator('#tabs .tab', {hasText:'Jobs'}).click(); await pg.locator('#view .row', {has:pg.locator('.who', {hasText:name})}).first().click(); await pg.waitForSelector('#sheet .dstrip'); return pg.locator('#sheet .dpick'); };
     let sx = await openJob('Second Stairs'), cx = await cellOf(sx, X);
     ok(await pg.locator('#jobHsl').isChecked() && /HSL full/.test(await cx.innerText()) && await cx.isDisabled(), 'a second hall, stairs and landing cannot be put on a day the fitter already has one');
@@ -287,6 +288,59 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.keyboard.press('Escape'); await pg.getByRole('button', {name:'Back to the shop'}).click(); await pg.locator('#tabs .tab', {hasText:'Today'}).click();
     await pg.waitForFunction(() => /Short Carpet/.test((document.querySelector('#actSec') || {}).innerText || ''), null, {timeout:6000});
     ok(/Sent back by Eddie/.test(await pg.locator('#actSec').innerText()) && /Bay window was missed/.test(await pg.locator('#actSec').innerText()), 'and it lands in Act now on Today');
+    // booking a measure says what it is for: the rooms, what the customer picked in the shop, and the extras to price
+    await pg.getByRole('button', {name:'Book a measure'}).first().click(); await pg.waitForSelector('#mBrief');
+    await pg.locator('#modal input[name=mWho][value=Eddie]').check();
+    await pg.fill('#mPost', 'G81 5DD'); await pg.fill('#mName', 'Brief Customer'); await pg.fill('#mPhone', '07700 900777');
+    await (await cellOf(pg.locator('#modal'), day(4))).click();
+    ok(!/null/.test(await pg.locator('#modal .ddetail').last().innerText()), 'the chosen day reads cleanly, with no stray "null"');
+    await pg.locator('#modal').getByRole('button', {name:'Book the measure'}).click();
+    ok(/Say which rooms are being measured/.test(await pg.locator('#modal').innerText()), 'a measure cannot be booked without saying which rooms');
+    await pg.locator('#mbQuick button', {hasText:'Bedroom'}).click(); await pg.locator('#mbQuick button', {hasText:'Bedroom'}).click();
+    await pg.locator('#mbQuick button', {hasText:/^\+ Hall, stairs and landing$/}).click();
+    await pg.locator('#mbQuick button', {hasText:'Other'}).click(); await pg.fill('#mbRoom3', 'Garden room');
+    ok(await pg.locator('#mbRoom0').inputValue() === 'Bedroom 1' && await pg.locator('#mbRoom1').inputValue() === 'Bedroom 2' && await pg.locator('#mbRoom2').inputValue() === 'Hall, stairs and landing',
+      'rooms are added with a tap, a second bedroom numbers itself, and Other takes any name');
+    await pg.fill('#mbFind', 'Royale Oak'); await pg.press('#mbFind', 'Enter'); await pg.locator('#mBrief .results .pick').first().click();
+    await pg.fill('#mbTyped', 'Grey twist carpet, stand by the door'); await pg.press('#mbTyped', 'Enter');
+    await pg.selectOption('#mbWant2', {label:'Grey twist carpet, stand by the door'});
+    await pg.locator('#mbAlso label', {hasText:'Underlay'}).locator('input').check(); await pg.locator('#mbAlso label', {hasText:'Door bars'}).locator('input').check();
+    await pg.locator('#modal').getByRole('button', {name:'Book the measure'}).click();
+    await pg.waitForFunction(() => document.querySelector('#modal').hidden && document.querySelector('#briefCard'), null, {timeout:10000});
+    const bj = app.store.list('jobs').find(x => (x.data.customer || {}).name === 'Brief Customer'), bb = bj.data.brief, oak = bb.choices.find(c => c.variantId), grey = bb.choices.find(c => c.typed);
+    ok(bb.rooms.map(r => r.name).join('|') === 'Bedroom 1|Bedroom 2|Hall, stairs and landing|Garden room' && oak && /Royale Oak/.test(oak.title) && grey && bb.rooms[0].want === oak.k && bb.rooms[2].want === grey.k && bb.also.join('|') === 'Underlay|Door bars' && Object.keys(bj.data.lines).length === 0,
+      'the booking keeps the rooms, the product picked for each and the extras, and orders nothing');
+    const bc = await pg.locator('#briefCard').innerText();
+    ok(/What the measure is for/.test(bc) && /Bedroom 2/.test(bc) && /Royale Oak/.test(bc) && /Grey twist/.test(bc) && /Also to price: Underlay, Door bars/.test(bc), 'the job shows the shop what the measure is for');
+    // whoever measures sees it on the visit, with no prices, and the findings start from those rooms
+    await pg.keyboard.press('Escape'); await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.locator('#estStrip .estrow', {hasText:'Eddie'}).click();
+    await pg.locator('.fent', {hasText:'Brief Customer'}).first().click(); await pg.waitForSelector('#sheet #briefCard');
+    const estSheet = await pg.locator('#sheet').innerText();
+    ok(/What to measure/.test(estSheet) && /Hall, stairs and landing/.test(estSheet) && /Grey twist/.test(estSheet) && /Underlay/.test(estSheet) && !/£/.test(estSheet), 'the estimator sees the rooms and what was chosen on the visit, with no prices');
+    await pg.locator('#sheet').getByRole('button', {name:'Submit findings'}).click(); await pg.waitForSelector('#fr0Len');
+    ok(await pg.locator('#fr0Name').inputValue() === 'Bedroom 1' && await pg.locator('#fr3Name').inputValue() === 'Garden room' && /For: Royale Oak/.test(await pg.locator('#modal').innerText()), 'the findings start from the rooms that were asked for');
+    await pg.fill('#fr0Len', '3.5'); await pg.fill('#fr0Wid', '3'); await pg.locator('#fr0Ok').check();
+    await pg.fill('#fr1Len', '3'); await pg.fill('#fr1Wid', '2.8'); await pg.locator('#fr1Ok').check();
+    await pg.fill('#fr2Len', '4'); await pg.fill('#fr2Wid', '1'); await pg.locator('#fr2Ok').check();
+    await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
+    ok(/No size has been given for Garden room/.test(await pg.locator('#modal').innerText()), 'a room that was asked for cannot be quietly skipped');
+    await pg.fill('#findNotes', 'Garden room was locked, customer will send the size');
+    await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
+    await pg.waitForFunction(() => document.querySelector('#modal').hidden, null, {timeout:6000});
+    const bj2 = app.store.getDoc('jobs/' + bj.id).data, br = Object.values(bj2.rooms);
+    ok(br.length === 3 && br.every(r => r.status === 'verified') && br.find(r => r.name === 'Hall, stairs and landing').want === grey.k && !(bj2.review && bj2.review.on), 'the measured rooms keep which floor each is for, and nothing is flagged');
+    // back in the shop, the sale starts from what was chosen, beside the sizes that were measured
+    await pg.locator('#sheet').getByRole('button', {name:'Close'}).click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
+    await pg.getByRole('button', {name:'Back to the shop'}).click();
+    await openJobPlain('Brief Customer');
+    await pg.locator('#sheet').getByRole('button', {name:'Add items'}).click(); await pg.waitForSelector('#saleFromMeasure');
+    const fm = await pg.locator('#saleFromMeasure').innerText();
+    ok(/Royale Oak/.test(fm) && /Bedroom 1 3\.50 × 3\.00 m/.test(fm) && /Hall, stairs and landing 4\.00 × 1\.00 m/.test(fm) && /Also to price: Underlay, Door bars/.test(fm), 'making the sale shows what was chosen beside the measured sizes');
+    await pg.locator('#saleFromMeasure').getByRole('button', {name:'Add to the sale'}).click();
+    await pg.waitForFunction(() => /On the sale/.test(document.querySelector('#saleFromMeasure').innerText), null, {timeout:6000});
+    ok(await pg.locator('#modal input[id^="ln-q-"]').count() === 1, 'one tap puts the chosen product on the sale, ready for the quantity');
+    await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden);
+    await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
     // a screen left open brings itself up to date when the screens have been replaced, without losing work in hand
     await pg.locator('#tabs .tab', {hasText:'Today'}).click();
     await pg.evaluate(() => { window.__mark = 1; document.querySelector('meta[name="ifd-version"]').content = 'an-older-build'; });
