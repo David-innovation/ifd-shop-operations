@@ -115,11 +115,20 @@ textarea.in{min-height:84px;resize:vertical}
 .brow > .in{flex:1 1 150px;min-width:0;width:auto}
 .spec{display:flex;flex-direction:column;gap:8px}
 .spec.rest{border-top:1px solid var(--line);padding-top:10px}
-.sq{display:flex;gap:6px 12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.sq > span{font-weight:600;flex:1 1 110px;min-width:0}
-.sq .seg{flex:0 0 auto;min-width:132px} .sq .seg button{min-height:40px;padding:6px 12px}
+.sqhead{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.sqhead b{font-family:var(--font-display);font-size:19px}
+.sq{display:flex;gap:6px 12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.sq > span{font-weight:600;flex:1 1 120px;min-width:0}
+.sq .need{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);margin-top:2px}
+.sq.ask{border-color:var(--warn);background:var(--warn-bg)}
+.sq.miss{border-color:var(--bad);background:var(--bad-bg)} .sq.miss .need{color:var(--bad)}
+.sq .seg{flex:0 0 auto;min-width:150px;border-color:var(--muted)}
+.sq .seg button{min-height:42px;padding:6px 14px;color:var(--ink);background:var(--surface);white-space:nowrap}
+.sq .seg button + button{border-left-color:var(--muted)}
+.sq .seg button.on{background:var(--brand);color:var(--on-brand)}
+.sq .seg button.on.yes{background:var(--ok);color:var(--surface)}
+.sq .sbars,.sq .sqnote{flex:1 1 100%}
 .sbars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:end}
-.sq.wide .seg{flex:1 1 100%}
 .pdir{display:block;margin-top:6px;max-width:100%;width:auto}
 .psub{display:block;color:var(--muted);font-size:12.5px;font-weight:400;margin-top:2px}
 .pline{display:flex;gap:12px;justify-content:space-between;align-items:baseline;padding:6px 0;border-top:1px solid var(--line)}
@@ -2485,36 +2494,58 @@ function specInputs(P, init, dflt, onChange){
     underlay:had ? !!s0.underlay : null, gripper:had && s0.floor === 'carpet' ? !!s0.gripper : null, beading:had && s0.floor === 'flooring' ? !!s0.beading : null,
     barsAsked:had ? L.specBars(s0).length > 0 : null, bars:{cc:0, cf:0, ff:0}, old:had ? !!s0.old : null, uplift:had && s0.old ? !!s0.uplift : null, furniture:had ? !!s0.furniture : null};
   L.specBars(s0).forEach(b => { st.bars[b.k] = b.n; });
+  let flag = false;
   const head = h('div', {class:'spec', id:P + 'Floor'}), box = h('div', {class:'spec rest', id:P + 'Spec'});
   const fire = () => { if (onChange) onChange(); };
-  const seg = (opts, cur, set) => h('div', {class:'seg sm'}, opts.map(o => h('button', {type:'button', id:P + o[2], class:cur === o[0] ? 'on' : '', 'aria-pressed':cur === o[0] ? 'true' : 'false', onclick:() => { set(o[0]); draw(); fire(); }}, o[1])));
-  const q = (label, control, wide) => h('div', {class:'sq' + (wide ? ' wide' : '')}, h('span', {text:label}), control);
-  const yn = (key, label, id) => q(label, seg([[true, 'Yes', id + 'Y'], [false, 'No', id + 'N']], st[key], v => { st[key] = v; }));
-  const barIn = k => field(L.BAR_KINDS[k], h('input', {class:'in', id:P + 'Bar' + k, type:'number', min:'0', step:'1', inputmode:'numeric', placeholder:'How many', value:st.bars[k] || '', oninput:e => { st.bars[k] = Math.max(0, Math.floor(Number(e.target.value) || 0)); fire(); }}));
+  const kinds = () => (st.floor === 'carpet' ? ['cc', 'cf'] : ['ff', 'cf']);
+  /* what still has to be answered, in plain words */
+  const need = () => {
+    if (!st.floor) return ['carpet or flooring'];
+    const carpet = st.floor === 'carpet', out = [];
+    if (st.underlay === null) out.push('underlay');
+    if (carpet ? st.gripper === null : st.beading === null) out.push(carpet ? 'gripper' : 'beading');
+    if (st.barsAsked === null) out.push('door bars'); else if (st.barsAsked && !kinds().some(k => st.bars[k] > 0)) out.push('how many door bars');
+    if (st.old === null) out.push('old flooring'); else if (st.old && st.uplift === null) out.push('uplift and disposal');
+    if (st.furniture === null) out.push('furniture');
+    return out;
+  };
+  const seg = (opts, cur, set) => h('div', {class:'seg sm'}, opts.map(o => h('button', {type:'button', id:P + o[2], class:cur === o[0] ? 'on' + (o[3] ? ' ' + o[3] : '') : '', 'aria-pressed':cur === o[0] ? 'true' : 'false', onclick:() => { set(o[0]); draw(); fire(); }}, o[1])));
+  const rows = [];
+  const q = (label, control, keys, extra) => { const tag = h('small', {class:'need', text:'Answer needed'}), row = h('div', {class:'sq'}, h('span', {}, label, tag), control, extra || null); rows.push({row:row, tag:tag, keys:keys}); return row; };
+  /* mark what is still unanswered without redrawing, so a tap is never lost under someone's finger */
+  function marks(){ const miss = need(); rows.forEach(r => { const todo = r.keys.some(k => miss.indexOf(k) !== -1); r.row.className = 'sq ' + (todo ? (flag ? 'miss' : 'ask') : 'answered'); r.tag.hidden = !todo; }); count(); }
+  const req = (key, label, id, name) => q(label, seg([[true, 'Required', id + 'Y', 'yes'], [false, 'Not required', id + 'N']], st[key], v => { st[key] = v; }), [name]);
+  const yn = (key, label, id, name) => q(label, seg([[true, 'Yes', id + 'Y', 'yes'], [false, 'No', id + 'N']], st[key], v => { st[key] = v; }), [name]);
+  const barIn = k => field(L.BAR_KINDS[k], h('input', {class:'in', id:P + 'Bar' + k, type:'number', min:'0', step:'1', inputmode:'numeric', placeholder:'How many', value:st.bars[k] || '',
+    oninput:e => { st.bars[k] = Math.max(0, Math.floor(Number(e.target.value) || 0)); marks(); fire(); }}));
+  const tally = h('span', {id:P + 'Count'});
+  function count(){ const n = need().length; tally.replaceChildren(n ? chip(n + (n === 1 ? ' question still to answer' : ' questions still to answer'), flag ? 'bad' : 'warn') : chip('All answered', 'ok')); }
   function draw(){
     const carpet = st.floor === 'carpet';
-    head.replaceChildren(); box.replaceChildren();
-    add(head, q('This room is', seg([['carpet', 'Carpet', 'Carpet'], ['flooring', 'Flooring', 'Flooring']], st.floor, v => { st.floor = v; })));
+    head.replaceChildren(); box.replaceChildren(); rows.length = 0;
+    add(head, q('Is this room carpet or flooring?', seg([['carpet', 'Carpet', 'Carpet'], ['flooring', 'Flooring', 'Flooring']], st.floor, v => { st.floor = v; }), ['carpet or flooring']));
     add(box, [
+      h('div', {class:'sqhead'}, h('b', {text:'Questions for this room'}), tally),
+      h('p', {class:'small muted', text:'Every question needs an answer. The room cannot be ticked as checked until they are all answered.'}),
       !st.floor ? h('p', {class:'small muted', text:'Choose carpet or flooring above to see the questions for this room.'}) : [
-        yn('underlay', 'Underlay', 'Underlay'),
-        carpet ? yn('gripper', 'Gripper', 'Gripper') : yn('beading', 'Beading', 'Beading'),
-        q('Door bars', seg([[true, 'Yes', 'BarsY'], [false, 'None', 'BarsN']], st.barsAsked, v => { st.barsAsked = v; })),
-        st.barsAsked ? [h('div', {class:'sbars'}, carpet ? [barIn('cc'), barIn('cf')] : [barIn('ff'), barIn('cf')]), h('p', {class:'small muted', text:'Count each doorway once, on one room only.'})] : null,
-        yn('old', 'Old flooring down', 'Old'),
-        st.old ? yn('uplift', 'Customer wants a price to uplift and dispose', 'Uplift') : null,
-        yn('furniture', 'Customer wants a price to move furniture', 'Furn')]]);
+        req('underlay', 'Is new underlay required?', 'Underlay', 'underlay'),
+        carpet ? req('gripper', 'Is new gripper required?', 'Gripper', 'gripper') : req('beading', 'Is beading required?', 'Beading', 'beading'),
+        q('Are door bars required?', seg([[true, 'Required', 'BarsY', 'yes'], [false, 'Not required', 'BarsN']], st.barsAsked, v => { st.barsAsked = v; }), ['door bars', 'how many door bars'],
+          st.barsAsked ? [h('div', {class:'sbars'}, carpet ? [barIn('cc'), barIn('cf')] : [barIn('ff'), barIn('cf')]), h('p', {class:'small muted sqnote', text:'Say how many of each kind. Count each doorway once, on one room only.'})] : null),
+        yn('old', 'Is there old flooring down?', 'Old', 'old flooring'),
+        st.old ? yn('uplift', 'Does the customer want a price to uplift and dispose of it?', 'Uplift', 'uplift and disposal') : null,
+        yn('furniture', 'Does the customer want a price to move furniture?', 'Furn', 'furniture')]]);
+    marks();
   }
   draw();
-  const kinds = () => (st.floor === 'carpet' ? ['cc', 'cf'] : ['ff', 'cf']);
-  return {head:head, node:box, state:st,
+  return {head:head, node:box, state:st, need:need,
+    flagMissing:() => { flag = true; draw(); },
     setRoll:w => { st.rollW = w || 0; },
     copy:from => { ['floor', 'underlay', 'gripper', 'beading', 'old', 'uplift', 'furniture'].forEach(k => { st[k] = from[k]; }); draw(); fire(); },
     read:() => {
-      const carpet = st.floor === 'carpet', bars = {cc:0, cf:0, ff:0}; let n = 0;
-      if (st.barsAsked) kinds().forEach(k => { bars[k] = st.bars[k] || 0; n += bars[k]; });
-      const ok = !!st.floor && st.underlay !== null && (carpet ? st.gripper !== null : st.beading !== null) && st.barsAsked !== null && (!st.barsAsked || n > 0) && st.old !== null && (!st.old || st.uplift !== null) && st.furniture !== null;
-      return {ok:ok, spec:{floor:st.floor, rollW:carpet ? st.rollW : 0, dir:carpet ? st.dir || 'any' : null, underlay:!!st.underlay, gripper:carpet ? !!st.gripper : null, beading:carpet ? null : !!st.beading, bars:bars, old:!!st.old, uplift:st.old ? !!st.uplift : null, furniture:!!st.furniture}};
+      const carpet = st.floor === 'carpet', bars = {cc:0, cf:0, ff:0};
+      if (st.barsAsked) kinds().forEach(k => { bars[k] = st.bars[k] || 0; });
+      return {ok:!need().length, spec:{floor:st.floor, rollW:carpet ? st.rollW : 0, dir:carpet ? st.dir || 'any' : null, underlay:!!st.underlay, gripper:carpet ? !!st.gripper : null, beading:carpet ? null : !!st.beading, bars:bars, old:!!st.old, uplift:st.old ? !!st.uplift : null, furniture:!!st.furniture}};
     }};
 }
 /* the answers read back as chips. A fitter is shown what is in the room, not what the customer asked to be priced. */
@@ -3061,7 +3092,10 @@ function findingsDialog(job, v){
     const ws = wc && Array.isArray(wc.widths) && wc.widths.length ? wc.widths : wc && wc.w ? [wc.w] : forLine && Number(forLine.w) > 0 ? [Number(forLine.w)] : null;
     /* the carpet sums are the shop's job: nothing about rolls, cuts or direction is put in front of whoever measures */
     x.widths = ws;
-    x.spec = measure ? specInputs('fr' + i, x.isNew ? null : x.old.spec, dflt, null) : null;
+    const needMsg = h('p', {class:'small', id:'fr' + i + 'Need', style:'color:var(--bad);font-weight:700', hidden:true});
+    const sayNeed = () => { const miss = x.spec.need(); needMsg.hidden = !miss.length; needMsg.textContent = miss.length ? 'Answer these first, then tick the room: ' + miss.join(', ') + '.' : ''; };
+    x.spec = measure ? specInputs('fr' + i, x.isNew ? null : x.old.spec, dflt, () => { if (x.spec.need().length && x.ok.checked) x.ok.checked = false; if (!needMsg.hidden) sayNeed(); }) : null;
+    if (x.spec) x.ok.addEventListener('change', () => { if (x.ok.checked && x.spec.need().length){ x.ok.checked = false; x.spec.flagMissing(); sayNeed(); } else needMsg.hidden = true; });
     const was = h('p', {class:'small muted'});
     const show = () => { was.textContent = !x.isNew && L.roomChanged(x.old, x.sz.read()) ? 'Recorded as ' + L.roomSize(x.old) + '. Your size replaces it, the old one is kept in the history and the shop is asked to review.' : ''; };
     [x.sz.len, x.sz.wid, x.sz.area].forEach(el => el.addEventListener('input', show));
@@ -3070,7 +3104,7 @@ function findingsDialog(job, v){
       !x.isNew && x.old.note ? h('p', {class:'small muted', text:x.old.note}) : null,
       wantC ? h('p', {class:'small muted', text:'For: ' + wantC.title + (wantC.w ? ' (' + wantC.w + ' m wide roll)' : '')}) : null,
       x.spec ? [i > 0 && R[i - 1].spec ? h('div', {class:'bar'}, btn('Same answers as the room above', () => x.spec.copy(R[i - 1].spec.state), 'sm')) : null, x.spec.head] : null,
-      x.sz.node, was, x.spec ? x.spec.node : null, h('label', {class:'tick'}, x.ok, 'I checked this room and these sizes are right'));
+      x.sz.node, was, x.spec ? [x.spec.node, needMsg] : null, h('label', {class:'tick'}, x.ok, 'I checked this room and these sizes are right'));
   }
   R.forEach((x, i) => roomsBox.append(roomCard(x, i)));
   const addRoom = btn('Add a room that is not listed', () => { const x = {k:'', name:'', old:{}, isNew:true}; R.push(x); roomsBox.append(roomCard(x, R.length - 1)); }, 'sm');
@@ -3111,7 +3145,7 @@ function findingsDialog(job, v){
       if (!x.ok.checked && x.changed) errs.push(x.isNew ? 'Tick ' + (x.nm || 'the new room') + ' as checked, or clear it.' : 'Tick ' + x.nm + ' as checked, or put its size back.');
       if (x.ok.checked && x.spec){ x.sp = x.spec.read();
         if (x.sp.spec.floor === 'carpet' && !(x.c.len > 0 && x.c.wid > 0)) errs.push('Enter the length and width of ' + (x.nm || 'the new room') + '. The shop works the carpet out from them.');
-        else if (!x.sp.ok) errs.push('Answer every question for ' + (x.nm || 'the new room') + '.');
+        else if (!x.sp.ok){ x.spec.flagMissing(); errs.push((x.nm || 'The new room') + ' still needs an answer for: ' + x.spec.need().join(', ') + '.'); }
         else if (x.sp.spec.floor === 'carpet'){ const pl = L.carpetPlan(x.c.len, x.c.wid, {widths:x.widths, dir:x.sp.spec.dir}); x.sp.spec.rollW = pl && pl.best ? pl.best.rollW : 0; } }
     });
     const ticked = R.filter(x => !x.blank && x.ok.checked);

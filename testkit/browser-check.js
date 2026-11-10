@@ -263,12 +263,24 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     const es = await pg.locator('#sheet').innerText();
     ok(/What is on the order/.test(es) && /Test carpet/.test(es) && /Does the order cover the floor/.test(es) && !/£/.test(es), 'on a measure the estimator sees what is on the order and whether it covers the floor, with no prices');
     await pg.locator('#sheet').getByRole('button', {name:'Submit findings'}).click(); await pg.waitForSelector('#fr0Len');
-    await pg.fill('#fr0Len', '3.05'); await pg.locator('#fr0Ok').check();
+    await pg.fill('#fr0Len', '3.05');
     ok(await pg.locator('#fr0Carpet').getAttribute('aria-pressed') === 'true' && await pg.locator('#fr0Guide, #fr0DirAny, #fr0W4').count() === 0 && !/roll|cut|allowance/i.test(await pg.locator('#modal .card', {has:pg.locator('#fr0Len')}).first().innerText()),
       'the room already knows it is carpet from what is on the order, and whoever measures is shown no roll, cut or direction: only the sizes and the questions');
-    await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
-    ok(/Answer every question for Bedroom/.test(await pg.locator('#modal').innerText()), 'a room cannot be signed off until every question in it is answered');
+    const qs = await pg.locator('#fr0Spec').innerText();
+    ok(/Is new underlay required\?/.test(qs) && /Is new gripper required\?/.test(qs) && /Are door bars required\?/.test(qs) && /Is there old flooring down\?/.test(qs) && /Does the customer want a price to move furniture\?/.test(qs)
+      && /Not required/.test(qs) && /5 questions still to answer/.test(await pg.locator('#fr0Count').innerText()) && await pg.locator('#fr0Spec .sq.ask').count() === 5 && (qs.match(/ANSWER NEEDED/gi) || []).length === 5,
+      'each question is a full question with Required or Not required, every unanswered one is marked, and the room counts what is left');
+    ok(await pg.evaluate(() => Array.from(document.querySelectorAll('#fr0Spec .sq.ask')).every(r => { const a = r.querySelector('span').getBoundingClientRect(), b = r.querySelector('.seg').getBoundingClientRect(); return r.getBoundingClientRect().height < 110 && b.left > a.left + 40; })),
+      'an unanswered question still reads as one row: the question on the left and its answers on the right');
+    await pg.locator('#fr0Ok').click();
+    ok(!(await pg.locator('#fr0Ok').isChecked()) && /Answer these first, then tick the room: underlay, gripper, door bars, old flooring, furniture/.test(await pg.locator('#fr0Need').innerText()) && await pg.locator('#fr0Spec .sq.miss').count() === 5,
+      'a room cannot be ticked until every question in it is answered, and it says which ones are left');
+    await pg.click('#fr0BarsY');
+    ok(/how many door bars/.test(await pg.locator('#fr0Need').innerText()), 'saying door bars are required then asks how many');
     await answer(0, {bars:{cc:1}});
+    ok(/All answered/.test(await pg.locator('#fr0Count').innerText()) && await pg.locator('#fr0Spec .sq.ask, #fr0Spec .sq.miss').count() === 0 && await pg.locator('#fr0Need').isHidden() && await pg.locator('#fr0UnderlayY.on.yes').count() === 1,
+      'once they are all answered the marks clear and each answer shows filled in');
+    await pg.locator('#fr0Ok').check();
     await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
     ok(/Say what was wrong with the sizes/.test(await pg.locator('#modal').innerText()), 'a changed size needs an explanation of what was wrong');
     await pg.fill('#findWrong', 'Customer measured to the skirting on one side only');
@@ -284,7 +296,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.keyboard.press('Escape');
     await pg.locator('.fent', {hasText:'Short Carpet'}).first().click(); await pg.waitForSelector('#sheet .panel');
     await pg.locator('#sheet').getByRole('button', {name:'Submit findings'}).click(); await pg.waitForSelector('#fr0Len');
-    await pg.fill('#fr0Len', '3.4'); await pg.fill('#fr0Wid', '3.3'); await pg.locator('#fr0Ok').check(); await answer(0, {}); await pg.fill('#findWrong', 'Bay window was missed, the room is much bigger');
+    await pg.fill('#fr0Len', '3.4'); await pg.fill('#fr0Wid', '3.3'); await answer(0, {}); await pg.locator('#fr0Ok').check(); await pg.fill('#findWrong', 'Bay window was missed, the room is much bigger');
     await pg.locator('#modal .radio', {hasText:'Small adjustment'}).locator('input').check();
     await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
     ok(/cannot be signed off/.test(await pg.locator('#modal').innerText()) && Object.values(app.store.getDoc('jobs/u2').data.pre)[0].status === 'booked', 'when the carpet on the order no longer covers the floor it cannot be signed off');
@@ -330,13 +342,13 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.locator('#sheet').getByRole('button', {name:'Submit findings'}).click(); await pg.waitForSelector('#fr0Len');
     ok(await pg.locator('#fr0Name').inputValue() === 'Bedroom 1' && await pg.locator('#fr3Name').inputValue() === 'Garden room' && /For: Royale Oak/.test(await pg.locator('#modal').innerText()), 'the findings start from the rooms that were asked for');
     ok(await pg.locator('#fr0Flooring').getAttribute('aria-pressed') === 'true' && await pg.locator('#fr2Carpet').getAttribute('aria-pressed') === 'false', 'a room knows it is flooring when the product picked for it is sold by the pack');
-    await pg.fill('#fr0Len', '3.5'); await pg.fill('#fr0Wid', '3'); await pg.locator('#fr0Ok').check();
-    await answer(0, {floor:'flooring', bars:{ff:1, cf:1}, old:true, uplift:true, furn:true});
-    await pg.fill('#fr1Len', '3'); await pg.fill('#fr1Wid', '2.8'); await pg.locator('#fr1Ok').check();
+    await pg.fill('#fr0Len', '3.5'); await pg.fill('#fr0Wid', '3');
+    await answer(0, {floor:'flooring', bars:{ff:1, cf:1}, old:true, uplift:true, furn:true}); await pg.locator('#fr0Ok').check();
+    await pg.fill('#fr1Len', '3'); await pg.fill('#fr1Wid', '2.8');
     await pg.locator('#modal .card', {has:pg.locator('#fr1Name')}).getByRole('button', {name:'Same answers as the room above'}).click();
     ok(await pg.locator('#fr1BeadingY').getAttribute('aria-pressed') === 'true' && await pg.locator('#fr1BarsY').getAttribute('aria-pressed') === 'false', 'one tap copies the answers from the room above, but not its door bars');
-    await pg.click('#fr1BarsN');
-    await pg.fill('#fr2Len', '4.6'); await pg.fill('#fr2Wid', '4.3'); await pg.locator('#fr2Ok').check();
+    await pg.click('#fr1BarsN'); await pg.locator('#fr1Ok').check();
+    await pg.fill('#fr2Len', '4.6'); await pg.fill('#fr2Wid', '4.3');
     await pg.click('#fr2Carpet');
     ok(await pg.evaluate(() => { const L = window.IFDLogic, P = L.carpetPlan, e1 = P(3, 3.8).best, e2 = P(4.2, 3, {widths:[4]}).best, e2b = P(4.2, 3), e3 = P(4.2, 4.6).best, dec = P(3.05, 3.42).best, ex = P(4, 3, {widths:[4]});
       return e1.across === 3.8 && e1.cut === 3.1 && e1.rollW === 4 && e1.sq === 12.4 && e1.units === 31
@@ -348,7 +360,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
         && ex.best.across === 4 && ex.tight === true && P(3.95, 3).tight === true && P(3.8, 3).tight === false
         && P(4.2, 4.6, {widths:[4]}).fits === false && P(5.2, 5.1).fits === false && P(5.2, 5.1).needs === 5.1 && P(6, 3).best.cut === 6.1; }),
       'the carpet sums: the worked examples, a set direction, decimals rounded up to 10 cm, a carpet that only comes in one width, exact fits flagged and rooms too wide for any roll');
-    await answer(2, {w:5, underlay:true, edge:true, old:true, uplift:false});
+    await answer(2, {w:5, underlay:true, edge:true, old:true, uplift:false}); await pg.locator('#fr2Ok').check();
     await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
     ok(/No size has been given for Garden room/.test(await pg.locator('#modal').innerText()), 'a room that was asked for cannot be quietly skipped');
     await pg.fill('#findNotes', 'Garden room was locked, customer will send the size');
