@@ -13,12 +13,17 @@ function make(){
   const variant = () => ({id:'gid://shopify/ProductVariant/701', title:'Default Title', sku:null, price:'20.18', inventoryQuantity:state.avail, inventoryPolicy:'DENY', rollNumber:null, rollWidth:null, rollLocation:null, rollStatus:null,
     inventoryItem:{id:'gid://shopify/InventoryItem/701', tracked:true, inventoryLevels:{nodes:[{location:{id:'gid://shopify/Location/1', name:'South Elgin Place'}, quantities:[{name:'available', quantity:state.avail}, {name:'on_hand', quantity:state.avail}, {name:'committed', quantity:0}, {name:'reserved', quantity:0}]}]}},
     product:{id:'gid://shopify/Product/70', title:'Royale Oak 12mm Herringbone Laminate', productType:'laminate flooring', status:'ACTIVE', coverage:{value:'1.836'}, ppm:null}});
+  const roll = (n, w, avail) => ({id:'gid://shopify/ProductVariant/' + n, title:'Roll R-' + n + ' · ' + w + 'm wide', sku:null, price:'0.00', inventoryQuantity:avail, inventoryPolicy:'DENY', rollNumber:{value:'R-' + n}, rollWidth:{value:String(w)}, rollLocation:null, rollStatus:null,
+    inventoryItem:{id:'gid://shopify/InventoryItem/' + n, tracked:true, inventoryLevels:{nodes:[{location:{id:'gid://shopify/Location/1', name:'South Elgin Place'}, quantities:[{name:'available', quantity:avail}, {name:'on_hand', quantity:avail}, {name:'committed', quantity:0}, {name:'reserved', quantity:0}]}]}}});
+  const carpet = () => ({id:'gid://shopify/Product/80', title:'Silver twist carpet', productType:'Carpet roll', status:'ACTIVE', coverage:null, ppm:{value:JSON.stringify({amount:'10.0', currency_code:'GBP'})}});
+  const rolls = () => [roll(801, 4, 300), roll(802, 5, 200)];
   function answer(op, vars){
     const base = {shop:{myshopifyDomain:DOMAIN}};
     if (op === 'OpsShop') return {shop:{name:'Innovation Flooring Direct', myshopifyDomain:DOMAIN}, locations:{nodes:[{id:'gid://shopify/Location/1', name:'South Elgin Place', isActive:true}]}};
     if (op === 'OpsInbox') return Object.assign(base, {orders:{nodes:[order]}});
-    if (op === 'OpsSearch') return Object.assign(base, {products:{nodes:/royale|oak|laminate/i.test(String(vars.q || '')) ? [Object.assign({}, variant().product, {variants:{nodes:[variant()]}})] : []}});
-    if (op === 'OpsVariants') return Object.assign(base, {nodes:(vars.ids || []).map(id => (id === 'gid://shopify/ProductVariant/701' ? variant() : null))});
+    if (op === 'OpsSearch') return Object.assign(base, {products:{nodes:/royale|oak|laminate/i.test(String(vars.q || '')) ? [Object.assign({}, variant().product, {variants:{nodes:[variant()]}})] : /twist|silver/i.test(String(vars.q || '')) ? [Object.assign(carpet(), {variants:{nodes:rolls()}})] : []}});
+    if (op === 'OpsProduct') return Object.assign(base, {product:vars.id === 'gid://shopify/Product/80' ? Object.assign(carpet(), {variants:{nodes:rolls()}}) : null});
+    if (op === 'OpsVariants') return Object.assign(base, {nodes:(vars.ids || []).map(id => { const r = rolls().find(x => x.id === id); return id === 'gid://shopify/ProductVariant/701' ? variant() : r ? Object.assign(r, {product:carpet()}) : null; })});
     if (op === 'OpsAdjust'){ const c = vars.input.changes[0]; if (c.changeFromQuantity !== state.avail) return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:null, userErrors:[{field:['input'], message:'stale', code:'CHANGE_FROM_QUANTITY_STALE'}]}}; state.avail += c.delta; return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:{id:'g1'}, userErrors:[]}}; }
     if (op === 'OpsDraftCreate'){ state.drafts++; return {draftOrderCreate:{draftOrder:{id:'gid://shopify/DraftOrder/' + (9000 + state.drafts), name:'#D' + state.drafts, status:'OPEN'}, userErrors:[]}}; }
     return base;

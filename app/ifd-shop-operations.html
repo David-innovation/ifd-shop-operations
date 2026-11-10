@@ -119,6 +119,8 @@ textarea.in{min-height:84px;resize:vertical}
 .sq > span{font-weight:600;flex:1 1 110px;min-width:0}
 .sq .seg{flex:0 0 auto;min-width:132px} .sq .seg button{min-height:40px;padding:6px 12px}
 .sbars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:end}
+.sq.wide .seg{flex:1 1 100%}
+.psub{display:block;color:var(--muted);font-size:12.5px;font-weight:400;margin-top:2px}
 .pline{display:flex;gap:12px;justify-content:space-between;align-items:baseline;padding:6px 0;border-top:1px solid var(--line)}
 .pline:first-child{border-top:0} .pline span{min-width:0;overflow-wrap:anywhere} .pline b{text-align:right;flex:0 1 auto}
 .broom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:6px;align-items:center}
@@ -736,22 +738,55 @@ window.IFDLogic = (function(){
   var BAR_KINDS = {cc:'Carpet to carpet', cf:'Carpet to flooring', ff:'Flooring to flooring'};
   function specOf(r){ var s = r && r.spec; return s && (s.floor === 'carpet' || s.floor === 'flooring') ? s : null; }
   function specBars(s){ var b = (s && s.bars) || {}; return Object.keys(BAR_KINDS).map(function(k){ return {k:k, n:Math.floor(num(b[k])), label:BAR_KINDS[k]}; }).filter(function(x){ return x.n > 0; }); }
-  /* The shop's carpet rule. The narrower side of the room is the width: it comes off the 4 m roll, or the 5 m roll
-     when it is over 4 m. The cut is the longer side plus 10 cm, and carpet is sold to the 10 cm. */
-  var CUT_EXTRA = 0.10;
-  function rollFor(len, wid){ var a = num(len), b = num(wid); return a && b ? (Math.min(a, b) <= 4 + 1e-9 ? 4 : 5) : 0; }
-  function carpetCut(len, wid, rollW){
+  /* ---------- carpet off the roll ----------
+     Carpet is bought at the full width of the roll, so what is ordered is roll width × cut length, not the floor area.
+     The side of the room that runs across the roll picks the roll: up to 4 m is the 4 m roll, over 4 m and up to 5 m is
+     the 5 m roll, and only the widths the chosen carpet actually comes in are used. The cut is the other side plus
+     10 cm, rounded up to the next 10 cm. Where the carpet can run either way, both ways round are tried and the one
+     that orders the least carpet wins. Nothing is added across the width: under 10 cm to spare is flagged for checking. */
+  var CUT_EXTRA = 0.10, ROLLS = [4, 5];
+  function ceil10(n){ return Math.ceil(n * 10 - 1e-6) / 10; }
+  function carpetPlan(len, wid, o){
     var a = num(len), b = num(wid); if (!a || !b) return null;
-    var hi = Math.max(a, b), lo = Math.min(a, b), w = num(rollW) || rollFor(a, b);
-    if (lo > w + 1e-9) return {fits:false, cut:0, rollW:w, long:hi, wide:lo, sq:0};
-    var cut = Math.ceil((hi + CUT_EXTRA) * 10 - 1e-6) / 10;
-    return {fits:true, cut:cut, rollW:w, long:hi, wide:lo, sq:round2(cut * w)};
+    o = o || {};
+    var given = (o.widths || []).map(Number).filter(function(w){ return w > 0; }), widths = (given.length ? given : ROLLS).slice().sort(function(x, y){ return x - y; });
+    var dir = o.dir === 'len' || o.dir === 'wid' ? o.dir : 'any';
+    function option(across, along, runs){
+      var roll = 0; for (var i = 0; i < widths.length; i++) if (across <= widths[i] + 1e-9){ roll = widths[i]; break; }
+      if (!roll) return null;
+      var c = ceil10(along + CUT_EXTRA);
+      return {rollW:roll, across:across, along:along, runs:runs, cut:c, units:Math.round(c * 10), sq:round2(c * roll), spare:round2(roll - across)};
+    }
+    var opts = [], x = dir !== 'wid' ? option(b, a, 'len') : null, y = dir !== 'len' ? option(a, b, 'wid') : null;
+    if (x) opts.push(x); if (y) opts.push(y);
+    opts.sort(function(p, q){ return p.sq - q.sq || p.rollW - q.rollW || p.cut - q.cut; });
+    var best = opts[0] || null, other = best && opts[1] && opts[1].rollW !== best.rollW ? opts[1] : null;
+    return {len:a, wid:b, area:round2(a * b), dir:dir, widths:widths, limited:given.length > 0, fits:!!best, best:best, other:other,
+      tight:!!best && best.spare < CUT_EXTRA - 1e-9, needs:dir === 'len' ? b : dir === 'wid' ? a : Math.min(a, b)};
   }
-  /* the length to take off one roll for these rooms: nothing unless every room is carpet, fits, and is on this width of roll */
-  function cutFor(rooms, rollW){
-    var w = num(rollW), t = 0, ok = !!w && rooms.length > 0;
-    rooms.forEach(function(r){ var s = specOf(r), c = s && s.floor === 'carpet' ? carpetCut(r.len, r.wid) : null; if (!c || !c.fits || c.rollW !== w) ok = false; else t += c.cut; });
-    return ok ? Math.round(t * 10) / 10 : 0;
+  /* the roll widths the carpet for this room actually comes in: from what was picked in the shop, or what is on the order */
+  function roomWidths(job, r){
+    var b = briefOf(job), c = r && r.want ? briefChoice(b, r.want) : b.choices.length === 1 ? b.choices[0] : null;
+    if (c && Array.isArray(c.widths) && c.widths.length) return c.widths.map(Number);
+    if (c && num(c.w)) return [num(c.w)];
+    var ls = linesOf(job), l = r && r.line ? ls.filter(function(z){ return z.k === r.line; })[0] : null, rolls = ls.filter(function(z){ return num(z.w) > 0; });
+    if (l && num(l.w)) return [num(l.w)];
+    if (!l && !c && rolls.length === 1) return [num(rolls[0].w)];
+    return null;
+  }
+  function planFor(job, r){ var s = specOf(r); return s && s.floor === 'carpet' ? carpetPlan(r.len, r.wid, {widths:roomWidths(job, r), dir:s.dir}) : null; }
+  /* what to take off each width of roll for these rooms, and the rooms that could not be planned */
+  function carpetGroups(job, rooms){
+    var by = {}, out = {groups:[], unfit:[]};
+    rooms.forEach(function(r){
+      var s = specOf(r); if (!s || s.floor !== 'carpet') return;
+      var pl = planFor(job, r), nm = r.name || 'Room';
+      if (!pl || !pl.fits){ out.unfit.push(nm); return; }
+      var g = by[pl.best.rollW] || (by[pl.best.rollW] = {w:pl.best.rollW, cut:0, sq:0, names:[]});
+      g.cut = Math.round((g.cut + pl.best.cut) * 10) / 10; g.sq = round2(g.sq + pl.best.sq); g.names.push(nm);
+    });
+    Object.keys(by).sort().forEach(function(k){ out.groups.push(by[k]); });
+    return out;
   }
   function roomEdge(r){ var l = num(r && r.len), w = num(r && r.wid); return l && w ? round2(2 * (l + w)) : 0; }
   /* everything the shop needs to price from the measure, worked out from the bare floor sizes and the answers in each room */
@@ -765,8 +800,8 @@ window.IFDLogic = (function(){
         if (s.underlay) out.underlayFlooring = round2(out.underlayFlooring + a);
         if (s.beading){ if (e) out.beading = round2(out.beading + e); else out.byHand.push('beading for ' + nm); }
       } else {
-        var c = carpetCut(r.len, r.wid);
-        out.carpets.push({name:nm, rollW:c ? c.rollW : num(s.rollW), area:a, cut:c ? c.cut : 0, sq:c ? c.sq : 0, fits:c ? c.fits : null, want:r.want || ''});
+        var pl = planFor(job, r);
+        out.carpets.push({name:nm, area:a, plan:pl, std:pl && !pl.fits && pl.limited ? carpetPlan(r.len, r.wid, {dir:s.dir}) : null});
         if (s.underlay) out.underlayCarpet = round2(out.underlayCarpet + a);
         if (s.gripper){ if (e) out.gripper = round2(out.gripper + e); else out.byHand.push('gripper for ' + nm); }
       }
@@ -774,6 +809,7 @@ window.IFDLogic = (function(){
       if (s.old && s.uplift){ out.uplift.push(nm); out.upliftArea = round2(out.upliftArea + a); } else if (s.old) out.oldLeft.push(nm);
       if (s.furniture) out.furniture.push(nm);
     });
+    out.rolls = carpetGroups(job, roomsOf(job)).groups;
     return out;
   }
   /* what the measure says is needed and nothing on the order or sale looks like. A prompt, matched on the wording of each line. */
@@ -1053,7 +1089,7 @@ window.IFDLogic = (function(){
     linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
-    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, carpetCut:carpetCut, rollFor:rollFor, cutFor:cutFor, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
+    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
     BRIEF_ROOMS:BRIEF_ROOMS, BRIEF_ALSO:BRIEF_ALSO, briefOf:briefOf, briefHas:briefHas, briefChoice:briefChoice, briefName:briefName, briefLine:briefLine,
     hasHSL:hasHSL, limitsOf:limitsOf, measureLimits:measureLimits, planMeasure:planMeasure, toArrange:toArrange, milesBetween:milesBetween, dayWork:dayWork, dayReach:dayReach, hslClash:hslClash, farClash:farClash, hslWhy:hslWhy,
     isFinalBay:isFinalBay, lineAllocated:lineAllocated, supplyOf:supplyOf, supplyState:supplyState, dLines:dLines, dRecs:dRecs, dGot:dGot, dOutstanding:dOutstanding,
@@ -1086,6 +1122,7 @@ const Q_INBOX = 'query OpsInbox{ shop{myshopifyDomain} orders(first:25, sortKey:
 const Q_SEARCH = 'query OpsSearch($q:String!){ shop{myshopifyDomain} products(first:12, query:$q, sortKey:RELEVANCE){ nodes{ ' + PRODUCT_FIELDS + ' variants(first:25){ nodes{ ' + VARIANT_FIELDS + ' } } } } }';
 const Q_VARIANTS = 'query OpsVariants($ids:[ID!]!){ shop{myshopifyDomain} nodes(ids:$ids){ ... on ProductVariant{ ' + VARIANT_FIELDS + ' product{ ' + PRODUCT_FIELDS + ' } } } }';
 const Q_CUSTOMERS = 'query OpsCustomers($q:String!){ shop{myshopifyDomain} customers(first:8, query:$q){ nodes{ id displayName numberOfOrders defaultEmailAddress{emailAddress} defaultPhoneNumber{phoneNumber} defaultAddress{address1 address2 city zip phone} } } }';
+const Q_PRODUCT = 'query OpsProduct($id:ID!){ shop{myshopifyDomain} product(id:$id){ ' + PRODUCT_FIELDS + ' variants(first:50){ nodes{ ' + VARIANT_FIELDS + ' } } } }';
 const Q_DRAFT = 'query OpsDraft($id:ID!){ shop{myshopifyDomain} draftOrder(id:$id){ id name status order{ id name displayFulfillmentStatus cancelledAt } } }';
 const Q_ORDER = 'query OpsOrder($id:ID!){ shop{myshopifyDomain} order(id:$id){ id name displayFulfillmentStatus cancelledAt } }';
 const Q_DRAFT_TAG = 'query OpsDraftByTag($q:String!){ shop{myshopifyDomain} draftOrders(first:2, query:$q){ nodes{ id name status } } }';
@@ -2276,7 +2313,7 @@ function drawFitterSheet(){
   const roomCard = rooms.length ? h('div', {class:'card tight'}, h('h3', {}, 'Room sizes'),
     rooms.map(r => h('div', {class:'ln'}, h('div', {class:'ln-top'}, h('b', {text:r.name || 'Room'}), h('span', {class:'num', text:L.roomSize(r)})),
       h('div', {class:'meta'}, chip(L.ROOM_STATUS[r.status] || 'Unverified', L.ROOM_TONE[r.status] || 'warn'), r.status === 'verified' && r.verBy ? chip('by ' + r.verBy) : null),
-      L.specOf(r) ? h('div', {class:'meta'}, specChips(r, true)) : null,
+      L.specOf(r) ? h('div', {class:'meta'}, specChips(r, true, job)) : null,
       r.note ? h('p', {class:'small muted', text:r.note}) : null,
       L.picsOf(r).length ? h('div', {class:'thumbs'}, L.picsOf(r).map(p => picThumb(job, p, {room:r.k}))) : null))) : null;
   const subCard = sub ? h('div', {class:'card tight'}, h('h3', {}, 'Subfloor', chip(L.OUTCOMES[sub.outcome] || 'No outcome', L.OUTCOME_TONE[sub.outcome] || 'bad')),
@@ -2443,21 +2480,21 @@ function dayStrip(input, o){
    and the fitters are sent out with them. */
 function specInputs(P, init, dflt, onChange){
   const s0 = L.specOf({spec:init}) || {}, had = !!L.specOf({spec:init});
-  const base = Number(s0.rollW) || (dflt && dflt.rollW) || 0;
-  const st = {floor:s0.floor || (dflt && dflt.floor) || '', rollW:base,
+  const st = {floor:s0.floor || (dflt && dflt.floor) || '', rollW:Number(s0.rollW) || 0, dir:had && s0.floor === 'carpet' ? (s0.dir === 'len' || s0.dir === 'wid' ? s0.dir : 'any') : '',
     underlay:had ? !!s0.underlay : null, gripper:had && s0.floor === 'carpet' ? !!s0.gripper : null, beading:had && s0.floor === 'flooring' ? !!s0.beading : null,
     barsAsked:had ? L.specBars(s0).length > 0 : null, bars:{cc:0, cf:0, ff:0}, old:had ? !!s0.old : null, uplift:had && s0.old ? !!s0.uplift : null, furniture:had ? !!s0.furniture : null};
   L.specBars(s0).forEach(b => { st.bars[b.k] = b.n; });
   const head = h('div', {class:'spec', id:P + 'Floor'}), box = h('div', {class:'spec rest', id:P + 'Spec'});
   const fire = () => { if (onChange) onChange(); };
   const seg = (opts, cur, set) => h('div', {class:'seg sm'}, opts.map(o => h('button', {type:'button', id:P + o[2], class:cur === o[0] ? 'on' : '', 'aria-pressed':cur === o[0] ? 'true' : 'false', onclick:() => { set(o[0]); draw(); fire(); }}, o[1])));
-  const q = (label, control) => h('div', {class:'sq'}, h('span', {text:label}), control);
+  const q = (label, control, wide) => h('div', {class:'sq' + (wide ? ' wide' : '')}, h('span', {text:label}), control);
   const yn = (key, label, id) => q(label, seg([[true, 'Yes', id + 'Y'], [false, 'No', id + 'N']], st[key], v => { st[key] = v; }));
   const barIn = k => field(L.BAR_KINDS[k], h('input', {class:'in', id:P + 'Bar' + k, type:'number', min:'0', step:'1', inputmode:'numeric', placeholder:'How many', value:st.bars[k] || '', oninput:e => { st.bars[k] = Math.max(0, Math.floor(Number(e.target.value) || 0)); fire(); }}));
   function draw(){
     const carpet = st.floor === 'carpet';
     head.replaceChildren(); box.replaceChildren();
-    add(head, q('This room is', seg([['carpet', 'Carpet', 'Carpet'], ['flooring', 'Flooring', 'Flooring']], st.floor, v => { st.floor = v; })));
+    add(head, [q('This room is', seg([['carpet', 'Carpet', 'Carpet'], ['flooring', 'Flooring', 'Flooring']], st.floor, v => { st.floor = v; })),
+      carpet ? q('Which way the carpet can run', seg([['any', 'Either way', 'DirAny'], ['len', 'Along the length', 'DirLen'], ['wid', 'Along the width', 'DirWid']], st.dir, v => { st.dir = v; }), true) : null]);
     add(box, [
       !st.floor ? h('p', {class:'small muted', text:'Choose carpet or flooring above to see the questions for this room.'}) : [
         yn('underlay', 'Underlay', 'Underlay'),
@@ -2471,20 +2508,21 @@ function specInputs(P, init, dflt, onChange){
   draw();
   const kinds = () => (st.floor === 'carpet' ? ['cc', 'cf'] : ['ff', 'cf']);
   return {head:head, node:box, state:st,
-    setRoll:w => { st.rollW = w || base; },
-    copy:from => { ['floor', 'underlay', 'gripper', 'beading', 'old', 'uplift', 'furniture'].forEach(k => { st[k] = from[k]; }); draw(); fire(); },
+    setRoll:w => { st.rollW = w || 0; },
+    copy:from => { ['floor', 'dir', 'underlay', 'gripper', 'beading', 'old', 'uplift', 'furniture'].forEach(k => { st[k] = from[k]; }); draw(); fire(); },
     read:() => {
       const carpet = st.floor === 'carpet', bars = {cc:0, cf:0, ff:0}; let n = 0;
       if (st.barsAsked) kinds().forEach(k => { bars[k] = st.bars[k] || 0; n += bars[k]; });
-      const ok = !!st.floor && st.underlay !== null && (carpet ? st.gripper !== null : st.beading !== null) && st.barsAsked !== null && (!st.barsAsked || n > 0) && st.old !== null && (!st.old || st.uplift !== null) && st.furniture !== null;
-      return {ok:ok, needSize:carpet && !st.rollW, spec:{floor:st.floor, rollW:carpet ? st.rollW : 0, underlay:!!st.underlay, gripper:carpet ? !!st.gripper : null, beading:carpet ? null : !!st.beading, bars:bars, old:!!st.old, uplift:st.old ? !!st.uplift : null, furniture:!!st.furniture}};
+      const ok = !!st.floor && (!carpet || !!st.dir) && st.underlay !== null && (carpet ? st.gripper !== null : st.beading !== null) && st.barsAsked !== null && (!st.barsAsked || n > 0) && st.old !== null && (!st.old || st.uplift !== null) && st.furniture !== null;
+      return {ok:ok, spec:{floor:st.floor, rollW:carpet ? st.rollW : 0, dir:carpet ? st.dir || 'any' : null, underlay:!!st.underlay, gripper:carpet ? !!st.gripper : null, beading:carpet ? null : !!st.beading, bars:bars, old:!!st.old, uplift:st.old ? !!st.uplift : null, furniture:!!st.furniture}};
     }};
 }
 /* the answers read back as chips. A fitter is shown what is in the room, not what the customer asked to be priced. */
-function specChips(r, forFitter){
+function specChips(r, forFitter, job){
   const s = L.specOf(r); if (!s) return [];
-  const rw = L.rollFor(r.len, r.wid) || Number(s.rollW) || 0;
-  const out = [chip(s.floor === 'carpet' ? 'Carpet' + (rw ? ', ' + rw + ' m roll' : '') : 'Flooring', 'info')];
+  const pl = s.floor === 'carpet' ? L.planFor(job || {}, r) : null;
+  const out = [chip(s.floor === 'carpet' ? 'Carpet' + (pl && pl.fits ? ', ' + pl.best.rollW + ' m roll, ' + L.fmtM(pl.best.across) + ' m side across' : '') : 'Flooring', 'info')];
+  if (pl && !pl.fits) out.push(chip('Needs a join or a fitting review', 'bad'));
   if (s.underlay) out.push(chip('Underlay')); if (s.gripper) out.push(chip('Gripper')); if (s.beading) out.push(chip('Beading'));
   L.specBars(s).forEach(b => out.push(chip(b.n + (b.n === 1 ? ' door bar: ' : ' door bars: ') + b.label.toLowerCase())));
   if (s.old) out.push(forFitter ? chip('Old flooring down', 'warn') : chip(s.uplift ? 'Old flooring down: price to uplift wanted' : 'Old flooring down: customer is lifting it', s.uplift ? '' : 'warn'));
@@ -2497,9 +2535,15 @@ function pricingBlock(job, titles){
   const row = (label, value, extra) => h('div', {class:'pline'}, h('span', {}, label, extra || null), h('b', {class:'num', text:value}));
   const rows = [];
   if (p.flooringRooms.length) rows.push(row('Flooring: ' + p.flooringRooms.join(', '), L.fmtM(p.flooringArea) + ' m²'));
-  p.carpets.forEach(c => { const ch = c.want ? L.briefChoice(b, c.want) : null, clash = ch && ch.w && c.rollW && Number(ch.w) !== c.rollW;
-    rows.push(row('Carpet: ' + c.name, c.fits ? L.fmtM(c.cut) + ' m off the ' + c.rollW + ' m roll, ' + L.fmtM(c.sq) + ' m²' : 'Work out by hand',
-      clash ? h('span', {class:'meta'}, chip('The carpet chosen is a ' + ch.w + ' m roll', 'bad')) : c.fits === false ? h('span', {class:'meta'}, chip('Over 5 m both ways: needs a join', 'bad')) : null)); });
+  p.carpets.forEach(c => { const pl = c.plan, bt = pl && pl.best, flags = [];
+    const sub = pl ? 'Floor ' + L.fmtM(pl.len) + ' × ' + L.fmtM(pl.wid) + ' m, ' + L.fmtM(pl.area) + ' m²' + (bt ? '. The ' + L.fmtM(bt.across) + ' m side goes across the roll' + (pl.dir !== 'any' ? ', kept that way round' : '') : '') + '.' : 'No length and width recorded.';
+    if (pl && !pl.fits) flags.push(chip(pl.limited ? 'This carpet only comes in ' + pl.widths.join(' m and ') + ' m: needs a join or a fitting review' : 'Wider than the 5 m roll: needs a join or a fitting review', 'bad'));
+    if (pl && pl.tight) flags.push(chip(bt.spare < 0.005 ? 'Full width of the roll, nothing to trim: check it' : 'Only ' + Math.round(bt.spare * 100) + ' cm to spare across the roll: check it', 'warn'));
+    rows.push(h('div', {class:'pline'}, h('span', {}, 'Carpet: ' + c.name, h('small', {class:'psub', text:sub}), flags.length ? h('span', {class:'meta'}, flags) : null,
+        pl && pl.other ? h('small', {class:'psub', text:'Or ' + L.fmtM(pl.other.cut) + ' m off the ' + pl.other.rollW + ' m roll, ' + L.fmtM(pl.other.sq) + ' m², with the ' + L.fmtM(pl.other.across) + ' m side across.'}) : null,
+        c.std && c.std.fits ? h('small', {class:'psub', text:'On a ' + c.std.best.rollW + ' m roll it would be a ' + L.fmtM(c.std.best.cut) + ' m cut, ' + L.fmtM(c.std.best.sq) + ' m².'}) : null),
+      h('b', {class:'num', text:bt ? L.fmtM(bt.cut) + ' m off the ' + bt.rollW + ' m roll, ' + L.fmtM(bt.sq) + ' m²' : 'Work out by hand'}))); });
+  if (p.carpets.length > 1) p.rolls.forEach(g => rows.push(row('Carpet ordered in all, ' + g.w + ' m roll', L.fmtM(g.cut) + ' m, ' + L.fmtM(g.sq) + ' m²')));
   if (p.underlayCarpet) rows.push(row('Carpet underlay', L.fmtM(p.underlayCarpet) + ' m²'));
   if (p.underlayFlooring) rows.push(row('Flooring underlay', L.fmtM(p.underlayFlooring) + ' m²'));
   if (p.gripper) rows.push(row('Gripper, round the walls', 'about ' + L.fmtM(p.gripper) + ' m'));
@@ -2513,7 +2557,7 @@ function pricingBlock(job, titles){
   return h('div', {class:'sec', id:'pricingBlock'}, h('div', {}, rows),
     miss.length ? h('div', {class:'banner warn', id:'pricingMiss'}, h('p', {}, h('b', {text:'Not on it yet: ' + miss.join(', ') + '. '}), 'The measure says these are needed. Add them, or carry on if they are covered another way.')) : null,
     p.unasked.length ? h('p', {class:'small muted', text:'No answers recorded for ' + p.unasked.join(', ') + '.'}) : null,
-    h('p', {class:'small muted', text:'Carpet is the longer side plus 10 cm, off the 4 m roll, or the 5 m roll when the room is over 4 m wide. Flooring, underlay, gripper and beading are the bare floor: nothing is added for wastage and doorways are not taken off.'}));
+    h('p', {class:'small muted', text:'Carpet is bought at the full width of the roll, so it is roll width × cut length, not the floor area. The cut is the side running along the roll plus 10 cm, rounded up to the next 10 cm. Flooring, underlay, gripper and beading are the bare floor: nothing is added for wastage and doorways are not taken off.'}));
 }
 /* ---------- what a measure is for: rooms, what the customer picked, extras to price ---------- */
 function briefBox(init, P){
@@ -2521,7 +2565,8 @@ function briefBox(init, P){
   const rooms = b0.rooms.map(r => ({name:r.name, want:r.want || ''})), choices = b0.choices.map(c => Object.assign({}, c)), also = new Set(b0.also);
   const roomsBox = h('div', {class:'sec', id:P + 'Rooms'}), choiceBox = h('div', {class:'sec', id:P + 'Choices'}), alsoBox = h('div', {class:'ticks', id:P + 'Also'});
   const typed = h('input', {class:'in', id:P + 'Typed', type:'text', placeholder:'Or type it: the range and colour, or where it is in the shop', onkeydown:e => { if (e.key === 'Enter'){ e.preventDefault(); addTyped(); } }});
-  const finder = shopOK() ? productFinder(P + 'Find', (pr, v) => addChoice({title:variantTitle(pr, v), variantId:v.id, unit:L.unitFor(v, pr), w:Number(v.rollWidth && v.rollWidth.value) || 0})) : null;
+  const finder = shopOK() ? productFinder(P + 'Find', (pr, v) => addChoice({title:variantTitle(pr, v), variantId:v.id, unit:L.unitFor(v, pr), w:Number(v.rollWidth && v.rollWidth.value) || 0,
+    widths:Array.from(new Set(((pr.variants && pr.variants.nodes) || []).map(z => Number(z.rollWidth && z.rollWidth.value) || 0).filter(Boolean))).sort((a, b) => a - b)})) : null;
   if (finder) finder.input.placeholder = 'Search the floor they picked, then press Enter';
   function addChoice(c){
     if (choices.some(x => (c.variantId && x.variantId === c.variantId) || x.title.toLowerCase() === c.title.toLowerCase())) return;
@@ -2566,7 +2611,7 @@ function briefBox(init, P){
   return {node:node, read:() => {
     addTyped();
     return {rooms:rooms.map(r => ({name:r.name.trim(), want:r.want && choices.some(c => c.k === r.want) ? r.want : choices.length === 1 ? choices[0].k : ''})).filter(r => r.name),
-      choices:choices.map(c => { const o = {k:c.k, title:c.title}; if (c.typed) o.typed = true; if (c.variantId) o.variantId = c.variantId; if (c.unit) o.unit = c.unit; if (c.w) o.w = c.w; return o; }),
+      choices:choices.map(c => { const o = {k:c.k, title:c.title}; if (c.typed) o.typed = true; if (c.variantId) o.variantId = c.variantId; if (c.unit) o.unit = c.unit; if (c.w) o.w = c.w; if (c.widths && c.widths.length) o.widths = c.widths; return o; }),
       also:L.BRIEF_ALSO.filter(a => also.has(a))};
   }};
 }
@@ -3007,22 +3052,32 @@ function findingsDialog(job, v){
     x.ok = h('input', {type:'checkbox', id:'fr' + i + 'Ok'});
     x.nameIn = x.isNew ? h('input', {class:'in', id:'fr' + i + 'Name', type:'text', placeholder:'Name of the room', value:x.seed ? x.name : ''}) : null;
     const wantC = x.seed && x.want ? L.briefChoice(bf, x.want) : null, forLine = !x.isNew && x.old.line ? L.linesOf(job).find(l => l.k === x.old.line) : !x.isNew && fl.length === 1 ? fl[0] : null;
-    const rollOf = w => (Number(w) === 4 || Number(w) === 5 ? Number(w) : 0);
-    const dflt = wantC && wantC.w ? {floor:'carpet', rollW:rollOf(wantC.w)} : wantC && wantC.unit === 'packs' ? {floor:'flooring'} : forLine && Number(forLine.w) > 0 ? {floor:'carpet', rollW:rollOf(forLine.w)} : forLine && forLine.unit === 'packs' ? {floor:'flooring'} : null;
+    const dflt = wantC && wantC.w ? {floor:'carpet'} : wantC && wantC.unit === 'packs' ? {floor:'flooring'} : forLine && Number(forLine.w) > 0 ? {floor:'carpet'} : forLine && forLine.unit === 'packs' ? {floor:'flooring'} : null;
+    const wc = wantC || (x.isNew && !x.want && bf.choices.length === 1 ? bf.choices[0] : null);
+    const ws = wc && Array.isArray(wc.widths) && wc.widths.length ? wc.widths : wc && wc.w ? [wc.w] : forLine && Number(forLine.w) > 0 ? [Number(forLine.w)] : null;
     const guide = h('p', {class:'small', id:'fr' + i + 'Guide'});
     const showGuide = () => {
-      const st = x.spec.state, c = x.sz.read(), cut = st.floor === 'carpet' ? L.carpetCut(c.len, c.wid) : null;
-      guide.replaceChildren(); guide.className = 'small'; guide.style.color = ''; guide.style.fontWeight = '';
+      const st = x.spec.state, c = x.sz.read(), pl = st.floor === 'carpet' ? L.carpetPlan(c.len, c.wid, {widths:ws, dir:st.dir}) : null, bt = pl && pl.best, m = L.fmtM;
+      x.spec.setRoll(bt ? bt.rollW : 0);
+      guide.replaceChildren(); guide.className = 'small';
       if (st.floor !== 'carpet') return;
-      if (!cut){ guide.className = 'small muted'; guide.textContent = 'Enter the length and width. The roll width and the carpet needed work themselves out.'; return; }
-      if (!cut.fits){ guide.style.color = 'var(--bad)'; guide.style.fontWeight = '700'; guide.textContent = 'This room is over 5 m both ways. It needs a join, so the carpet has to be worked out by hand.'; return; }
-      guide.append(h('b', {text:'Roll width: ' + cut.rollW + ' m. '}), 'The room is ' + L.fmtM(cut.wide) + ' m wide' + (cut.rollW === 5 ? ', which is over 4 m, so it comes off the 5 m roll.' : ', so it comes off the 4 m roll.'), h('br'),
-        h('b', {text:'Carpet needed: ' + L.fmtM(cut.cut) + ' m × ' + cut.rollW + ' m = ' + L.fmtM(cut.sq) + ' m². '}), 'That is the ' + L.fmtM(cut.long) + ' m length plus 10 cm.');
+      if (!pl){ guide.className = 'small muted'; guide.textContent = 'Enter the length and width. The roll, the cut and the carpet to order work themselves out.'; return; }
+      const room = 'Room ' + m(pl.len) + ' m × ' + m(pl.wid) + ' m (' + m(pl.area) + ' m²). ';
+      if (!bt){
+        const std = pl.limited ? L.carpetPlan(pl.len, pl.wid, {dir:pl.dir}) : null;
+        guide.append(room, h('b', {style:'color:var(--bad)', text:pl.limited ? 'This carpet only comes in a ' + pl.widths.join(' m or ') + ' m roll and the room is ' + m(pl.needs) + ' m across it. It needs a join or a fitting review.'
+          : 'It is ' + m(pl.needs) + ' m across, which is wider than the 5 m roll. It needs a join or a fitting review.'}), std && std.fits ? ' On a ' + std.best.rollW + ' m roll it would be a ' + m(std.best.cut) + ' m cut, ' + m(std.best.sq) + ' m².' : '');
+        return;
+      }
+      guide.append(room, h('b', {text:'Using the ' + bt.rollW + ' m roll with the ' + m(bt.across) + ' m side across it, the cut is ' + m(bt.cut) + ' m, including the 10 cm allowance. Carpet ordered: ' + m(bt.sq) + ' m².'}));
+      if (pl.dir !== 'any') guide.append(' Kept this way round because the carpet has to run along the ' + (pl.dir === 'len' ? 'length' : 'width') + '.');
+      if (pl.tight) guide.append(h('br'), h('b', {style:'color:var(--bad)', text:bt.spare < 0.005 ? 'The room is the full width of the roll, with nothing to trim. Check it before the carpet is ordered.' : 'Only ' + Math.round(bt.spare * 100) + ' cm to spare across the roll. Check there is enough to trim.'}));
+      if (pl.other) guide.append(h('br'), h('span', {class:'muted', text:'Or the ' + pl.other.rollW + ' m roll with the ' + m(pl.other.across) + ' m side across: a ' + m(pl.other.cut) + ' m cut, ' + m(pl.other.sq) + ' m².'}));
     };
     x.spec = measure ? specInputs('fr' + i, x.isNew ? null : x.old.spec, dflt, showGuide) : null;
-    if (x.spec){ const c0 = x.sz.read(); x.spec.setRoll(L.rollFor(c0.len, c0.wid)); showGuide(); }
+    if (x.spec) showGuide();
     const was = h('p', {class:'small muted'});
-    const show = () => { was.textContent = !x.isNew && L.roomChanged(x.old, x.sz.read()) ? 'Recorded as ' + L.roomSize(x.old) + '. Your size replaces it, the old one is kept in the history and the shop is asked to review.' : ''; if (x.spec){ const c = x.sz.read(); x.spec.setRoll(L.rollFor(c.len, c.wid)); showGuide(); } };
+    const show = () => { was.textContent = !x.isNew && L.roomChanged(x.old, x.sz.read()) ? 'Recorded as ' + L.roomSize(x.old) + '. Your size replaces it, the old one is kept in the history and the shop is asked to review.' : ''; if (x.spec) showGuide(); };
     [x.sz.len, x.sz.wid, x.sz.area].forEach(el => el.addEventListener('input', show));
     return h('div', {class:'card tight'},
       x.isNew ? field(x.seed ? 'Room to measure' : 'New room', x.nameIn) : h('div', {class:'ln-top'}, h('b', {text:x.name}), chip(L.ROOM_STATUS[x.old.status] || 'Unverified', L.ROOM_TONE[x.old.status] || 'warn')),
@@ -3069,7 +3124,7 @@ function findingsDialog(job, v){
       if (x.ok.checked && !(L.roomArea(x.c) > 0)) errs.push('Enter the size of ' + (x.nm || 'the new room') + '.');
       if (!x.ok.checked && x.changed) errs.push(x.isNew ? 'Tick ' + (x.nm || 'the new room') + ' as checked, or clear it.' : 'Tick ' + x.nm + ' as checked, or put its size back.');
       if (x.ok.checked && x.spec){ x.sp = x.spec.read();
-        if (x.sp.needSize) errs.push('Enter the length and width of ' + (x.nm || 'the new room') + '. The carpet is worked out from them.');
+        if (x.sp.spec.floor === 'carpet' && !(x.c.len > 0 && x.c.wid > 0)) errs.push('Enter the length and width of ' + (x.nm || 'the new room') + '. The carpet is worked out from them.');
         else if (!x.sp.ok) errs.push('Answer every question for ' + (x.nm || 'the new room') + '.'); }
     });
     const ticked = R.filter(x => !x.blank && x.ok.checked);
@@ -3187,7 +3242,7 @@ function roomBlock(job, r){
   return h('div', {class:'ln'},
     h('div', {class:'ln-top'}, h('b', {text:name}), h('span', {class:'num', text:L.roomSize(r)})),
     h('div', {class:'meta'}, chip(SRC_TEXT[r.source] || 'Source not recorded', SRC_TEXT[r.source] ? '' : 'warn'), chip(L.ROOM_STATUS[r.status] || 'Unverified', L.ROOM_TONE[r.status] || 'warn'), forLine ? chip('For ' + forLine.title) : null),
-    L.specOf(r) ? h('div', {class:'meta'}, specChips(r, false)) : null,
+    L.specOf(r) ? h('div', {class:'meta'}, specChips(r, false, job)) : null,
     r.status === 'verified' ? h('p', {class:'small muted', text:'Verified by ' + (r.verBy || 'someone') + (L.SOURCES[r.verRole] ? ' (' + L.SOURCES[r.verRole].toLowerCase() + ')' : '') + (L.validISO(r.verOn) ? ' on ' + L.fmtDay(r.verOn) : '') + (r.verAt ? '. Recorded ' + whenText(r.verAt) + ' by ' + nameOf(r.verById) : '') + '.'}) : null,
     r.status === 'check' && r.checkWhy ? h('p', {class:'small', text:'To check: ' + r.checkWhy}) : null,
     r.note ? h('p', {class:'small muted', text:r.note}) : null,
@@ -3680,6 +3735,12 @@ function cancelDialog(job){
 
 /* ---------- a new sale, or more items for a job ---------- */
 function gbp(n){ return {amount:L.round2(n).toFixed(2), currencyCode:'GBP'}; }
+/* a cut off a roll: priced on the carpet ordered (roll width × cut length × the price per m²), or, for a roll that carries
+   its own price per 10 cm, on the number of 10 cm lengths. Never both. */
+function rollCost(l, lenM){
+  const len = Math.ceil(Number(lenM) * 10 - 1e-9) / 10; if (!(len > 0)) return 0;
+  return l.ppm > 0 ? L.rollPrice(l.widthM, len, l.ppm) : l.unitPrice > 0 ? L.round2(Math.round(len * 10) * l.unitPrice) : 0;
+}
 function unitsOf(l){ return l.roll ? Math.ceil(Number(l.qty) * 10 - 1e-9) : (parseInt(l.qty, 10) || 0); }
 function lineTotal(l){
   if (l.kind === 'other') return L.round2((Number(l.price) || 0) * (parseInt(l.qty, 10) || 1));
@@ -3845,13 +3906,25 @@ function saleDialog(job){
       }));
     } catch (e){ prodRes.replaceChildren(h('div', {class:'pick'}, h('span', {text:explain(e)}))); }
   }
-  function addStockLine(p, v, rooms){
+  function addStockLine(p, v, preLen){
     const f = L.levelFigures(v), roll = L.isRoll(v, p), unit = L.unitFor(v, p), ppm = L.ppmOf(p), widthM = Number(v.rollWidth && v.rollWidth.value) || 0;
-    const canStock = f.tracked && f.total.available > 0, pre = roll && rooms ? L.cutFor(rooms, widthM) : 0;
-    F.lines.push({key:uid(), kind:'stock', variantId:v.id, title:variantTitle(p, v), sub:'', unit:unit, roll:roll, widthM:widthM, cov:Number(p.coverage && p.coverage.value) || 0, ppm:ppm, unitPrice:Number(v.price) || 0,
-      price:roll ? (pre ? L.rollPrice(widthM, pre, ppm) : 0) : Number(v.price) || 0, priceEdited:false, qty:roll ? (pre ? String(pre) : '') : '1', available:f.total.available, tracked:f.tracked, source:canStock ? 'stock' : 'supplier', supplier:'', due:''});
+    const canStock = f.tracked && f.total.available > 0;
+    const ln = {key:uid(), kind:'stock', variantId:v.id, title:variantTitle(p, v), sub:'', unit:unit, roll:roll, widthM:widthM, cov:Number(p.coverage && p.coverage.value) || 0, ppm:ppm, unitPrice:Number(v.price) || 0,
+      price:roll ? 0 : Number(v.price) || 0, priceEdited:false, qty:roll ? '' : '1', available:f.total.available, tracked:f.tracked, source:canStock ? 'stock' : 'supplier', supplier:'', due:''};
+    if (roll && preLen > 0){ ln.qty = String(preLen); ln.price = rollCost(ln, preLen); }
+    F.lines.push(ln);
     drawLines();
   }
+  /* the roll of this carpet that is the right width for the cut: the one picked in the shop when it is, otherwise another roll of the same carpet */
+  async function rollOf(c, w, units){
+    const d = await sq(Q_VARIANTS, {ids:[c.variantId]}), v0 = (d.nodes || [])[0]; if (!v0 || !v0.product) return null;
+    const wOf = v => Number(v.rollWidth && v.rollWidth.value) || 0, free = v => L.levelFigures(v).total.available, same = v => Math.abs(wOf(v) - w) < 0.01;
+    if (same(v0) && free(v0) >= units) return {p:v0.product, v:v0};
+    const d2 = await sq(Q_PRODUCT, {id:v0.product.id}), p = d2.product, vs = ((p && p.variants && p.variants.nodes) || []).filter(same).sort((a, b) => free(b) - free(a));
+    const pick = vs.find(v => free(v) >= units) || vs[0] || (same(v0) ? v0 : null);
+    return pick ? {p:p || v0.product, v:pick} : null;
+  }
+  const addedFrom = {};
   const bfS = adding ? L.briefOf(job) : null, fromBox = h('div', {class:'guide', id:'saleFromMeasure', hidden:true});
   function drawFrom(){
     const priced = adding ? pricingBlock(job, F.lines.map(l => l.title).concat(L.linesOf(job).map(l => l.title))) : null;
@@ -3861,14 +3934,30 @@ function saleDialog(job){
     const rooms = L.roomsOf(job);
     bfS.choices.forEach(c => {
       const mine = rooms.filter(r => r.want === c.k || (bfS.choices.length === 1 && !r.want)), sizes = mine.map(r => r.name + ' ' + L.roomSize(r)).join('; ');
-      const on = !!c.variantId && (F.lines.some(l => l.variantId === c.variantId) || L.linesOf(job).some(l => l.variantId === c.variantId));
-      const need = c.w ? L.cutFor(mine, c.w) : 0;
-      fromBox.append(h('div', {class:'bchoice'}, h('div', {class:'grow'}, h('b', {text:c.title}), h('p', {class:'small', text:sizes ? 'Measured: ' + sizes + (need ? '. Carpet needed: ' + L.fmtM(need) + ' m off the ' + c.w + ' m roll.' : '') : 'No measured room is set against this yet.'})),
-        on ? chip('On the sale', 'ok') : c.variantId ? btn('Add to the sale', async e => {
+      const cg = L.carpetGroups(job, mine), card = h('div', {class:'bchoice'}, h('div', {class:'grow'}, h('b', {text:c.title}), h('p', {class:'small', text:sizes ? 'Measured: ' + sizes : 'No measured room is set against this yet.'})));
+      const search = () => btn('Search for it', () => { prodFind.value = c.title; findProducts(); try { prodFind.focus(); } catch (e) {} }, 'sm');
+      if (!cg.groups.length && !cg.unfit.length){
+        const on = !!c.variantId && (F.lines.some(l => l.variantId === c.variantId) || L.linesOf(job).some(l => l.variantId === c.variantId));
+        card.append(on ? chip('On the sale', 'ok') : c.variantId ? btn('Add to the sale', async e => {
           const b = e.currentTarget; b.disabled = true;
-          try { const d = await sq(Q_VARIANTS, {ids:[c.variantId]}), v = (d.nodes || [])[0]; if (v && v.product) addStockLine(v.product, v, mine); else { b.disabled = false; toast('That product is no longer in Shopify. Search for it instead.', true); } }
+          try { const d = await sq(Q_VARIANTS, {ids:[c.variantId]}), v = (d.nodes || [])[0]; if (v && v.product) addStockLine(v.product, v); else { b.disabled = false; toast('That product is no longer in Shopify. Search for it instead.', true); } }
           catch (err){ b.disabled = false; toast(explain(err), true); }
-        }, 'sm pri') : btn('Search for it', () => { prodFind.value = c.title; findProducts(); try { prodFind.focus(); } catch (e) {} }, 'sm')));
+        }, 'sm pri') : search());
+      }
+      fromBox.append(card);
+      cg.groups.forEach(g => {
+        const key = c.k + ':' + g.w, units = Math.round(g.cut * 10), on = !!addedFrom[key] && F.lines.some(l => l.variantId === addedFrom[key]);
+        fromBox.append(h('div', {class:'bchoice', id:'saleRoll' + g.w}, h('div', {class:'grow'}, h('b', {text:g.w + ' m roll: ' + L.fmtM(g.cut) + ' m cut, ' + L.fmtM(g.sq) + ' m² of carpet'}),
+            h('p', {class:'small', text:g.names.join(', ') + '. That is ' + units + ' lengths of 10 cm.'})),
+          on ? chip('On the sale', 'ok') : c.variantId ? btn('Add to the sale', async e => {
+            const b = e.currentTarget; b.disabled = true;
+            try { const pv = await rollOf(c, g.w, units);
+              if (pv){ addedFrom[key] = pv.v.id; addStockLine(pv.p, pv.v, g.cut); }
+              else { b.disabled = false; toast('This carpet has no ' + g.w + ' m roll in Shopify. Search for the ' + g.w + ' m version and add it.', true); } }
+            catch (err){ b.disabled = false; toast(explain(err), true); }
+          }, 'sm pri') : search()));
+      });
+      if (cg.unfit.length) fromBox.append(h('p', {class:'small', style:'color:var(--bad);font-weight:600', text:cg.unfit.join(', ') + ': needs a join or a fitting review before this carpet is ordered.'}));
     });
     if (bfS.also.length) fromBox.append(h('p', {class:'small'}, h('b', {text:'Also to price: '}), bfS.also.join(', ')));
     if (priced) add(fromBox, [h('p', {}, h('b', {text:'To price, from the measure'})), priced]);
@@ -3894,7 +3983,7 @@ function saleDialog(job){
         else { hint.className = 'small muted'; hint.style.color = ''; hint.textContent = L.fmtQty(l.available, l.unit) + ' free in Shopify. This sale reserves ' + L.fmtQty(u, l.unit) + '.'; }
       };
       const qtyIn = h('input', {class:'in', id:'ln-q-' + l.key, type:'number', min:'0', step:l.roll ? '0.1' : '1', inputmode:l.roll ? 'decimal' : 'numeric', value:l.qty, placeholder:l.roll ? 'Length in metres' : '',
-        oninput:e => { l.qty = e.target.value; if (l.roll && !l.priceEdited){ l.price = L.rollPrice(l.widthM, Math.ceil(Number(l.qty) * 10 - 1e-9) / 10, l.ppm); priceIn.value = l.price || ''; } showHint(); recalc(); }});
+        oninput:e => { l.qty = e.target.value; if (l.roll && !l.priceEdited){ l.price = rollCost(l, l.qty); priceIn.value = l.price || ''; } showHint(); recalc(); }});
       const src = h('div', {class:'seg sm'},
         h('button', {type:'button', class:l.source === 'stock' ? 'on' : '', disabled:!l.tracked, onclick:() => { l.source = 'stock'; drawLines(); }}, 'From stock'),
         h('button', {type:'button', class:l.source === 'supplier' ? 'on' : '', onclick:() => { l.source = 'supplier'; drawLines(); }}, 'Order in'));

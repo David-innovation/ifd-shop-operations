@@ -161,7 +161,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     mkJob('h4', 'Near Bedrooms', 'G82 1AA');
     await pg.reload(); await live();
     const answer = async (i, o) => { const P = '#fr' + i; o = o || {};
-      await pg.click(P + (o.floor === 'flooring' ? 'Flooring' : 'Carpet'));
+      await pg.click(P + (o.floor === 'flooring' ? 'Flooring' : 'Carpet')); if (o.floor !== 'flooring') await pg.click(P + 'Dir' + (o.dir || 'Any'));
       await pg.click(P + 'Underlay' + (o.underlay === false ? 'N' : 'Y')); await pg.click(P + (o.floor === 'flooring' ? 'Beading' : 'Gripper') + (o.edge === false ? 'N' : 'Y'));
       if (o.bars){ await pg.click(P + 'BarsY'); for (const k of Object.keys(o.bars)) await pg.fill(P + 'Bar' + k, String(o.bars[k])); } else await pg.click(P + 'BarsN');
       await pg.click(P + 'Old' + (o.old ? 'Y' : 'N')); if (o.old) await pg.click(P + 'Uplift' + (o.uplift ? 'Y' : 'N')); await pg.click(P + 'Furn' + (o.furn ? 'Y' : 'N')); };
@@ -264,7 +264,8 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/What is on the order/.test(es) && /Test carpet/.test(es) && /Does the order cover the floor/.test(es) && !/£/.test(es), 'on a measure the estimator sees what is on the order and whether it covers the floor, with no prices');
     await pg.locator('#sheet').getByRole('button', {name:'Submit findings'}).click(); await pg.waitForSelector('#fr0Len');
     await pg.fill('#fr0Len', '3.05'); await pg.locator('#fr0Ok').check();
-    ok(await pg.locator('#fr0Carpet').getAttribute('aria-pressed') === 'true' && /Roll width: 4 m\. The room is 3\.00 m wide, so it comes off the 4 m roll/.test(await pg.locator('#fr0Guide').innerText()), 'the room already knows it is carpet, from what is on the order, and rounds its width up to the 4 m roll');
+    ok(await pg.locator('#fr0Carpet').getAttribute('aria-pressed') === 'true' && /Room 3\.05 m × 3\.00 m \(9\.15 m²\)\. Using the 4 m roll with the 3\.05 m side across it, the cut is 3\.10 m, including the 10 cm allowance\. Carpet ordered: 12\.40 m²/.test(await pg.locator('#fr0Guide').innerText()),
+      'the room already knows it is carpet from what is on the order, and says the roll, the side across it, the cut and the carpet ordered');
     await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
     ok(/Answer every question for Bedroom/.test(await pg.locator('#modal').innerText()), 'a room cannot be signed off until every question in it is answered');
     await answer(0, {bars:{cc:1}});
@@ -337,14 +338,24 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.click('#fr1BarsN');
     await pg.fill('#fr2Len', '4.6'); await pg.fill('#fr2Wid', '4.3'); await pg.locator('#fr2Ok').check();
     await pg.click('#fr2Carpet');
+    await pg.click('#fr2DirAny');
     const g2 = await pg.locator('#fr2Guide').innerText();
-    ok(/Roll width: 5 m\. The room is 4\.30 m wide, which is over 4 m, so it comes off the 5 m roll/.test(g2) && /Carpet needed: 4\.70 m × 5 m = 23\.50 m²\. That is the 4\.60 m length plus 10 cm/.test(g2),
-      'a carpet room over 4 m wide goes to the 5 m roll by itself, and the cut is the length plus 10 cm');
+    ok(/Room 4\.60 m × 4\.30 m \(19\.78 m²\)\. Using the 5 m roll with the 4\.60 m side across it, the cut is 4\.40 m, including the 10 cm allowance\. Carpet ordered: 22\.00 m²/.test(g2),
+      'a carpet room is turned the way that orders the least carpet, on the roll its across-roll side needs, with 10 cm on the cut');
+    await pg.click('#fr2DirLen');
+    ok(/with the 4\.30 m side across it, the cut is 4\.70 m.*Carpet ordered: 23\.50 m²\. Kept this way round because the carpet has to run along the length/.test(await pg.locator('#fr2Guide').innerText()), 'a carpet that has to run a set way is not turned round');
+    await pg.click('#fr2DirAny');
     ok(await pg.locator('#fr2W4, #fr2W5').count() === 0, 'nobody picks the roll width by hand');
-    ok(await pg.evaluate(() => { const L = window.IFDLogic, a = L.carpetCut(3.8, 4.5), b = L.carpetCut(3, 3.42), c = L.carpetCut(5.2, 5.1), sp = {floor:'carpet', rollW:4};
-      return a.rollW === 4 && a.cut === 4.6 && a.sq === 18.4 && b.rollW === 4 && b.cut === 3.6 && c.fits === false && L.rollFor(4.01, 6) === 5
-        && L.cutFor([{len:4.5, wid:3.8, spec:sp}, {len:3, wid:3.4, spec:sp}], 4) === 8.1 && L.cutFor([{len:4.5, wid:3.8, spec:sp}, {len:4.6, wid:4.3, spec:{floor:'carpet', rollW:5}}], 4) === 0; }),
-      'the carpet rule: narrower side picks the 4 m or 5 m roll, the cut is the longer side plus 10 cm to the next 10 cm, and rooms on one roll add up');
+    ok(await pg.evaluate(() => { const L = window.IFDLogic, P = L.carpetPlan, e1 = P(3, 3.8).best, e2 = P(4.2, 3, {widths:[4]}).best, e2b = P(4.2, 3), e3 = P(4.2, 4.6).best, dec = P(3.05, 3.42).best, ex = P(4, 3, {widths:[4]});
+      return e1.across === 3.8 && e1.cut === 3.1 && e1.rollW === 4 && e1.sq === 12.4 && e1.units === 31
+        && e2.across === 3 && e2.cut === 4.3 && e2.rollW === 4 && e2.sq === 17.2
+        && e2b.best.rollW === 5 && e2b.best.sq === 15.5 && e2b.other.rollW === 4 && e2b.other.sq === 17.2
+        && e3.across === 4.6 && e3.cut === 4.3 && e3.rollW === 5 && e3.sq === 21.5
+        && P(3, 3.8, {dir:'wid'}).best.cut === 3.9 && P(3, 3.8, {dir:'wid'}).best.sq === 15.6
+        && dec.across === 3.42 && dec.cut === 3.2 && dec.sq === 12.8
+        && ex.best.across === 4 && ex.tight === true && P(3.95, 3).tight === true && P(3.8, 3).tight === false
+        && P(4.2, 4.6, {widths:[4]}).fits === false && P(5.2, 5.1).fits === false && P(5.2, 5.1).needs === 5.1 && P(6, 3).best.cut === 6.1; }),
+      'the carpet sums: the worked examples, a set direction, decimals rounded up to 10 cm, a carpet that only comes in one width, exact fits flagged and rooms too wide for any roll');
     await answer(2, {w:5, underlay:true, edge:true, old:true, uplift:false});
     await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
     ok(/No size has been given for Garden room/.test(await pg.locator('#modal').innerText()), 'a room that was asked for cannot be quietly skipped');
@@ -355,13 +366,13 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(br.length === 3 && br.every(r => r.status === 'verified') && br.find(r => r.name === 'Hall, stairs and landing').want === grey.k && !(bj2.review && bj2.review.on), 'the measured rooms keep which floor each is for, and nothing is flagged');
     const sp0 = br.find(r => r.name === 'Bedroom 1').spec, sp2 = br.find(r => r.name === 'Hall, stairs and landing').spec;
     ok(sp0.floor === 'flooring' && sp0.underlay === true && sp0.beading === true && sp0.bars.ff === 1 && sp0.bars.cf === 1 && sp0.old === true && sp0.uplift === true && sp0.furniture === true
-      && sp2.floor === 'carpet' && sp2.rollW === 5 && sp2.gripper === true && sp2.old === true && sp2.uplift === false && sp2.bars.cc === 0, 'each room keeps its answers: carpet or flooring, roll width, underlay, gripper or beading, door bars, old flooring and furniture');
+      && sp2.floor === 'carpet' && sp2.rollW === 5 && sp2.dir === 'any' && sp2.gripper === true && sp2.old === true && sp2.uplift === false && sp2.bars.cc === 0, 'each room keeps its answers: carpet or flooring, roll width, underlay, gripper or beading, door bars, old flooring and furniture');
     // back in the shop, the sale starts from what was chosen, beside the sizes that were measured
     await pg.locator('#sheet').getByRole('button', {name:'Close'}).click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
     await pg.getByRole('button', {name:'Back to the shop'}).click();
     await openJobPlain('Brief Customer'); await pg.waitForSelector('#pricingCard');
     const pc = await pg.locator('#pricingCard').innerText();
-    ok(/Flooring: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Carpet: Hall, stairs and landing\s+4\.70 m off the 5 m roll, 23\.50 m²/.test(pc) && /Flooring underlay\s+18\.90 m²/.test(pc) && /Carpet underlay\s+19\.78 m²/.test(pc)
+    ok(/Flooring: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Carpet: Hall, stairs and landing[\s\S]*?The 4\.60 m side goes across the roll[\s\S]*?4\.40 m off the 5 m roll, 22\.00 m²/.test(pc) && /Flooring underlay\s+18\.90 m²/.test(pc) && /Carpet underlay\s+19\.78 m²/.test(pc)
       && /Gripper, round the walls\s+about 17\.80 m/.test(pc) && /Beading, round the walls\s+about 24\.60 m/.test(pc) && /Door bars, carpet to flooring\s+1/.test(pc) && /Door bars, flooring to flooring\s+1/.test(pc)
       && /Uplift and dispose: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Furniture to move\s+Bedroom 1, Bedroom 2/.test(pc) && /customer is lifting it\s+Hall, stairs and landing/.test(pc) && !/£/.test(pc),
       'the shop gets one summary to price from: floor areas, carpet cuts, underlay, gripper, beading, door bars, uplift and furniture');
@@ -375,6 +386,28 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.getByRole('button', {name:'Add another charge'}).click(); await pg.locator('#modal input[placeholder="Fitting, delivery, door bars"]').fill('Underlay and gripper'); await pg.locator('#modal input[placeholder="Fitting, delivery, door bars"]').blur();
     await pg.waitForFunction(() => /Not on it yet: beading, door bars/.test((document.querySelector('#pricingMiss') || {}).innerText || ''), null, {timeout:6000});
     ok(true, 'and stops asking for each one as it is added');
+    await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden);
+    await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
+    // a carpet that comes in both widths: the sale takes the right roll for each room, with the quantity and the price from the same sums
+    const cs = (floor, extra) => Object.assign({floor:floor, rollW:0, dir:'any', underlay:false, gripper:false, beading:null, bars:{cc:0, cf:0, ff:0}, old:false, uplift:null, furniture:false}, extra || {});
+    const vr = {status:'verified', verBy:'Eddie', verRole:'estimator', verOn:day(0), source:'estimator', want:'c1'};
+    app.store.setDoc(docPath('jobs/c1'), {v:1, ref:'M-CARPET', source:'measure', status:'open', type:'Fitting', date:'', slot:'', fitter:'', diary:false, shopifyClosed:false, createdAt:new Date().toISOString(),
+      customer:{name:'Carpet Rolls', phone:'07700 900999', address:'9 Test Street', postcode:'G81 6EE'}, lines:{}, total:0, pay:{}, notes:'', quote:[], drafts:{}, sizeCheck:'estimator', pre:{}, log:{},
+      brief:{rooms:[{name:'Lounge', want:'c1'}, {name:'Big bedroom', want:'c1'}], choices:[{k:'c1', title:'Silver twist carpet · Roll R-801 · 4m wide', variantId:'gid://shopify/ProductVariant/801', unit:'m', w:4, widths:[4, 5]}], also:[]},
+      rooms:{r1:Object.assign({n:1, name:'Lounge', len:3, wid:3.8, area:11.4, spec:cs('carpet')}, vr), r2:Object.assign({n:2, name:'Big bedroom', len:4.2, wid:4.6, area:19.32, spec:cs('carpet')}, vr)}});
+    await pg.evaluate(() => fetch('/api/db/update', {method:'POST', headers:{'x-ifd':'1', 'content-type':'application/json'}, body:JSON.stringify({path:'jobs/c1', data:{notes:'in'}})}));
+    await openJobPlain('Carpet Rolls'); await pg.waitForSelector('#pricingCard');
+    const pc2 = await pg.locator('#pricingCard').innerText();
+    ok(/Carpet: Lounge[\s\S]*?Floor 3\.00 × 3\.80 m, 11\.40 m²\. The 3\.80 m side goes across the roll[\s\S]*?3\.10 m off the 4 m roll, 12\.40 m²/.test(pc2) && /Carpet: Big bedroom[\s\S]*?4\.30 m off the 5 m roll, 21\.50 m²/.test(pc2),
+      'the shop sees the floor area and the carpet ordered side by side, on the right roll for each room');
+    await pg.locator('#sheet').getByRole('button', {name:'Add items'}).click(); await pg.waitForSelector('#saleRoll4');
+    ok(/4 m roll: 3\.10 m cut, 12\.40 m² of carpet/.test(await pg.locator('#saleRoll4').innerText()) && /31 lengths of 10 cm/.test(await pg.locator('#saleRoll4').innerText()) && /5 m roll: 4\.30 m cut, 21\.50 m² of carpet/.test(await pg.locator('#saleRoll5').innerText()),
+      'the sale lists what to take off each width of roll');
+    await pg.locator('#saleRoll4').getByRole('button', {name:'Add to the sale'}).click(); await pg.waitForFunction(() => document.querySelectorAll('#modal input[id^="ln-q-"]').length === 1);
+    await pg.locator('#saleRoll5').getByRole('button', {name:'Add to the sale'}).click(); await pg.waitForFunction(() => document.querySelectorAll('#modal input[id^="ln-q-"]').length === 2);
+    const sold = await pg.evaluate(() => ({q:Array.from(document.querySelectorAll('#modal input[id^="ln-q-"]')).map(i => i.value), p:Array.from(document.querySelectorAll('#modal input[id^="ln-p-"]')).map(i => i.value), text:document.querySelector('#modal').innerText}));
+    ok(sold.q.join('|') === '3.1|4.3' && sold.p.join('|') === '124|215' && /R-801 · 4m wide/.test(sold.text) && /R-802 · 5m wide/.test(sold.text) && /£339\.00/.test(sold.text),
+      'adding them picks the 4 m roll and the 5 m roll of that carpet, with the cut as the quantity and the price from the carpet ordered, and the total agrees');
     await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden);
     await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
     // a screen left open brings itself up to date when the screens have been replaced, without losing work in hand
