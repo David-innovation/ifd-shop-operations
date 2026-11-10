@@ -468,7 +468,9 @@ window.IFDLogic = (function(){
   }
   function stockLines(job){ return linesOf(job).filter(function(l){ return l.hold && l.hold !== 'none'; }); }
   function paidOf(job){ var p = (job && job.pay) || {}; return round2(Object.keys(p).reduce(function(s, k){ return s + (Number(p[k].amount) || 0); }, 0)); }
-  function balanceOf(job){ return round2((Number(job && job.total) || 0) - paidOf(job)); }
+  /* the fitting total is paid by the customer straight to the fitter when the job is finished, so the shop never collects it */
+  function fitterDue(job){ var n = job && job.type === 'Fitting' ? num(job.fitterDue) : 0; return round2(Math.min(n, Number(job && job.total) || 0)); }
+  function balanceOf(job){ return round2((Number(job && job.total) || 0) - fitterDue(job) - paidOf(job)); }
   /* GOODS-IN means it has arrived but is not in its final place. It never makes a job ready. */
   function isFinalBay(code){ return !!code && code !== 'GOODS-IN'; }
   function lineAllocated(l){ return !!l && l.state === 'allocated' && isFinalBay(l.bay); }
@@ -704,6 +706,7 @@ window.IFDLogic = (function(){
     if (bo) why.push('Sent back to the shop by ' + (bo.fitter || 'the fitter') + '. Deal with that first.');
     offClashes(job, off).forEach(function(c){ if (!c.v) why.push(c.who + ' cannot work on ' + fmtDay(c.date) + '.'); });
     if (!linesOf(job).length) why.push('Nothing has been sold on this job yet.');
+    if (job.type === 'Fitting' && !job.fitter) why.push('Choose the fitter first.');
     if (!validISO(job.date)) why.push('Set a date first.');
     checksOutstanding(job).forEach(function(t){ why.push(t); });
     stockLines(job).forEach(function(l){
@@ -951,6 +954,27 @@ window.IFDLogic = (function(){
     return pre.length > 0 && pre.every(function(v){ return v.status === 'done'; }) && roomsOf(job).length > 0;
   }
   function quoted(job){ return !!job && job.status === 'open' && !linesOf(job).length && !!quoteOf(job); }
+  /* what the quote charges for fitting: the amount the customer pays the fitter */
+  function quoteFitting(q){ return round2(quoteLines(q).filter(function(l){ return /fitting/i.test(l.label); }).reduce(function(t, l){ return t + num(l.price); }, 0)); }
+  /* ---------- telling the customer their fitting is booked ----------
+     Once a fitting has its fitter and is in the diary the customer is sent the day, the fitter's name and a reminder of
+     the fitting total. If the day or the fitter changes afterwards, they have to be told again. */
+  var DOWL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'], MONL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function longDay(iso){ if (!validISO(iso)) return ''; var d = dateOf(iso); return DOWL[d.getDay()] + ' ' + d.getDate() + ' ' + MONL[d.getMonth()]; }
+  function confirmsOf(job){ var o = (job && job.confirms) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
+  function confirmState(job){
+    if (!job || job.status !== 'open' || job.type !== 'Fitting' || !job.diary || !validISO(job.date)) return 'na';
+    var all = confirmsOf(job), last = all.length ? all[all.length - 1] : null;
+    if (!last) return 'todo';
+    return last.date === job.date && (last.fitter || '') === (job.fitter || '') ? 'sent' : 'changed';
+  }
+  function confirmMessage(job, from, shop){
+    var first = firstName((job.customer || {}).name), due = fitterDue(job), slot = job.slot === 'AM' ? ', in the morning' : job.slot === 'PM' ? ', in the afternoon' : '';
+    var out = ['Hi ' + (first || 'there') + ',', '', 'Thank you for your order with ' + shop.name + '. Your fitting is booked for ' + longDay(job.date) + slot + '.'];
+    if (job.fitter) out.push('', 'Your fitter is ' + job.fitter + '.');
+    if (due > 0) out.push('', 'A reminder that the fitting total of ' + money(due) + ' is paid on completion of the job, directly to your fitter.');
+    return out.concat(['', 'If you need to change anything, give us a ring on ' + shop.phone + '.', '', 'Thanks again,', from, shop.name]).join('\n');
+  }
   /* ---------- after the quote ----------
      A sent quote waits on the customer. Five days with no word and the shop rings them. A call nobody answered is
      tried again the next day. Sending the quote again starts the five days afresh. */
@@ -1094,6 +1118,9 @@ window.IFDLogic = (function(){
         else if (d <= 7 && !allAllocated(job)) w.push({tone:'bad', text:(d === 0 ? 'Goes out today' : 'Goes out in ' + d + (d === 1 ? ' day' : ' days')) + ' and stock is not all in its bay'});
       }
       if (job.diary && !allAllocated(job)) w.push({tone:'bad', text:'In the diary but stock is not allocated'});
+      var cst = confirmState(job);
+      if (cst === 'todo') w.push({tone:'bad', text:'Fitting confirmation not sent to the customer'});
+      else if (cst === 'changed') w.push({tone:'bad', text:'The day or the fitter has changed since the customer was told'});
       stockLines(job).forEach(function(l){ if (l.state === 'ordered' && validISO(l.due) && l.due < today) w.push({tone:'warn', text:'Supplier delivery overdue: ' + l.title}); });
       if (validISO(job.date)) onOrder(job).forEach(function(l){ if (l.due > job.date) w.push({tone:'bad', text:l.title + ' is not due in until ' + fmtDay(l.due) + ', after the job date'}); });
       var as = arrivalState(job, today), tries = triesOf(job).length;
@@ -1250,7 +1277,7 @@ window.IFDLogic = (function(){
     todayISO:todayISO, validISO:validISO, addDays:addDays, daysBetween:daysBetween, mondayOf:mondayOf, weekDays:weekDays, fmtDay:fmtDay, dayParts:dayParts, parseLongDate:parseLongDate,
     extractGraphQL:extractGraphQL, parseEmbeddedJson:parseEmbeddedJson, userErrorsOf:userErrorsOf,
     levelFigures:levelFigures, isRoll:isRoll, unitFor:unitFor, fmtQty:fmtQty, ppmOf:ppmOf, rollPrice:rollPrice,
-    linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, allAllocated:allAllocated, stageOf:stageOf,
+    linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, fitterDue:fitterDue, quoteFitting:quoteFitting, longDay:longDay, confirmsOf:confirmsOf, confirmState:confirmState, confirmMessage:confirmMessage, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
     BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, toPrice:toPrice, quoted:quoted, CHASE_DAYS:CHASE_DAYS, CHASE_OUT:CHASE_OUT, quoteSent:quoteSent, chasesOf:chasesOf, quoteWait:quoteWait, orderNeeded:orderNeeded, onOrder:onOrder, cutsOf:cutsOf, toCut:toCut, quotesOf:quotesOf, quoteOf:quoteOf, quoteLines:quoteLines, quoteTotal:quoteTotal, quoteMessage:quoteMessage, quoteRows:quoteRows, hasSize:hasSize, firstName:firstName, lastFindings:lastFindings, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
@@ -1661,6 +1688,16 @@ function quotedRow(job){
       h('div', {class:'meta'}, st.sent ? chip(st.sent, 'ok') : null, chip(st.text, st.tone), w.calls ? chip(w.calls + (w.calls === 1 ? ' call logged' : ' calls logged')) : null)),
     h('div', {class:'end'}, h('span', {class:'num', text:L.money(L.quoteTotal(q))}), hot ? h('span', {class:'go', text:w.state === 'unsent' ? 'Send it' : w.state === 'yes' ? 'Enter it' : w.state === 'change' ? 'Change it' : 'Ring them'}) : null));
 }
+/* fittings that are in the diary and the customer has not been told, or was told a day or a fitter that has since changed */
+function confirmJobs(){ return openJobs().filter(j => { const st = L.confirmState(j); return st === 'todo' || st === 'changed'; }).sort(sortOpen); }
+function confirmRow(job){
+  const c = job.customer || {}, st = L.confirmState(job);
+  return h('div', {class:'row static act'}, dateBlock(job),
+    h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
+      h('div', {class:'sub', text:'Fitting ' + L.fmtDay(job.date) + (job.slot ? ' ' + job.slot : '') + (job.fitter ? ' with ' + job.fitter : '') + (L.fitterDue(job) ? ' · ' + L.money(L.fitterDue(job)) + ' to the fitter on completion' : '')}),
+      h('div', {class:'meta'}, c.phone ? chip(c.phone) : null, chip(st === 'changed' ? 'The day or the fitter has changed since they were told' : 'In the diary, customer not told yet', 'bad'))),
+    h('div', {class:'bar'}, btn(st === 'changed' ? 'Send the new details' : 'Send the confirmation', () => confirmDialog(job), 'sm pri'), btn('Open', () => openSheet(job.id), 'sm')));
+}
 /* the customer has said yes and something has to be ordered in: nothing more happens to the job until the order details are in */
 function toOrderJobs(){ return openJobs().filter(j => L.orderNeeded(j).length).sort((a, b) => String((a.accepted || {}).at || '').localeCompare(String((b.accepted || {}).at || ''))); }
 function orderDetailsFor(job){ const l = L.orderNeeded(job)[0]; if (!l) return; if (l.unit === 'm') orderDetailsDialog(job, l); else orderDialog({jobId:job.id, lineK:l.k}); }
@@ -1732,7 +1769,7 @@ function actRow(job){
 }
 function paintTabs(){
   const box = $('#tabs'); box.replaceChildren();
-  const badge = {today:inboxList().length + actNowJobs().length + toPriceJobs().length + quotedJobs().filter(j => L.quoteWait(j, L.todayISO()).state !== 'waiting').length + toOrderJobs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length, cut:cutReady().length};
+  const badge = {today:inboxList().length + actNowJobs().length + toPriceJobs().length + quotedJobs().filter(j => L.quoteWait(j, L.todayISO()).state !== 'waiting').length + toOrderJobs().length + confirmJobs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length, cut:cutReady().length};
   TABS.forEach(t => {
     const on = S.view === t.id || (t.id === 'more' && ['tasks','activity','setup','deliveries','stocktake','measures','cut'].indexOf(S.view) !== -1 && window.matchMedia('(max-width: 760px)').matches);
     box.append(h('button', {type:'button', class:'tab' + (t.cls ? ' ' + t.cls : '') + (on ? ' on' : ''), onclick:() => { if (t.id === 'sale') saleDialog(); else go(t.id); }},
@@ -1857,7 +1894,7 @@ VIEWS.today = function(){
     const todayJobs = open.filter(j => j.date === t || j.date === L.addDays(t, 1)).sort(sortOpen);
     const dueTasks = S.tasks.filter(x => !x.done && (!x.due || x.due <= t));
     const held = open.filter(j => L.checksOutstanding(j).length).sort(sortOpen);
-    const price = toPriceJobs(), quotedNow = quotedJobs(), ringN = quotedNow.filter(j => L.quoteWait(j, t).state !== 'waiting').length, toOrd = toOrderJobs(), onOrd = onOrderJobs(), cuts = cutReady(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j) && !L.quoted(j)).sort(sortOpen);
+    const price = toPriceJobs(), quotedNow = quotedJobs(), ringN = quotedNow.filter(j => L.quoteWait(j, t).state !== 'waiting').length, toOrd = toOrderJobs(), onOrd = onOrderJobs(), cuts = cutReady(), conf = confirmJobs(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j) && !L.quoted(j)).sort(sortOpen);
     const heldHot = held.some(j => (j.review && j.review.on) || j.diary || (L.validISO(j.date) && L.daysBetween(t, j.date) <= 7));
     body.replaceChildren();
     add(body, [
@@ -1870,6 +1907,7 @@ VIEWS.today = function(){
       price.length ? h('section', {class:'sec pricenow', id:'priceSec'}, h('h2', {}, 'To price', h('span', {text:'measured and waiting on the shop: price it, then ring the customer'})), h('div', {class:'list'}, price.map(priceRow))) : null,
       quotedNow.length ? h('section', {class:'sec' + (ringN ? ' actnow' : ''), id:'quotedSec'}, h('h2', {}, 'Quotes sent', h('span', {text:ringN ? ringN + (ringN === 1 ? ' to deal with now' : ' to deal with now') + ', the rest waiting on the customer' : 'waiting on the customer: ring them after ' + L.CHASE_DAYS + ' days with no reply'})), h('div', {class:'list'}, quotedNow.map(quotedRow))) : null,
       toOrd.length ? h('section', {class:'sec actnow', id:'orderSec'}, h('h2', {}, 'To order', h('span', {text:'the customer said yes: put the order in, then enter its details and arrival date'})), h('div', {class:'list'}, toOrd.map(orderRow))) : null,
+      conf.length ? h('section', {class:'sec actnow', id:'confirmSec'}, h('h2', {}, 'Confirmations to send', h('span', {text:'in the diary: tell the customer the day, the fitter and the fitting total'})), h('div', {class:'list'}, conf.map(confirmRow))) : null,
       cuts.length ? h('section', {class:'sec', id:'cutSec'}, h('h2', {}, 'To cut', h('span', {text:'in stock and waiting in the warehouse'}), h('span', {class:'grow'}), btn('Open the cutting list', () => go('cut'), 'sm pri')), h('div', {class:'list'}, cuts.map(x => cutRow(x, true)))) : null,
       onOrd.length ? h('section', {class:'sec', id:'onOrderSec'}, h('h2', {}, 'On order', h('span', {text:'waiting on the supplier'})), h('div', {class:'list'}, onOrd.map(onOrderRow))) : null,
       h('div', {class:'tiles'},
@@ -2391,24 +2429,39 @@ function drawSheet(){
   const fitSel = h('select', {class:'in sm', id:'jobFitter', disabled:!open, onchange:e => { const v = e.target.value; e.target.blur(); const om = offMsg(v, job.date) || (v ? hslMsg(job, v, job.date) : ''); if (om){ toast(om, true); drawSheet(); return; } set({fitter:v}, v ? 'Given to ' + v : 'Fitter cleared'); }}, h('option', {value:'', text:'Nobody yet'}));
   const fitters = S.fitters.slice(); if (job.fitter && fitters.indexOf(job.fitter) === -1) fitters.unshift(job.fitter);
   fitters.forEach(f => fitSel.append(h('option', {value:f, text:f, selected:f === job.fitter})));
+  const cst = L.confirmState(job), confs = L.confirmsOf(job), lastConf = confs.length ? confs[confs.length - 1] : null;
+  const told = x => (x.how === 'email' ? 'Emailed' : x.how === 'text' ? 'Texted' : 'Sent') + (x.to ? ' to ' + x.to : '') + ' ' + whenText(x.at) + (x.byName ? ' by ' + x.byName : '');
+  const confirmBanner = cst === 'todo' ? h('div', {class:'banner bad', id:'confirmBanner'}, h('div', {class:'grow'}, h('b', {text:'Tell the customer. '}),
+        'The fitting is in the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + ' and the confirmation has not been sent.'), btn('Send the confirmation', () => confirmDialog(job), 'pri sm'))
+    : cst === 'changed' ? h('div', {class:'banner bad', id:'confirmBanner'}, h('div', {class:'grow'}, h('b', {text:'Tell the customer again. '}),
+        'They were told ' + L.fmtDay(lastConf.date) + (lastConf.fitter ? ' with ' + lastConf.fitter : '') + '. It is now ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + '.'), btn('Send the new details', () => confirmDialog(job), 'pri sm'))
+    : null;
+  const confirmLine = cst === 'sent' ? h('p', {class:'small', id:'confirmSent'}, 'Confirmation: ' + told(lastConf) + '.  ', btn('Send it again', () => confirmDialog(job), 'sm')) : null;
   const held = open && L.checksOutstanding(job).length > 0;
   const boD = open ? L.backOpen(job) : null, otherWhy = diary.why.filter(w => w.indexOf('Sent back to the shop by ') !== 0);
   const diaryAct = !open ? null : job.diary ? h('div', {class:'bar'}, btn('Take out of the diary', () => set({diary:false}, 'Taken out of the diary'), 'sm'))
     : boD ? h('div', {class:'sec'}, btn('Deal with it and rebook', () => backDoneDialog(job, boD), 'pri'),
         h('p', {class:'small muted', text:(boD.fitter || 'The fitter') + ' sent this job back. Say what was done about it and pick the new day. It shows the next free day for each fitter.' + (otherWhy.length ? ' Still to sort before it can be confirmed: ' + otherWhy.join(' ') : '')}))
-    : h('div', {class:'sec'}, btn('Put in the diary', () => set({diary:true}, 'Put in the diary for ' + L.fmtDay(job.date)), 'pri', {disabled:!diary.ok}),
+    : h('div', {class:'sec'}, btn('Put in the diary', async () => {
+          try { await patchJob(job.id, {diary:true}, 'Put in the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '')); } catch (e){ dbFail(e); return; }
+          if (job.type === 'Fitting') confirmDialog(Object.assign({}, job, {diary:true}));   /* the customer is told straight away */
+        }, 'pri', {disabled:!diary.ok}),
         diary.ok ? null : h('p', {class:'small muted', text:'Not ready for the diary yet. ' + diary.why.join(' ')}));
   const diaryCard = h('div', {class:'card'}, h('h3', {}, job.type === 'Fitting' ? 'Installation: when and who' : 'When and who',
       job.diary ? (held ? chip('In the diary, awaiting checks', 'bad') : chip('In the diary', 'ok')) : held && L.validISO(job.date) ? chip('Date pencilled in, awaiting checks', 'warn') : chip('Not in the diary', open ? 'warn' : '')),
     typeSeg,
     hslTick, field(job.type === 'Fitting' ? 'Fitter' : 'Who is doing it', fitSel), dayPick.node, slotSeg, areaDet,
-    diaryAct);
+    diaryAct, confirmLine);
 
   const pays = Object.keys(job.pay || {}).map(k => job.pay[k]).sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  const moneyCard = h('div', {class:'card'}, h('h3', {}, 'Money', bal > 0 ? chip(L.money(bal) + ' to pay', job.status === 'done' ? 'bad' : 'warn') : chip('Paid', 'ok')),
+  const fd = L.fitterDue(job), mq = !lines.length ? L.quoteOf(job) : null;
+  const moneyCard = h('div', {class:'card', id:'moneyCard'}, h('h3', {}, 'Money', !lines.length ? chip('Nothing sold yet') : bal > 0 ? chip(L.money(bal) + (fd ? ' to pay the shop' : ' to pay'), job.status === 'done' ? 'bad' : 'warn') : chip(fd ? 'Shop paid' : 'Paid', 'ok')),
     h('dl', {class:'kv'}, h('dt', {text:'Total'}), h('dd', {class:'num', text:L.money(job.total)}),
+      fd ? [h('dt', {text:'Fitting total, paid to the fitter on completion'}), h('dd', {class:'num', id:'fitDue', text:L.money(fd)}), h('dt', {text:'To pay the shop'}), h('dd', {class:'num', id:'shopDue', text:L.money(L.round2((Number(job.total) || 0) - fd))})] : null,
       pays.map(p => [h('dt', {text:whenText(p.at)}), h('dd', {class:'num', text:L.money(p.amount) + ' ' + (p.method || '')})])),
-    job.status !== 'cancelled' ? h('div', {class:'bar'}, btn('Take a payment', () => payDialog(job), 'sm' + (bal > 0 ? ' pri' : '')), btn('Change the total', () => totalDialog(job), 'sm')) : null);
+    mq ? h('p', {class:'small muted', text:'Quoted ' + L.money(L.quoteTotal(mq)) + (L.quoteFitting(mq) > 0 ? ', of which ' + L.money(L.quoteFitting(mq)) + ' is fitting' : '') + '. Nothing is owed until the customer says yes.'}) : null,
+    job.status !== 'cancelled' ? h('div', {class:'bar'}, btn('Take a payment', () => payDialog(job), 'sm' + (bal > 0 ? ' pri' : '')), btn('Change the total', () => totalDialog(job), 'sm'),
+      open && job.type === 'Fitting' && lines.length ? btn(fd ? 'Change the fitting total' : 'Set the fitting total', () => fitPayDialog(job), 'sm') : null) : null);
 
   const arr = L.arrivalState(job, L.todayISO()), tries = L.triesOf(job), visits = L.visitsOf(job);
   const arrivalCard = arr === 'na' ? null : h('div', {class:'card'},
@@ -2482,8 +2535,8 @@ function drawSheet(){
           job.status === 'done' ? chip((job.doneAs || 'Done') + ' ' + whenText(job.doneAt) + (job.signoff && job.signoff.fitter ? ', signed off by ' + job.signoff.fitter : '')) : null)),
       btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'},
-      backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0)).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
-      toPriceBanner, orderBanner, cutBanner, priceQuoteCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
+      backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0) && !(confirmBanner && /^(Fitting confirmation not sent|The day or the fitter has changed)/.test(w.text))).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
+      toPriceBanner, orderBanner, cutBanner, confirmBanner, priceQuoteCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
       h('div', {class:'card'}, h('h3', {}, 'History'), h('div', {class:'log'}, logs.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': ' + x.text}))))));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -3123,11 +3176,18 @@ function acceptDialog(job){
   const typeSeg = h('div', {class:'seg', id:'accType'});
   const when = whenPicker(job, 'acc', () => F.type, {fitter:job.fitter || '', date:''}), whenNote = h('p', {class:'small', id:'accWhenNote', style:'font-weight:600'});
   const anyOrder = () => items.some(it => it.how === 'order');
+  const qFit = L.quoteFitting(q), qTotal = L.quoteTotal(q);
+  const fitPay = h('input', {class:'in', id:'accFitPay', type:'number', min:'0', step:'0.01', inputmode:'decimal', value:qFit > 0 ? qFit.toFixed(2) : '', oninput:() => drawSplit()});
+  const fitRow = h('div', {class:'sec', id:'accFitRow', hidden:true}, field('Fitting total, paid to the fitter on completion', fitPay),
+    h('p', {class:'small muted', text:qFit > 0 ? 'Pulled through from the Fitting line on the quote. The customer pays it straight to the fitter when the job is finished, so the shop does not collect it.' : 'There is no Fitting line on the quote. Type what the customer pays the fitter, or leave it empty.'}));
+  const split = h('p', {class:'small', id:'accSplit', style:'font-weight:600', hidden:true});
+  const fitAmount = () => (F.type === 'Fitting' ? L.round2(Number(fitPay.value) || 0) : 0);
+  function drawSplit(){ const fp = fitAmount(); split.hidden = !(fp > 0); split.textContent = fp > 0 ? L.money(fp) + ' of that is paid to the fitter on completion. To pay the shop: ' + L.money(L.round2(qTotal - fp)) + '.' : ''; }
   /* a collection needs nothing more, a delivery needs its day, a fitting needs its fitter and then its day.
      Carpet that is being ordered in has no day yet: that is picked once its arrival date is known. */
   function drawWhen(){
     const t = F.type, ord = anyOrder(), fit = t === 'Fitting', del = t === 'Delivery';
-    when.who.hidden = !(fit || (del && !ord)); when.days.hidden = !((fit || del) && !ord);
+    when.who.hidden = !(fit || (del && !ord)); when.days.hidden = !((fit || del) && !ord); fitRow.hidden = !fit; drawSplit();
     if (ord || !(fit || del)) when.clear();
     whenNote.hidden = !t;
     whenNote.textContent = t === 'Collection' ? (ord ? 'Nothing more to pick. The customer collects it once it has arrived.' : 'Nothing more to pick. The carpet goes straight to be cut, and the customer collects it when it is ready.')
@@ -3162,6 +3222,7 @@ function acceptDialog(job){
       const errs = [];
       if (!F.type) errs.push('Choose fitting, delivery or collection.');
       else if (F.type !== 'Collection') when.problems(!anyOrder()).forEach(e => errs.push(e));
+      if (F.type === 'Fitting' && (Number(fitPay.value) < 0 || fitAmount() > qTotal)) errs.push('The fitting total cannot be more than the quote.');
       items.forEach(it => {
         const u = unitsOf10(it);
         if (!(u > 0)) errs.push('Type the length to cut for ' + label(it) + '.');
@@ -3183,10 +3244,11 @@ function acceptDialog(job){
       if (!F.saved){ F.saved = await reserveInShopify(ctx, s.say, true); dialog.querySelectorAll('input,select,textarea,button').forEach(el => { if (el !== save) el.disabled = true; }); }
       s.say('Saving the job');
       const draft = F.saved.draft, startN = L.linesOf(job).reduce((mx, l) => Math.max(mx, l.n || 0), 0), total = L.quoteTotal(q);
-      const patch = {type:F.type, fitter:fitter, date:day, slot:'', diary:false, lines:toJobLines(lines, startN, draft ? draft.name : ''), total:total, accepted:{at:nowISO(), by:S.me.id || '', byName:name, q:q.k, total:total, type:F.type}};
+      const patch = {type:F.type, fitter:fitter, date:day, slot:'', diary:false, fitterDue:fitAmount(), lines:toJobLines(lines, startN, draft ? draft.name : ''), total:total, accepted:{at:nowISO(), by:S.me.id || '', byName:name, q:q.k, total:total, type:F.type}};
       if (draft){ patch.drafts = {}; patch.drafts[L.gidNum(draft.id)] = {id:draft.id, name:draft.name, closed:false}; }
       const say = list => list.map(it => Number(it.len).toFixed(1) + ' m of ' + label(it)).join(', '), fromStock = items.filter(it => it.how === 'stock'), toOrder = items.filter(it => it.how === 'order');
       await patchJob(job.id, patch, 'The customer said yes to the quote of ' + L.money(total) + '. Taken by ' + name + '. ' + F.type + (fitter ? ' with ' + fitter : '') + (day ? ' on ' + L.fmtDay(day) : F.type === 'Collection' ? '' : ', day to be picked once the carpet’s arrival date is in') + '.'
+        + (fitAmount() > 0 ? ' Fitting total of ' + L.money(fitAmount()) + ' to be paid to the fitter on completion.' : '')
         + (fromStock.length ? ' From our stock, reserved in Shopify' + (draft ? ' on draft ' + draft.name : '') + ' and sent to the cutting list: ' + say(fromStock) + '.' : '') + (toOrder.length ? ' To be ordered in: ' + say(toOrder) + '.' : ''));
       closeModal(); toast(F.saved.warn || (toOrder.length ? 'Saved. Now put the order in and enter its details' : fromStock.length ? 'Saved. The carpet is on the cutting list' : 'Saved'), !!F.saved.warn);
     } catch (e){
@@ -3197,14 +3259,14 @@ function acceptDialog(job){
   }
   const dialog = dlg('The customer said yes', h('div', {class:'sec', id:'acceptForm'},
     h('div', {class:'card tight'}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '')}), h('p', {class:'small muted', text:'Quote of ' + L.money(L.quoteTotal(q)) + ' from ' + (q.byName || 'the shop') + '.'})),
-    h('div', {class:'card'}, h('h3', {}, 'How are they getting it?'), typeSeg, whenNote, when.who, when.days),
+    h('div', {class:'card'}, h('h3', {}, 'How are they getting it?'), typeSeg, whenNote, when.who, when.days, fitRow),
     h('div', {class:'card'}, h('h3', {}, 'The carpet'),
       takeDone() ? null : h('p', {class:'small muted', text:'Awaiting opening stocktake: the stock figures shown here are not confirmed yet.'}),
       items.length ? itemsBox : h('p', {class:'muted', id:'accNone', text:carpetRooms.length ? 'No carpet was picked for this job when the measure was booked, so there is nothing to allocate here. Add it on the job with Add items once this is saved.' : 'There is no carpet on this job.'}),
       items.length && loose.length ? h('p', {class:'small', style:'font-weight:700', text:'No carpet was picked for ' + loose.join(', ') + '. Add it on the job with Add items once this is saved.'}) : null,
       flooring.length ? h('p', {class:'small', id:'accFlooring', text:'The flooring for ' + flooring.join(', ') + ' is not allocated from here yet. Add it on the job with Add items once this is saved.'}) : null),
     h('div', {class:'card'}, h('h3', {}, 'What they are paying'), L.quoteLines(q).map(l => h('div', {class:'ln-top'}, h('span', {text:l.label}), h('b', {class:'num', text:L.money(l.price)}))),
-      h('div', {class:'qtotal'}, h('span', {text:'Total'}), h('b', {class:'num', id:'accTotal', text:L.money(L.quoteTotal(q))}))),
+      h('div', {class:'qtotal'}, h('span', {text:'Total'}), h('b', {class:'num', id:'accTotal', text:L.money(L.quoteTotal(q))})), split),
     field('Your name', who), s.box), [btn('Cancel', closeModal), save]);
   openModal(dialog);
   items.forEach(look);
@@ -4151,13 +4213,69 @@ function payDialog(job){
   const bal = L.balanceOf(job), s = sayer();
   const amt = h('input', {class:'in', id:'payAmount', type:'number', step:'0.01', min:'0', inputmode:'decimal', value:bal > 0 ? bal.toFixed(2) : ''});
   const how = h('select', {class:'in', id:'payMethod'}, ['Card machine', 'Cash', 'Bank transfer', 'Other'].map(m => h('option', {value:m, text:m})));
-  openModal(dlg('Take a payment', h('div', {class:'sec'}, h('p', {class:'muted', text:L.money(bal) + ' is still to pay on this job.'}),
+  openModal(dlg('Take a payment', h('div', {class:'sec'}, h('p', {class:'muted', text:L.money(bal) + ' is still to pay on this job.' + (L.fitterDue(job) ? ' The fitting total of ' + L.money(L.fitterDue(job)) + ' is paid to the fitter and is not part of this.' : '')}),
     h('div', {class:'grid2'}, field('Amount', amt), field('How', how)), s.box),
     [btn('Cancel', closeModal), btn('Record payment', async () => {
       const n = L.round2(amt.value); if (!(n > 0)){ s.say('Enter the amount taken.', true); return; }
       const p = {pay:{}}; p.pay['p' + uid()] = {at:nowISO(), amount:n, method:how.value, by:S.me.id || ''};
       try { await patchJob(job.id, p, 'Took ' + L.money(n) + ' by ' + how.value.toLowerCase()); closeModal(); toast('Payment recorded'); } catch (e){ dbFail(e); }
     }, 'pri')], true));
+}
+/* what the customer pays the fitter on completion: it comes off what the shop collects */
+function fitPayDialog(job){
+  if (!needDb()) return;
+  const s = sayer(), cur = L.fitterDue(job), amt = h('input', {class:'in', id:'fitPay', type:'number', step:'0.01', min:'0', inputmode:'decimal', value:cur ? cur.toFixed(2) : ''});
+  openModal(dlg('Fitting total', h('div', {class:'sec'}, h('p', {class:'muted', text:'What the customer pays the fitter when the job is finished. It is part of the job total of ' + L.money(job.total) + ' but the shop does not collect it.'}), field('Paid to the fitter on completion', amt), s.box),
+    [btn('Cancel', closeModal), btn('Save', async () => {
+      const n = L.round2(Number(amt.value) || 0);
+      if (n < 0 || n > (Number(job.total) || 0)){ s.say('The fitting total cannot be more than the job total.', true); return; }
+      try { await patchJob(job.id, {fitterDue:n}, n > 0 ? 'Fitting total paid to the fitter set to ' + L.money(n) : 'Fitting total paid to the fitter cleared'); closeModal(); } catch (e){ dbFail(e); }
+    }, 'pri')], true));
+}
+/* ---------- telling the customer their fitting is booked ----------
+   The message is opened in the email or messages app for staff to send, the same way a quote is. */
+function confirmDialog(job){
+  if (!needDb()) return;
+  const s = sayer(), c = job.customer || {}, due = L.fitterDue(job);
+  const who = h('input', {class:'in', id:'confBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const msg = h('textarea', {class:'in qmsg', id:'confMsg'}); let edited = false;
+  const build = () => { if (!edited) msg.value = L.confirmMessage(job, who.value.trim() || 'The team', SHOP); };
+  const email = h('input', {class:'in', id:'confEmail', type:'email', value:c.email || '', placeholder:'Customer’s email'}), phone = h('input', {class:'in', id:'confPhone', type:'tel', value:c.phone || '', placeholder:'Customer’s mobile'});
+  const mail = h('a', {class:'btn pri', id:'confEmailBtn', text:'Email it'}), text = h('a', {class:'btn pri', id:'confTextBtn', text:'Text it'});
+  const need = h('p', {class:'small', id:'confNeed', style:'color:var(--bad);font-weight:700', hidden:true, text:'Type your name first, so the customer knows who it is from.'});
+  const sent = async (how, to) => {
+    const name = who.value.trim(); myName(name);
+    const pt = {confirms:{}}; pt.confirms['f' + uid()] = {at:nowISO(), how:how, to:to, by:S.me.id || '', byName:name, date:job.date, fitter:job.fitter || '', due:due};
+    if (how === 'email' && to && to !== (c.email || '')) pt.customer = {email:to};
+    try { await patchJob(job.id, pt, 'Fitting confirmation ' + (how === 'email' ? 'opened in email to ' + to : how === 'text' ? 'opened as a text to ' + to : 'copied to send') + ' by ' + name + ': ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '')
+      + (due > 0 ? ', ' + L.money(due) + ' to the fitter on completion' : '')); } catch (e){ dbFail(e); }
+  };
+  function links(){
+    const named = !!who.value.trim(), em = email.value.trim(), ph = phone.value.replace(/[^\d+]/g, '');
+    need.hidden = named;
+    const okMail = named && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em), okText = named && ph.length >= 10;
+    mail.className = 'btn pri' + (okMail ? '' : ' off'); text.className = 'btn pri' + (okText ? '' : ' off');
+    if (okMail) mail.href = 'mailto:' + encodeURIComponent(em) + '?subject=' + encodeURIComponent('Your fitting with ' + SHOP.name) + '&body=' + encodeURIComponent(msg.value); else mail.removeAttribute('href');
+    if (okText) text.href = 'sms:' + ph + '?&body=' + encodeURIComponent(msg.value); else text.removeAttribute('href');
+  }
+  build();
+  msg.addEventListener('input', () => { edited = true; links(); });
+  who.addEventListener('input', () => { build(); links(); });
+  [email, phone].forEach(el => el.addEventListener('input', links)); links();
+  mail.addEventListener('click', () => { if (mail.href) sent('email', email.value.trim()); });
+  text.addEventListener('click', () => { if (text.href) sent('text', phone.value.trim()); });
+  const copy = btn('Copy the message', async () => {
+    if (!who.value.trim()){ links(); return; }
+    try { await navigator.clipboard.writeText(msg.value); toast('Copied'); } catch (e){ try { msg.focus(); msg.select(); } catch (x) {} toast('Select the message and copy it'); }
+    sent('copy', '');
+  });
+  openModal(dlg('Tell the customer their fitting is booked', h('div', {class:'sec', id:'confForm'},
+    h('p', {}, h('b', {text:'In the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + '. '}), 'This is what the customer gets. Change the wording if you want to.'),
+    field('Your name, shown on the message', who), need, msg,
+    h('div', {class:'grid2'}, field('Email', email), field('Mobile', phone)),
+    h('div', {class:'bar'}, mail, text, copy),
+    h('p', {class:'small muted', text:'Email it opens your email with the message ready to send. Text it opens the messages app, so use it on a phone. Nothing goes to the customer until you press send there.'}),
+    s.box), [btn('Done', closeModal, 'pri')]));
 }
 function totalDialog(job){
   if (!needDb()) return;
