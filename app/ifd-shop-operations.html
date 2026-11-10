@@ -120,7 +120,7 @@ textarea.in{min-height:84px;resize:vertical}
 .sq .seg{flex:0 0 auto;min-width:132px} .sq .seg button{min-height:40px;padding:6px 12px}
 .sbars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:end}
 .pline{display:flex;gap:12px;justify-content:space-between;align-items:baseline;padding:6px 0;border-top:1px solid var(--line)}
-.pline:first-child{border-top:0} .pline span{min-width:0;overflow-wrap:anywhere} .pline b{text-align:right;white-space:nowrap}
+.pline:first-child{border-top:0} .pline span{min-width:0;overflow-wrap:anywhere} .pline b{text-align:right;flex:0 1 auto}
 .broom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:6px;align-items:center}
 .broom.one{grid-template-columns:minmax(0,1fr) auto}
 .bchoice{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
@@ -736,11 +736,22 @@ window.IFDLogic = (function(){
   var BAR_KINDS = {cc:'Carpet to carpet', cf:'Carpet to flooring', ff:'Flooring to flooring'};
   function specOf(r){ var s = r && r.spec; return s && (s.floor === 'carpet' || s.floor === 'flooring') ? s : null; }
   function specBars(s){ var b = (s && s.bars) || {}; return Object.keys(BAR_KINDS).map(function(k){ return {k:k, n:Math.floor(num(b[k])), label:BAR_KINDS[k]}; }).filter(function(x){ return x.n > 0; }); }
-  /* the shortest cut off the roll that covers the bare floor. A guide only: nothing is added for trimming, pattern or pile. */
+  /* The shop's carpet rule. The narrower side of the room is the width: it comes off the 4 m roll, or the 5 m roll
+     when it is over 4 m. The cut is the longer side plus 10 cm, and carpet is sold to the 10 cm. */
+  var CUT_EXTRA = 0.10;
+  function rollFor(len, wid){ var a = num(len), b = num(wid); return a && b ? (Math.min(a, b) <= 4 + 1e-9 ? 4 : 5) : 0; }
   function carpetCut(len, wid, rollW){
-    var a = num(len), b = num(wid), w = num(rollW); if (!a || !b || !w) return null;
-    var hi = Math.max(a, b), lo = Math.min(a, b);
-    return hi <= w + 1e-9 ? {fits:true, cut:lo} : lo <= w + 1e-9 ? {fits:true, cut:hi} : {fits:false, cut:0};
+    var a = num(len), b = num(wid); if (!a || !b) return null;
+    var hi = Math.max(a, b), lo = Math.min(a, b), w = num(rollW) || rollFor(a, b);
+    if (lo > w + 1e-9) return {fits:false, cut:0, rollW:w, long:hi, wide:lo, sq:0};
+    var cut = Math.ceil((hi + CUT_EXTRA) * 10 - 1e-6) / 10;
+    return {fits:true, cut:cut, rollW:w, long:hi, wide:lo, sq:round2(cut * w)};
+  }
+  /* the length to take off one roll for these rooms: nothing unless every room is carpet, fits, and is on this width of roll */
+  function cutFor(rooms, rollW){
+    var w = num(rollW), t = 0, ok = !!w && rooms.length > 0;
+    rooms.forEach(function(r){ var s = specOf(r), c = s && s.floor === 'carpet' ? carpetCut(r.len, r.wid, s.rollW) : null; if (!c || !c.fits || c.rollW !== w) ok = false; else t += c.cut; });
+    return ok ? Math.round(t * 10) / 10 : 0;
   }
   function roomEdge(r){ var l = num(r && r.len), w = num(r && r.wid); return l && w ? round2(2 * (l + w)) : 0; }
   /* everything the shop needs to price from the measure, worked out from the bare floor sizes and the answers in each room */
@@ -755,7 +766,7 @@ window.IFDLogic = (function(){
         if (s.beading){ if (e) out.beading = round2(out.beading + e); else out.byHand.push('beading for ' + nm); }
       } else {
         var c = carpetCut(r.len, r.wid, s.rollW);
-        out.carpets.push({name:nm, rollW:num(s.rollW), area:a, cut:c ? c.cut : 0, fits:c ? c.fits : null, want:r.want || ''});
+        out.carpets.push({name:nm, rollW:c ? c.rollW : num(s.rollW), area:a, cut:c ? c.cut : 0, sq:c ? c.sq : 0, fits:c ? c.fits : null, want:r.want || ''});
         if (s.underlay) out.underlayCarpet = round2(out.underlayCarpet + a);
         if (s.gripper){ if (e) out.gripper = round2(out.gripper + e); else out.byHand.push('gripper for ' + nm); }
       }
@@ -1042,7 +1053,7 @@ window.IFDLogic = (function(){
     linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
-    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, carpetCut:carpetCut, pricingOf:pricingOf, saleMissing:saleMissing,
+    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, carpetCut:carpetCut, rollFor:rollFor, cutFor:cutFor, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
     BRIEF_ROOMS:BRIEF_ROOMS, BRIEF_ALSO:BRIEF_ALSO, briefOf:briefOf, briefHas:briefHas, briefChoice:briefChoice, briefName:briefName, briefLine:briefLine,
     hasHSL:hasHSL, limitsOf:limitsOf, measureLimits:measureLimits, planMeasure:planMeasure, toArrange:toArrange, milesBetween:milesBetween, dayWork:dayWork, dayReach:dayReach, hslClash:hslClash, farClash:farClash, hslWhy:hslWhy,
     isFinalBay:isFinalBay, lineAllocated:lineAllocated, supplyOf:supplyOf, supplyState:supplyState, dLines:dLines, dRecs:dRecs, dGot:dGot, dOutstanding:dOutstanding,
@@ -2460,6 +2471,7 @@ function specInputs(P, init, dflt, onChange){
   draw();
   const kinds = () => (st.floor === 'carpet' ? ['cc', 'cf'] : ['ff', 'cf']);
   return {head:head, node:box, state:st,
+    setRoll:w => { if (w && st.rollW !== w){ st.rollW = w; draw(); } },
     copy:from => { ['floor', 'rollW', 'underlay', 'gripper', 'beading', 'old', 'uplift', 'furniture'].forEach(k => { st[k] = from[k]; }); draw(); fire(); },
     read:() => {
       const carpet = st.floor === 'carpet', bars = {cc:0, cf:0, ff:0}; let n = 0;
@@ -2485,8 +2497,8 @@ function pricingBlock(job, titles){
   const rows = [];
   if (p.flooringRooms.length) rows.push(row('Flooring: ' + p.flooringRooms.join(', '), L.fmtM(p.flooringArea) + ' m²'));
   p.carpets.forEach(c => { const ch = c.want ? L.briefChoice(b, c.want) : null, clash = ch && ch.w && c.rollW && Number(ch.w) !== c.rollW;
-    rows.push(row('Carpet: ' + c.name, c.fits ? L.fmtM(c.cut) + ' m off the ' + c.rollW + ' m roll' : c.fits === false ? 'Too wide for the ' + c.rollW + ' m roll' : 'Work out by hand',
-      clash ? h('span', {class:'meta'}, chip('The carpet chosen is a ' + ch.w + ' m roll', 'bad')) : c.fits === false ? h('span', {class:'meta'}, chip('Needs a wider roll or a join', 'bad')) : null)); });
+    rows.push(row('Carpet: ' + c.name, c.fits ? L.fmtM(c.cut) + ' m off the ' + c.rollW + ' m roll, ' + L.fmtM(c.sq) + ' m²' : 'Work out by hand',
+      clash ? h('span', {class:'meta'}, chip('The carpet chosen is a ' + ch.w + ' m roll', 'bad')) : c.fits === false ? h('span', {class:'meta'}, chip(c.rollW === 4 ? 'Over 4 m wide: needs the 5 m roll' : 'Over 5 m both ways: needs a join', 'bad')) : null)); });
   if (p.underlayCarpet) rows.push(row('Carpet underlay', L.fmtM(p.underlayCarpet) + ' m²'));
   if (p.underlayFlooring) rows.push(row('Flooring underlay', L.fmtM(p.underlayFlooring) + ' m²'));
   if (p.gripper) rows.push(row('Gripper, round the walls', 'about ' + L.fmtM(p.gripper) + ' m'));
@@ -2500,7 +2512,7 @@ function pricingBlock(job, titles){
   return h('div', {class:'sec', id:'pricingBlock'}, h('div', {}, rows),
     miss.length ? h('div', {class:'banner warn', id:'pricingMiss'}, h('p', {}, h('b', {text:'Not on it yet: ' + miss.join(', ') + '. '}), 'The measure says these are needed. Add them, or carry on if they are covered another way.')) : null,
     p.unasked.length ? h('p', {class:'small muted', text:'No answers recorded for ' + p.unasked.join(', ') + '.'}) : null,
-    h('p', {class:'small muted', text:'A guide from the bare floor sizes and what was asked in each room. Nothing is added for wastage or trimming, and doorways are not taken off the gripper or beading.'}));
+    h('p', {class:'small muted', text:'Carpet is the longer side plus 10 cm, off the 4 m roll, or the 5 m roll when the room is over 4 m wide. Flooring, underlay, gripper and beading are the bare floor: nothing is added for wastage and doorways are not taken off.'}));
 }
 /* ---------- what a measure is for: rooms, what the customer picked, extras to price ---------- */
 function briefBox(init, P){
@@ -3000,12 +3012,12 @@ function findingsDialog(job, v){
     const showGuide = () => {
       const st = x.spec.state, c = x.sz.read(), cut = st.floor === 'carpet' && st.rollW ? L.carpetCut(c.len, c.wid, st.rollW) : null;
       guide.style.color = cut && !cut.fits ? 'var(--bad)' : ''; guide.style.fontWeight = cut && !cut.fits ? '700' : '';
-      guide.textContent = !cut ? '' : cut.fits ? 'Guide: a ' + L.fmtM(cut.cut) + ' m cut off the ' + st.rollW + ' m roll covers this floor, before anything is added for trimming.'
-        : 'This room is wider than a ' + st.rollW + ' m roll both ways. It needs ' + (st.rollW === 4 ? 'the 5 m roll or a join.' : 'a join.');
+      guide.textContent = !cut ? '' : cut.fits ? 'Carpet needed: ' + L.fmtM(cut.cut) + ' m off the ' + cut.rollW + ' m roll. That is the ' + L.fmtM(cut.long) + ' m length plus 10 cm.'
+        : cut.rollW === 4 ? 'This room is ' + L.fmtM(cut.wide) + ' m wide, which is over 4 m. It needs the 5 m roll.' : 'This room is over 5 m both ways. It needs a join, so the carpet has to be worked out by hand.';
     };
     x.spec = measure ? specInputs('fr' + i, x.isNew ? null : x.old.spec, dflt, showGuide) : null;
     const was = h('p', {class:'small muted'});
-    const show = () => { was.textContent = !x.isNew && L.roomChanged(x.old, x.sz.read()) ? 'Recorded as ' + L.roomSize(x.old) + '. Your size replaces it, the old one is kept in the history and the shop is asked to review.' : ''; if (x.spec) showGuide(); };
+    const show = () => { was.textContent = !x.isNew && L.roomChanged(x.old, x.sz.read()) ? 'Recorded as ' + L.roomSize(x.old) + '. Your size replaces it, the old one is kept in the history and the shop is asked to review.' : ''; if (x.spec){ const c = x.sz.read(); x.spec.setRoll(L.rollFor(c.len, c.wid)); showGuide(); } };
     [x.sz.len, x.sz.wid, x.sz.area].forEach(el => el.addEventListener('input', show));
     return h('div', {class:'card tight'},
       x.isNew ? field(x.seed ? 'Room to measure' : 'New room', x.nameIn) : h('div', {class:'ln-top'}, h('b', {text:x.name}), chip(L.ROOM_STATUS[x.old.status] || 'Unverified', L.ROOM_TONE[x.old.status] || 'warn')),
@@ -3826,11 +3838,11 @@ function saleDialog(job){
       }));
     } catch (e){ prodRes.replaceChildren(h('div', {class:'pick'}, h('span', {text:explain(e)}))); }
   }
-  function addStockLine(p, v){
+  function addStockLine(p, v, rooms){
     const f = L.levelFigures(v), roll = L.isRoll(v, p), unit = L.unitFor(v, p), ppm = L.ppmOf(p), widthM = Number(v.rollWidth && v.rollWidth.value) || 0;
-    const canStock = f.tracked && f.total.available > 0;
+    const canStock = f.tracked && f.total.available > 0, pre = roll && rooms ? L.cutFor(rooms, widthM) : 0;
     F.lines.push({key:uid(), kind:'stock', variantId:v.id, title:variantTitle(p, v), sub:'', unit:unit, roll:roll, widthM:widthM, cov:Number(p.coverage && p.coverage.value) || 0, ppm:ppm, unitPrice:Number(v.price) || 0,
-      price:roll ? 0 : Number(v.price) || 0, priceEdited:false, qty:roll ? '' : '1', available:f.total.available, tracked:f.tracked, source:canStock ? 'stock' : 'supplier', supplier:'', due:''});
+      price:roll ? (pre ? L.rollPrice(widthM, pre, ppm) : 0) : Number(v.price) || 0, priceEdited:false, qty:roll ? (pre ? String(pre) : '') : '1', available:f.total.available, tracked:f.tracked, source:canStock ? 'stock' : 'supplier', supplier:'', due:''});
     drawLines();
   }
   const bfS = adding ? L.briefOf(job) : null, fromBox = h('div', {class:'guide', id:'saleFromMeasure', hidden:true});
@@ -3843,10 +3855,11 @@ function saleDialog(job){
     bfS.choices.forEach(c => {
       const mine = rooms.filter(r => r.want === c.k || (bfS.choices.length === 1 && !r.want)), sizes = mine.map(r => r.name + ' ' + L.roomSize(r)).join('; ');
       const on = !!c.variantId && (F.lines.some(l => l.variantId === c.variantId) || L.linesOf(job).some(l => l.variantId === c.variantId));
-      fromBox.append(h('div', {class:'bchoice'}, h('div', {class:'grow'}, h('b', {text:c.title}), h('p', {class:'small', text:sizes ? 'Measured: ' + sizes : 'No measured room is set against this yet.'})),
+      const need = c.w ? L.cutFor(mine, c.w) : 0;
+      fromBox.append(h('div', {class:'bchoice'}, h('div', {class:'grow'}, h('b', {text:c.title}), h('p', {class:'small', text:sizes ? 'Measured: ' + sizes + (need ? '. Carpet needed: ' + L.fmtM(need) + ' m off the ' + c.w + ' m roll.' : '') : 'No measured room is set against this yet.'})),
         on ? chip('On the sale', 'ok') : c.variantId ? btn('Add to the sale', async e => {
           const b = e.currentTarget; b.disabled = true;
-          try { const d = await sq(Q_VARIANTS, {ids:[c.variantId]}), v = (d.nodes || [])[0]; if (v && v.product) addStockLine(v.product, v); else { b.disabled = false; toast('That product is no longer in Shopify. Search for it instead.', true); } }
+          try { const d = await sq(Q_VARIANTS, {ids:[c.variantId]}), v = (d.nodes || [])[0]; if (v && v.product) addStockLine(v.product, v, mine); else { b.disabled = false; toast('That product is no longer in Shopify. Search for it instead.', true); } }
           catch (err){ b.disabled = false; toast(explain(err), true); }
         }, 'sm pri') : btn('Search for it', () => { prodFind.value = c.title; findProducts(); try { prodFind.focus(); } catch (e) {} }, 'sm')));
     });

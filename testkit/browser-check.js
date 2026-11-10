@@ -336,10 +336,16 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(await pg.locator('#fr1BeadingY').getAttribute('aria-pressed') === 'true' && await pg.locator('#fr1BarsY').getAttribute('aria-pressed') === 'false', 'one tap copies the answers from the room above, but not its door bars');
     await pg.click('#fr1BarsN');
     await pg.fill('#fr2Len', '4.6'); await pg.fill('#fr2Wid', '4.3'); await pg.locator('#fr2Ok').check();
-    await pg.click('#fr2Carpet'); await pg.click('#fr2W4');
-    ok(/wider than a 4 m roll both ways/.test(await pg.locator('#fr2Guide').innerText()), 'a carpet room too wide for the roll says so as the size goes in');
+    await pg.click('#fr2Carpet');
+    ok(await pg.locator('#fr2W5').getAttribute('aria-pressed') === 'true' && /Carpet needed: 4\.70 m off the 5 m roll\. That is the 4\.60 m length plus 10 cm/.test(await pg.locator('#fr2Guide').innerText()),
+      'a carpet room over 4 m wide goes to the 5 m roll by itself, and the cut is the length plus 10 cm');
+    await pg.click('#fr2W4');
+    ok(/4\.30 m wide, which is over 4 m\. It needs the 5 m roll/.test(await pg.locator('#fr2Guide').innerText()), 'and putting it back on the 4 m roll is refused in words');
     await pg.click('#fr2W5');
-    ok(/4\.30 m cut off the 5 m roll/.test(await pg.locator('#fr2Guide').innerText()), 'and shows the cut needed off the roll that does fit');
+    ok(await pg.evaluate(() => { const L = window.IFDLogic, a = L.carpetCut(3.8, 4.5), b = L.carpetCut(3, 3.42), c = L.carpetCut(5.2, 5.1), sp = {floor:'carpet', rollW:4};
+      return a.rollW === 4 && a.cut === 4.6 && a.sq === 18.4 && b.rollW === 4 && b.cut === 3.6 && c.fits === false && L.rollFor(4.01, 6) === 5
+        && L.cutFor([{len:4.5, wid:3.8, spec:sp}, {len:3, wid:3.4, spec:sp}], 4) === 8.1 && L.cutFor([{len:4.5, wid:3.8, spec:sp}, {len:4.6, wid:4.3, spec:{floor:'carpet', rollW:5}}], 4) === 0; }),
+      'the carpet rule: narrower side picks the 4 m or 5 m roll, the cut is the longer side plus 10 cm to the next 10 cm, and rooms on one roll add up');
     await answer(2, {w:5, underlay:true, edge:true, old:true, uplift:false});
     await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
     ok(/No size has been given for Garden room/.test(await pg.locator('#modal').innerText()), 'a room that was asked for cannot be quietly skipped');
@@ -356,7 +362,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.getByRole('button', {name:'Back to the shop'}).click();
     await openJobPlain('Brief Customer'); await pg.waitForSelector('#pricingCard');
     const pc = await pg.locator('#pricingCard').innerText();
-    ok(/Flooring: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Carpet: Hall, stairs and landing\s+4\.30 m off the 5 m roll/.test(pc) && /Flooring underlay\s+18\.90 m²/.test(pc) && /Carpet underlay\s+19\.78 m²/.test(pc)
+    ok(/Flooring: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Carpet: Hall, stairs and landing\s+4\.70 m off the 5 m roll, 23\.50 m²/.test(pc) && /Flooring underlay\s+18\.90 m²/.test(pc) && /Carpet underlay\s+19\.78 m²/.test(pc)
       && /Gripper, round the walls\s+about 17\.80 m/.test(pc) && /Beading, round the walls\s+about 24\.60 m/.test(pc) && /Door bars, carpet to flooring\s+1/.test(pc) && /Door bars, flooring to flooring\s+1/.test(pc)
       && /Uplift and dispose: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Furniture to move\s+Bedroom 1, Bedroom 2/.test(pc) && /customer is lifting it\s+Hall, stairs and landing/.test(pc) && !/£/.test(pc),
       'the shop gets one summary to price from: floor areas, carpet cuts, underlay, gripper, beading, door bars, uplift and furniture');
