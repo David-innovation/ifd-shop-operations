@@ -1,0 +1,8 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>IFD Shop Operations</title>
+<style>:root{color-scheme:light dark}body{margin:0;font:17px/1.45 system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+main{max-width:420px;display:flex;flex-direction:column;gap:12px}h1{margin:0;font-size:26px}button{font:inherit;font-weight:600;min-height:46px;padding:8px 14px;border-radius:8px;cursor:pointer}</style></head><body><main>
+<h1>You are signed in, {{name}}</h1>
+<p>Your own diary page is being set up and is not switched on yet. The shop will tell you when it is ready.</p>
+<button type="button" id="out">Sign out</button>
+</main><script>document.getElementById('out').addEventListener('click', () => fetch('/api/logout', {method:'POST', headers:{'x-ifd':'1', 'content-type':'application/json'}, body:'{}'}).then(() => { location.href = '/login'; }));</script></body></html>

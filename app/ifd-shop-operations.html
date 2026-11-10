@@ -927,7 +927,7 @@ function guardStore(d){
   const dom = d && d.shop && d.shop.myshopifyDomain;
   if (dom && dom !== L.STORE_DOMAIN){
     S.shop.state = 'wrong'; S.shop.name = dom; paintStore(); refresh();
-    throw {code:'wrong_store', message:'Claude is now connected to a different Shopify store.'};
+    throw {code:'wrong_store', message:'This system is now connected to a different Shopify store.'};
   }
   return d;
 }
@@ -944,14 +944,14 @@ async function sq(query, variables){
 function sm(query, variables){ return callShopify(T_MUT, {query:query, variables:variables}); }
 function explain(e, isWrite){
   const c = e && e.code;
-  if (c === 'no_mcp' || c === 'not_granted' || c === 'capability_disabled' || c === 'capability_removed') return 'Shopify is not available in this view. Open this page in Claude, signed in as the shop.';
-  if (c === 'needs_reauth') return 'Shopify needs reconnecting. In Claude go to Settings, then Connectors, and reconnect Shopify.';
-  if (c === 'server_not_connected' || c === 'selection_required' || c === 'server_not_found') return 'Shopify is not connected for this Claude login. Add it under Settings, then Connectors.';
+  if (c === 'no_mcp' || c === 'not_granted' || c === 'capability_disabled' || c === 'capability_removed') return 'Shopify cannot be reached from this screen. Reload the page. If it carries on, tell the owner.';
+  if (c === 'needs_reauth') return 'Shopify would not accept this system’s key. The owner has to renew it in the hosting settings.';
+  if (c === 'server_not_connected' || c === 'selection_required' || c === 'server_not_found') return 'Shopify has not been connected to this system yet. The owner adds the Shopify key in the hosting settings.';
   if (c === 'not_in_manifest' || c === 'consent_required') return 'Shopify access has not been allowed for this page.';
-  if (c === 'approval_required') return 'That change needs approving in the Claude prompt. Nothing was changed.';
-  if (c === 'blocked_by_policy') return 'This Claude account is not allowed to do that in Shopify.';
+  if (c === 'approval_required') return 'That change was not approved. Nothing was changed.';
+  if (c === 'blocked_by_policy') return 'This system’s Shopify key is not allowed to do that.';
   if (c === 'cancelled') return 'Cancelled. Nothing was changed.';
-  if (c === 'wrong_store') return 'Claude is connected to a different Shopify store, so this was stopped. Switch the Shopify connector back to Innovation Flooring Direct.';
+  if (c === 'wrong_store') return 'This system is connected to a different Shopify store, so this was stopped. The owner has to put that right.';
   if (c === 'user_error' || c === 'graphql' || c === 'tool_error') return 'Shopify said: ' + e.message;
   if (c === 'server_unavailable' || c === 'upstream_error' || c === 'rate_limited') return isWrite ? 'Shopify did not answer. The change may or may not have gone through, so check Shopify before trying again.' : 'Shopify did not answer. Try again in a moment.';
   return (e && e.message) || 'Something went wrong.';
@@ -1133,9 +1133,9 @@ function go(view){
 function refresh(){ paintTabs(); if (S.refreshView) S.refreshView(); }
 function banners(){
   const out = [];
-  if (S.shop.state === 'wrong') out.push(h('div', {class:'banner bad'}, h('p', {class:'grow'}, h('b', {text:'Wrong Shopify store. '}), 'Claude is connected to ' + S.shop.name + ', not Innovation Flooring Direct. Stock and sales are locked until the Shopify connector is switched back.'), btn('Check again', connectShop, 'sm')));
+  if (S.shop.state === 'wrong') out.push(h('div', {class:'banner bad'}, h('p', {class:'grow'}, h('b', {text:'Wrong Shopify store. '}), 'This system is connected to ' + S.shop.name + ', not Innovation Flooring Direct. Stock and sales are locked until the owner puts that right.'), btn('Check again', connectShop, 'sm')));
   else if (S.shop.state === 'down') out.push(h('div', {class:'banner warn'}, h('p', {class:'grow'}, h('b', {text:'Shopify is not connected. '}), S.shop.msg + ' Jobs and the diary still work. Stock and new sales are paused.'), btn('Try again', connectShop, 'sm')));
-  if (S.db.state === 'off') out.push(h('div', {class:'banner bad'}, h('p', {}, h('b', {text:'Saved jobs cannot be reached in this view. '}), 'Open this page in Claude, signed in as the shop.')));
+  if (S.db.state === 'off') out.push(h('div', {class:'banner bad'}, h('p', {}, h('b', {text:'The saved jobs cannot be reached. '}), 'Check the internet connection and reload the page.')));
   else if (S.db.state === 'slow') out.push(h('div', {class:'banner warn'}, h('p', {}, 'Still trying to reach the saved jobs. What you see may be out of date.')));
   if (S.db.state === 'ok' && !takeDone() && S.view !== 'stocktake') out.push(h('div', {class:'banner warn'}, h('p', {class:'grow'}, h('b', {text:'Awaiting opening stocktake. '}), 'Shopify’s stock figures have not been checked against the shelves, so do not rely on stock or allocation results yet.'), btn('Opening stocktake', () => go('stocktake'), 'sm')));
   return out;
@@ -1603,7 +1603,7 @@ VIEWS.setup = function(){
         h('div', {class:'card'}, h('dl', {class:'kv'},
           h('dt', {text:'Store'}), h('dd', {text:S.shop.name ? S.shop.name + ' (' + S.shop.domain + ')' : 'Not connected'}),
           h('dt', {text:'Locations'}), h('dd', {text:S.shop.locations.map(l => l.name).join(', ') || 'None read yet'}),
-          h('dt', {text:'Signed in as'}), h('dd', {text:S.me.name || 'This Claude login'})),
+          h('dt', {text:'Signed in as'}), h('dd', {text:S.me.name || 'This sign-in'})),
           h('div', {class:'bar'}, btn('Check the connection', connectShop, 'sm'), h('a', {class:'btn sm', href:L.ADMIN, target:'_blank', rel:'noopener'}, 'Open Shopify admin')))),
       editable(S.fitters, 'fitters', fitIn, 'Fitters', false),
       editable(S.estimators, 'estimators', estIn, 'People who measure', false, 'Everyone shares one login in this version. On the hosted app an estimator needs their own sign-in with an estimator role: their own visits and the measuring forms only, no prices and nobody else’s diary.'),

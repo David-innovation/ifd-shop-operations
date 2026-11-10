@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "IFD Shop Operations, hosted. One system for jobs, stock allocation, the diary, measures and fitters, with Shopify as the stock authority.",
-  "engines": { "node": "22.x" },
+  "engines": { "node": ">=22.13 <23" },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server.js",
-    "test": "node --disable-warning=ExperimentalWarning --test test/"
+    "test": "node --disable-warning=ExperimentalWarning --test"
   }
 }
