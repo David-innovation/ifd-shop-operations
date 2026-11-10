@@ -216,12 +216,29 @@ textarea.in{min-height:84px;resize:vertical}
 .dayact{margin-top:auto;padding:7px 9px;border-top:1px solid var(--line)}
 .rd{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:6px}
 .area-row{display:flex;gap:10px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:7px}
+.dpick{display:flex;flex-direction:column;gap:8px;min-width:0}
+.dhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dstrip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.dday{appearance:none;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:7px 4px;min-height:84px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;text-align:center}
+.dday:hover:not(:disabled){border-color:var(--ink)}
+.dday .dw{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.dday .dn{font-family:var(--font-display);font-size:26px;line-height:1}
+.dday .ds{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.dday .ds.busy{color:var(--ink);font-weight:600}
+.dday .da{font-size:11px;font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:1px 6px;margin-top:2px;overflow-wrap:anywhere}
+.dday.today{border-style:dashed}
+.dday.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.dday.on .dw,.dday.on .ds{color:var(--on-brand)}
+.dday.off{background:var(--bad-bg);border-color:var(--bad)} .dday.off .ds{color:var(--bad);font-weight:700}
+.dday:disabled{cursor:not-allowed;opacity:.55} .dday.off:disabled,.dday.on:disabled{opacity:.8}
+.ddetail{margin:0}
 .subh{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:4px 0 0}
 .spin{display:inline-block;width:16px;height:16px;border:2.5px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px}
 @keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){ .spin{animation-duration:2.4s} }
 
 @media (max-width: 760px){
+  .dstrip{grid-template-columns:repeat(4,minmax(0,1fr))}
   h1{font-size:26px}
   #toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   .brand small{display:none}
@@ -1743,7 +1760,8 @@ function drawSheet(){
   const dateIn = h('input', {class:'in sm', id:'jobDate', type:'date', value:L.validISO(job.date) ? job.date : '', disabled:!open, onchange:e => { e.target.blur(); pickDate(e.target.value); }});
   const areaOut = L.outwardOf(c.postcode);
   const areaDet = open && job.type !== 'Collection' ? h('details', {}, h('summary', {class:'small', text:areaOut ? 'When are we next in ' + areaOut + '?' : 'When are we next in that area?'}),
-    areaBox(() => c.postcode, pickDate, {skipJob:job.id, person:() => job.fitter || '', empty:'There is no postcode on this job, so the area cannot be checked.'}).node) : null;
+    areaBox(() => c.postcode, pickDate, {skipJob:job.id, strip:true, person:() => job.fitter || '', empty:'There is no postcode on this job, so the area cannot be checked.'}).node) : null;
+  const dayPick = dayStrip(dateIn, {key:'job:' + job.id, clear:true, skipJob:job.id, person:() => job.fitter || '', post:() => job.type === 'Collection' ? '' : c.postcode});
   const fitSel = h('select', {class:'in sm', id:'jobFitter', disabled:!open, onchange:e => { const v = e.target.value; e.target.blur(); const om = offMsg(v, job.date); if (om){ toast(om, true); drawSheet(); return; } set({fitter:v}, v ? 'Given to ' + v : 'Fitter cleared'); }}, h('option', {value:'', text:'Nobody yet'}));
   const fitters = S.fitters.slice(); if (job.fitter && fitters.indexOf(job.fitter) === -1) fitters.unshift(job.fitter);
   fitters.forEach(f => fitSel.append(h('option', {value:f, text:f, selected:f === job.fitter})));
@@ -1751,7 +1769,7 @@ function drawSheet(){
   const diaryCard = h('div', {class:'card'}, h('h3', {}, job.type === 'Fitting' ? 'Installation: when and who' : 'When and who',
       job.diary ? (held ? chip('In the diary, awaiting checks', 'bad') : chip('In the diary', 'ok')) : held && L.validISO(job.date) ? chip('Date pencilled in, awaiting checks', 'warn') : chip('Not in the diary', open ? 'warn' : '')),
     typeSeg,
-    h('div', {class:'grid2'}, field('Date', dateIn), field(job.type === 'Fitting' ? 'Fitter' : 'Who is doing it', fitSel)), slotSeg, areaDet,
+    field(job.type === 'Fitting' ? 'Fitter' : 'Who is doing it', fitSel), dayPick.node, slotSeg, areaDet,
     open ? (job.diary ? h('div', {class:'bar'}, btn('Take out of the diary', () => set({diary:false}, 'Taken out of the diary'), 'sm'))
       : h('div', {class:'sec'}, btn('Put in the diary', () => set({diary:true}, 'Put in the diary for ' + L.fmtDay(job.date)), 'pri', {disabled:!diary.ok}),
           diary.ok ? null : h('p', {class:'small muted', text:'Locked until every item is in a bay and the checks are done. ' + diary.why.join(' ')}))) : null);
@@ -1943,7 +1961,8 @@ function areaBox(getPc, onPick, opts){
       return rows;
     };
     if (asap && who){
-      add(box, [h('p', {}, h('b', {text:'Subfloor checks go in as soon as possible'})), h('p', {class:'small muted', text:'This does not wait for a day in the area. Soonest days for ' + who + ':'}), soonest()]);
+      add(box, [h('p', {}, h('b', {text:'Subfloor checks go in as soon as possible'})), opts.strip ? h('p', {class:'small muted', text:'This does not wait for a day in the area. Pick the soonest free day in ' + who + '’s diary.'})
+        : [h('p', {class:'small muted', text:'This does not wait for a day in the area. Soonest days for ' + who + ':'}), soonest()]]);
       return;
     }
     if (!a.out){ add(box, h('p', {class:'small muted', text:pc.trim() ? 'That does not read as a postcode yet.' : opts.empty || 'Enter the postcode to see when ' + (who || 'we') + (who ? ' is' : ' are') + ' next in that area.'})); return; }
@@ -1951,10 +1970,70 @@ function areaBox(getPc, onPick, opts){
     if (near.length) add(box, near.map(row));
     else add(box, h('p', {class:'small muted', text:(who ? who + ' has nothing' : 'Nothing is') + ' booked in ' + (a.group || a.out) + ' yet.'}));
     if (wider.length) add(box, h('details', {}, h('summary', {class:'small', text:'Other ' + L.postLetters(a.out) + ' postcodes ' + (who ? who + ' is in' : 'booked') + ' (' + wider.length + (wider.length === 1 ? ' day)' : ' days)')}), wider.map(row)));
-    if (!near.length && who && onPick) add(box, [h('p', {class:'small muted', text:'Soonest days for ' + who + ':'}), soonest()]);
+    if (!near.length && who && onPick && !opts.strip) add(box, [h('p', {class:'small muted', text:'Soonest days for ' + who + ':'}), soonest()]);
   }
   draw();
   return {node:box, refresh:draw};
+}
+/* ---------- choosing the day ----------
+   In place of a calendar box: the chosen person's own diary, a week at a time. Each day shows what they already
+   have on, the days they cannot work and the days they are already in this area. Tap a day to choose it. */
+function dayStrip(input, o){
+  o = o || {};
+  input.type = 'hidden';
+  const today = L.todayISO(), keep = o.key && S.ui.strip && S.ui.strip.key === o.key ? S.ui.strip.week : '';
+  let week = keep || (L.validISO(input.value) && input.value >= today ? input.value : today);
+  const title = h('b', {}), range = h('span', {class:'small muted'}), grid = h('div', {class:'dstrip', role:'group', 'aria-label':'Days'}), detail = h('p', {class:'small ddetail'});
+  const person = () => o.person ? String(o.person() || '').trim() : '';
+  const loadOf = (who, d) => {
+    if (who) return dayLoad(who, d, {id:o.skipJob || ''}, o.skipVisit ? {k:o.skipVisit} : null);
+    const out = [];
+    openJobs().forEach(j => {
+      const nm = (j.customer || {}).name || 'No name';
+      if (j.date === d && j.id !== (o.skipJob || '') && L.linesOf(j).length) out.push(nm + ' (' + (j.fitter || 'nobody yet') + ', ' + (j.type || 'job').toLowerCase() + (j.slot ? ' ' + j.slot : '') + ')');
+      L.preOf(j).forEach(x => { if (x.status === 'booked' && x.date === d && !(j.id === o.skipJob && o.skipVisit && x.k === o.skipVisit)) out.push(nm + ' (' + (x.who || 'nobody yet') + ', ' + L.PRE_KINDS[x.kind].toLowerCase() + (x.slot ? ' ' + x.slot : '') + ')'); });
+    });
+    return out;
+  };
+  const setWeek = w => { week = w; if (o.key) S.ui.strip = {key:o.key, week:w}; draw(); };
+  const earlier = btn('Earlier', () => setWeek(L.addDays(week, -7)), 'sm'), later = btn('Later', () => setWeek(L.addDays(week, 7)), 'sm');
+  const clear = o.clear ? btn('No date', () => pick(''), 'sm') : null;
+  function pick(d){
+    input.value = d;
+    input.dispatchEvent(new Event('input', {bubbles:true})); input.dispatchEvent(new Event('change', {bubbles:true}));
+    draw();
+  }
+  function draw(){
+    const who = person(), days = L.weekDays(week), cur = input.value, dis = !!input.disabled;
+    earlier.disabled = days[0] <= L.weekDays(today)[0];
+    if (clear) clear.hidden = dis || !L.validISO(cur);
+    if (o.needPerson && !who){
+      title.textContent = 'Choose whose diary first'; range.textContent = '';
+      grid.replaceChildren(); grid.hidden = true; earlier.hidden = later.hidden = true;
+      detail.className = 'small muted ddetail'; detail.textContent = 'Their diary shows here as soon as you pick them.';
+      return;
+    }
+    grid.hidden = false; earlier.hidden = later.hidden = dis;
+    const pc = o.post ? String(o.post() || '') : '', a = pc.trim() ? L.inArea(jobsArr(), pc, today, S.areas, o.skipJob) : null, inArea = {};
+    if (a && a.near) a.near.forEach(d => { if (!who || d.items.some(i => i.who === who)) inArea[d.date] = 1; });
+    title.textContent = who ? (who === 'Shop' ? 'Shop diary' : who + '’s diary') : 'Whole diary, nobody chosen yet';
+    range.textContent = L.fmtDay(days[0]) + ' to ' + L.fmtDay(days[6]);
+    grid.replaceChildren();
+    days.forEach(d => {
+      const load = loadOf(who, d), off = !!(who && isOff(who, d)), past = d < today;
+      grid.append(h('button', {type:'button', class:'dday' + (d === cur ? ' on' : '') + (d === today ? ' today' : '') + (off ? ' off' : ''), disabled:dis || past || off, 'aria-pressed':d === cur ? 'true' : 'false',
+        'aria-label':L.fmtDay(d) + (off ? ', day off' : load.length ? ', ' + load.length + ' booked' : ', free'), title:off ? who + ' cannot work this day' : load.join(', ') || 'Nothing booked', onclick:() => pick(d)},
+        h('span', {class:'dw', text:L.fmtDay(d).split(' ')[0]}), h('b', {class:'dn', text:String(Number(d.slice(8)))}),
+        h('span', {class:'ds' + (load.length && !off ? ' busy' : ''), text:off ? 'Day off' : past ? 'Gone' : load.length ? load.length + ' booked' : 'Free'}),
+        inArea[d] ? h('span', {class:'da', text:'In ' + a.out}) : null));
+    });
+    detail.className = 'small ddetail';
+    if (!L.validISO(cur)){ detail.className = 'small muted ddetail'; detail.textContent = dis ? 'No date set.' : 'Tap a day to choose it.'; return; }
+    const on = loadOf(who, cur), whoText = who || 'The diary';
+    detail.replaceChildren(h('b', {text:'Chosen: ' + L.fmtDay(cur) + '. '}), o.quiet ? '' : on.length ? whoText + ' already has on: ' + on.join(', ') + '.' : whoText + ' has nothing else booked that day.');
+  }
+  draw();
+  return {node:h('div', {class:'dpick'}, input, h('div', {class:'dhead'}, h('div', {class:'grow'}, title, ' ', range), clear, earlier, later), grid, detail), refresh:draw};
 }
 /* ---------- book a measure for someone who has not ordered yet ---------- */
 function measureDialog(){
@@ -1962,7 +2041,7 @@ function measureDialog(){
   const s = sayer(); let kind = 'measure', slot = '', shopifyId = '', busy = false;
   const inp = (id, type, ph) => h('input', {class:'in', id:id, type:type, placeholder:ph || ''});
   const post = inp('mPost', 'text', 'G81 1XP'), name = inp('mName', 'text', 'Full name'), phone = inp('mPhone', 'tel', 'Mobile'), email = inp('mEmail', 'email', 'Optional'), addr = inp('mAddr', 'text', 'Street and town');
-  const who = diaryPicker('mWho', '', () => { area.refresh(); showClash(); }), date = inp('mDate', 'date'); date.min = L.todayISO();
+  const who = diaryPicker('mWho', '', () => { area.refresh(); dayPick.refresh(); showClash(); }), date = inp('mDate', 'date'); date.min = L.todayISO();
   const notes = h('textarea', {class:'in', id:'mNotes', placeholder:'Which rooms, the flooring they are looking at, parking and access'});
   const kinds = h('div', {class:'radios', role:'radiogroup', 'aria-label':'Kind of visit'}), slotSeg = h('div', {class:'seg sm'}), clash = h('p', {class:'small muted'}), linked = h('p', {class:'small muted'});
   const showClash = () => {
@@ -1972,8 +2051,9 @@ function measureDialog(){
     const load = dayLoad(p, d, {id:''}, null);
     clash.textContent = load.length ? p + ' already has on ' + L.fmtDay(d) + ': ' + load.join(', ') + '.' : p + ' has nothing else booked on ' + L.fmtDay(d) + '.';
   };
-  const area = areaBox(() => post.value, d => { date.value = d; showClash(); }, {needPerson:true, person:() => who.value(), asap:() => kind === 'subfloor' || kind === 'both'});
-  post.addEventListener('input', area.refresh); date.addEventListener('change', showClash);
+  const area = areaBox(() => post.value, d => { date.value = d; dayPick.refresh(); showClash(); }, {needPerson:true, strip:true, person:() => who.value(), asap:() => kind === 'subfloor' || kind === 'both'});
+  const dayPick = dayStrip(date, {needPerson:true, quiet:true, person:() => who.value(), post:() => post.value});
+  post.addEventListener('input', () => { area.refresh(); dayPick.refresh(); }); date.addEventListener('change', showClash);
   const draw = () => {
     kinds.replaceChildren(); Object.keys(L.PRE_KINDS).forEach(k => kinds.append(h('label', {class:'radio'}, h('input', {type:'radio', name:'mKind', value:k, checked:kind === k, onchange:() => { kind = k; area.refresh(); }}), h('span', {text:L.PRE_KINDS[k]}))));
     slotSeg.replaceChildren(); [['', 'Any time'], ['AM', 'AM'], ['PM', 'PM']].forEach(x => slotSeg.append(h('button', {type:'button', class:slot === x[0] ? 'on' : '', onclick:() => { slot = x[0]; draw(); }}, x[1])));
@@ -1994,7 +2074,7 @@ function measureDialog(){
         custRes.append(h('button', {type:'button', class:'pick', onclick:() => {
           shopifyId = cu.id; name.value = cu.displayName || ''; phone.value = ph; email.value = (cu.defaultEmailAddress && cu.defaultEmailAddress.emailAddress) || '';
           addr.value = [a.address1, a.address2, a.city].filter(Boolean).join(', '); if (a.zip) post.value = a.zip;
-          linked.textContent = 'Linked to the existing Shopify customer ' + (cu.displayName || '') + '.'; custRes.replaceChildren(); area.refresh();
+          linked.textContent = 'Linked to the existing Shopify customer ' + (cu.displayName || '') + '.'; custRes.replaceChildren(); area.refresh(); dayPick.refresh();
         }}, h('span', {text:(cu.displayName || 'No name') + (ph ? '  ' + ph : '')}), h('span', {class:'small muted', text:(a.zip || '') + '  ' + cu.numberOfOrders + ' orders'})));
       });
     } catch (e){ custRes.replaceChildren(h('div', {class:'pick'}, h('span', {text:explain(e)}))); }
@@ -2023,7 +2103,7 @@ function measureDialog(){
   openModal(dlg('Book a measure', h('div', {class:'sec'},
     h('div', {class:'card'}, h('h3', {}, 'The visit'), kinds),
     h('div', {class:'card'}, h('h3', {}, 'Whose diary'), h('p', {class:'small muted', text:'Pick who this is for first. The postcode check below then looks at their diary.'}), who.node),
-    h('div', {class:'card tight'}, h('h3', {}, 'Where and when'), field('Customer’s postcode', post), area.node, h('div', {class:'grid2'}, field('Date', date), field('Time of day', slotSeg)), clash),
+    h('div', {class:'card tight'}, h('h3', {}, 'Where and when'), field('Customer’s postcode', post), area.node, dayPick.node, field('Time of day', slotSeg), clash),
     h('div', {class:'card'}, h('h3', {}, 'Customer'), shopOK() ? [custFind, custRes, linked] : null,
       h('div', {class:'grid2'}, field('Name', name), field('Phone', phone)), h('div', {class:'grid2'}, field('Email', email), field('Address', addr)), field('Notes for whoever goes', notes)),
     s.box), [btn('Cancel', closeModal), go]));
@@ -2317,7 +2397,7 @@ function visitDialog(job, v){
   if (!needDb()) return;
   const s = sayer(), editing = !!v;
   let kind = editing ? v.kind : job.sizeCheck === 'estimator' ? 'measure' : job.sizeCheck === 'fitter' ? 'subfloor' : '', slot = editing ? v.slot || '' : '';
-  const who = diaryPicker('preWho', editing ? v.who || '' : '', () => { area.refresh(); showClash(); }), date = h('input', {class:'in', id:'preDate', type:'date', min:L.todayISO(), value:editing && L.validISO(v.date) ? v.date : ''});
+  const who = diaryPicker('preWho', editing ? v.who || '' : '', () => { area.refresh(); dayPick.refresh(); showClash(); }), date = h('input', {class:'in', id:'preDate', type:'date', min:L.todayISO(), value:editing && L.validISO(v.date) ? v.date : ''});
   const kinds = h('div', {class:'radios', role:'radiogroup', 'aria-label':'Kind of visit'}), slotSeg = h('div', {class:'seg sm'}), clash = h('p', {class:'small muted'});
   const draw = () => {
     kinds.replaceChildren(); Object.keys(L.PRE_KINDS).forEach(k => kinds.append(h('label', {class:'radio'}, h('input', {type:'radio', name:'preKind', value:k, checked:kind === k, onchange:() => { kind = k; area.refresh(); }}), h('span', {text:L.PRE_KINDS[k]}))));
@@ -2331,11 +2411,12 @@ function visitDialog(job, v){
     clash.textContent = load.length ? p + ' already has on ' + L.fmtDay(d) + ': ' + load.join(', ') + '.' : p + ' has nothing else booked on ' + L.fmtDay(d) + '.';
   };
   date.addEventListener('change', showClash);
-  const area = areaBox(() => (job.customer || {}).postcode, d => { date.value = d; showClash(); }, {skipJob:job.id, skipVisit:editing ? v.k : '', needPerson:true, person:() => who.value(), asap:() => kind === 'subfloor' || kind === 'both', empty:'There is no postcode on this job, so the area cannot be checked.'});
+  const area = areaBox(() => (job.customer || {}).postcode, d => { date.value = d; dayPick.refresh(); showClash(); }, {skipJob:job.id, skipVisit:editing ? v.k : '', needPerson:true, strip:true, person:() => who.value(), asap:() => kind === 'subfloor' || kind === 'both', empty:'There is no postcode on this job, so the area cannot be checked.'});
+  const dayPick = dayStrip(date, {needPerson:true, quiet:true, skipJob:job.id, skipVisit:editing ? v.k : '', person:() => who.value(), post:() => (job.customer || {}).postcode});
   draw(); showClash();
   openModal(dlg(editing ? 'Change the visit' : 'Book a measure or inspection', h('div', {class:'sec'},
     h('p', {class:'muted', text:'This is a visit before the installation. It can be booked before the stock is in, and it has its own place in the diary.'}),
-    kinds, h('p', {class:'subh', text:'Whose diary'}), who.node, area.node, h('div', {class:'grid2'}, field('Date', date), field('Time of day', slotSeg)), clash, s.box),
+    kinds, h('p', {class:'subh', text:'Whose diary'}), who.node, area.node, dayPick.node, field('Time of day', slotSeg), clash, s.box),
     [btn('Cancel', closeModal), btn(editing ? 'Save the visit' : 'Book the visit', async () => {
       const p = who.value();
       if (!kind){ s.say('Choose the kind of visit.', true); return; }
@@ -2857,14 +2938,15 @@ function signOffDialog(job){
       go.textContent = 'Sign off as completed';
     } else if (mode === 'no'){
       add(part, [field('What is left to do', left),
-        noDate.checked ? field('Reason', why) : [h('div', {class:'grid2'}, field('Return visit agreed for', next), field('Time of day', slotSeg)), clash, backArea.node],
+        noDate.checked ? field('Reason', why) : [h('p', {class:'subh', text:'Return visit agreed for'}), nextPick.node, field('Time of day', slotSeg), clash, backArea.node],
         h('label', {class:'tick'}, noDate, 'The customer could not agree a date before I left')]);
       go.textContent = noDate.checked ? 'Flag to the shop' : 'Book the return visit';
       showClash();
     } else go.textContent = 'Save';
   }
-  const backArea = areaBox(() => c.postcode, d => { next.value = d; showClash(); }, {skipJob:job.id, needPerson:true, person:() => String(who.value || '').trim(), empty:'There is no postcode on this job, so the area cannot be checked.'});
-  noDate.addEventListener('change', draw); next.addEventListener('change', showClash); who.addEventListener('change', () => { showClash(); backArea.refresh(); }); who.addEventListener('input', backArea.refresh);
+  const backArea = areaBox(() => c.postcode, d => { next.value = d; nextPick.refresh(); showClash(); }, {skipJob:job.id, needPerson:true, strip:true, person:() => String(who.value || '').trim(), empty:'There is no postcode on this job, so the area cannot be checked.'});
+  const nextPick = dayStrip(next, {needPerson:true, quiet:true, skipJob:job.id, person:() => String(who.value || '').trim(), post:() => c.postcode});
+  noDate.addEventListener('change', draw); next.addEventListener('change', showClash); who.addEventListener('change', () => { showClash(); backArea.refresh(); nextPick.refresh(); }); who.addEventListener('input', () => { backArea.refresh(); nextPick.refresh(); });
   async function save(){
     const fitter = String(who.value || '').trim();
     if (!mode){ s.say('Answer the question first.', true); return; }
@@ -3071,7 +3153,7 @@ function saleDialog(job){
         custRes.append(h('button', {type:'button', class:'pick', onclick:() => {
           F.shopifyId = cu.id; cName.value = cu.displayName || ''; cPhone.value = phone; cEmail.value = (cu.defaultEmailAddress && cu.defaultEmailAddress.emailAddress) || '';
           cAddr.value = [a.address1, a.address2, a.city].filter(Boolean).join(', '); cPost.value = a.zip || '';
-          linked.textContent = 'Linked to the existing Shopify customer ' + (cu.displayName || '') + '.'; custRes.replaceChildren(); saleArea.refresh();
+          linked.textContent = 'Linked to the existing Shopify customer ' + (cu.displayName || '') + '.'; custRes.replaceChildren(); saleArea.refresh(); salePick.refresh();
         }}, h('span', {text:(cu.displayName || 'No name') + (phone ? '  ' + phone : '')}), h('span', {class:'small muted', text:(a.zip || '') + '  ' + cu.numberOfOrders + ' orders'})));
       });
     } catch (e){ custRes.replaceChildren(h('div', {class:'pick'}, h('span', {text:explain(e)}))); }
@@ -3089,8 +3171,9 @@ function saleDialog(job){
   drawSegs();
   const date = inp('saleDate', 'date'); date.min = L.todayISO();
   const fitSel = h('select', {class:'in', id:'saleFitter'}, h('option', {value:'', text:'Nobody yet'}), S.fitters.map(f => h('option', {value:f, text:f})));
-  const saleArea = areaBox(() => cPost.value, d => { date.value = d; }, {person:() => fitSel.value});
-  cPost.addEventListener('input', saleArea.refresh); fitSel.addEventListener('change', saleArea.refresh);
+  const saleArea = areaBox(() => cPost.value, d => { date.value = d; salePick.refresh(); }, {strip:true, person:() => fitSel.value});
+  const salePick = dayStrip(date, {person:() => fitSel.value, post:() => cPost.value});
+  cPost.addEventListener('input', () => { saleArea.refresh(); salePick.refresh(); }); fitSel.addEventListener('change', () => { saleArea.refresh(); salePick.refresh(); });
 
   /* items */
   const prodRes = h('div', {class:'results'}), linesBox = h('div', {class:'sec'}), totalEl = h('b', {class:'num'});
@@ -3214,7 +3297,7 @@ function saleDialog(job){
   const dialog = dlg(adding ? 'Add items to ' + ((job.customer || {}).name || 'the job') : 'New sale', h('div', {class:'sec'},
     adding ? null : h('div', {class:'card'}, h('h3', {}, 'Customer'), custFind, custRes, linked,
       h('div', {class:'grid2'}, field('Name', cName), field('Phone', cPhone)), h('div', {class:'grid2'}, field('Email', cEmail), field('Postcode', cPost)), field('Address', cAddr)),
-    adding ? null : h('div', {class:'card'}, h('h3', {}, 'How and when'), typeSeg, h('div', {class:'grid2'}, field('Date', date), field('Fitter', fitSel)), slotSeg, saleArea.node),
+    adding ? null : h('div', {class:'card'}, h('h3', {}, 'How and when'), typeSeg, field('Fitter', fitSel), salePick.node, slotSeg, saleArea.node),
     adding ? null : h('div', {class:'card'}, h('h3', {}, 'Sizes'), h('p', {class:'small muted', text:'Say how the sizes will be checked. The date above stays pencilled in until they are, and a measure or inspection can be booked from the job straight away.'}), sizeBox),
     h('div', {class:'card'}, h('h3', {}, 'Items'), takeDone() ? null : h('p', {class:'small muted', text:'Awaiting opening stocktake: the stock figures shown here are not confirmed yet.'}), prodFind, prodRes, linesBox,
       h('div', {class:'bar'}, btn('Add another charge', () => { F.lines.push({key:uid(), kind:'other', title:'', price:'', qty:1}); drawLines(); }, 'sm'), h('span', {class:'grow'}), h('span', {}, 'Total  ', totalEl))),
