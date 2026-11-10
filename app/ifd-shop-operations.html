@@ -226,6 +226,7 @@ textarea.in{min-height:84px;resize:vertical}
 .dday .ds{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .dday .ds.busy{color:var(--ink);font-weight:600}
 .dday .da{font-size:11px;font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:1px 6px;margin-top:2px;overflow-wrap:anywhere}
+.dday .dnx{font-size:11px;font-weight:700;color:var(--info);background:var(--info-bg);border-radius:999px;padding:1px 6px;margin-top:2px}
 .dday.today{border-style:dashed}
 .dday.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
 .dday.on .dw,.dday.on .ds{color:var(--on-brand)}
@@ -1766,13 +1767,12 @@ function drawSheet(){
   const fitters = S.fitters.slice(); if (job.fitter && fitters.indexOf(job.fitter) === -1) fitters.unshift(job.fitter);
   fitters.forEach(f => fitSel.append(h('option', {value:f, text:f, selected:f === job.fitter})));
   const held = open && L.checksOutstanding(job).length > 0;
-  const boD = open ? L.backOpen(job) : null, backWhy = diary.why.filter(w => w.indexOf('Sent back to the shop by ') === 0), otherWhy = diary.why.filter(w => backWhy.indexOf(w) === -1);
+  const boD = open ? L.backOpen(job) : null, otherWhy = diary.why.filter(w => w.indexOf('Sent back to the shop by ') !== 0);
   const diaryAct = !open ? null : job.diary ? h('div', {class:'bar'}, btn('Take out of the diary', () => set({diary:false}, 'Taken out of the diary'), 'sm'))
-    : boD && !otherWhy.length ? h('div', {class:'sec'}, btn('Deal with it and put in the diary', () => backDoneDialog(job, boD, true), 'pri'),
-        h('p', {class:'small muted', text:(boD.fitter || 'The fitter') + ' sent this job back. Say what was done about it and it goes in the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + '.'}))
+    : boD ? h('div', {class:'sec'}, btn('Deal with it and rebook', () => backDoneDialog(job, boD), 'pri'),
+        h('p', {class:'small muted', text:(boD.fitter || 'The fitter') + ' sent this job back. Say what was done about it and pick the new day. It shows the next free day for each fitter.' + (otherWhy.length ? ' Still to sort before it can be confirmed: ' + otherWhy.join(' ') : '')}))
     : h('div', {class:'sec'}, btn('Put in the diary', () => set({diary:true}, 'Put in the diary for ' + L.fmtDay(job.date)), 'pri', {disabled:!diary.ok}),
-        diary.ok ? null : h('p', {class:'small muted', text:'Not ready for the diary yet. ' + otherWhy.join(' ') + (boD ? ' ' + (boD.fitter || 'The fitter') + ' also sent this job back, which needs dealing with before it can go in.' : '')}),
-        boD ? h('div', {class:'bar'}, btn('Deal with the send-back', () => backDoneDialog(job, boD), 'sm')) : null);
+        diary.ok ? null : h('p', {class:'small muted', text:'Not ready for the diary yet. ' + diary.why.join(' ')}));
   const diaryCard = h('div', {class:'card'}, h('h3', {}, job.type === 'Fitting' ? 'Installation: when and who' : 'When and who',
       job.diary ? (held ? chip('In the diary, awaiting checks', 'bad') : chip('In the diary', 'ok')) : held && L.validISO(job.date) ? chip('Date pencilled in, awaiting checks', 'warn') : chip('Not in the diary', open ? 'warn' : '')),
     typeSeg,
@@ -1983,6 +1983,16 @@ function areaBox(getPc, onPick, opts){
 /* ---------- choosing the day ----------
    In place of a calendar box: the chosen person's own diary, a week at a time. Each day shows what they already
    have on, the days they cannot work and the days they are already in this area. Tap a day to choose it. */
+/* the first day from tomorrow that this person has nothing on and can work */
+function nextFree(person, skipJob, skipVisit){
+  if (!person) return '';
+  const t = L.todayISO();
+  for (let i = 1; i <= 56; i++){
+    const d = L.addDays(t, i);
+    if (!isOff(person, d) && !dayLoad(person, d, {id:skipJob || ''}, skipVisit ? {k:skipVisit} : null).length) return d;
+  }
+  return '';
+}
 function dayStrip(input, o){
   o = o || {};
   input.type = 'hidden';
@@ -2003,6 +2013,7 @@ function dayStrip(input, o){
   const setWeek = w => { week = w; if (o.key) S.ui.strip = {key:o.key, week:w}; draw(); };
   const earlier = btn('Earlier', () => setWeek(L.addDays(week, -7)), 'sm'), later = btn('Later', () => setWeek(L.addDays(week, 7)), 'sm');
   const clear = o.clear ? btn('No date', () => pick(''), 'sm') : null;
+  const jump = btn('Next free day', () => { const d = nextFree(person(), o.skipJob, o.skipVisit); if (d) setWeek(d); else toast('Nothing free in the next 8 weeks.', true); }, 'sm');
   function pick(d){
     input.value = d;
     input.dispatchEvent(new Event('input', {bubbles:true})); input.dispatchEvent(new Event('change', {bubbles:true}));
@@ -2014,11 +2025,12 @@ function dayStrip(input, o){
     if (clear) clear.hidden = dis || !L.validISO(cur);
     if (o.needPerson && !who){
       title.textContent = 'Choose whose diary first'; range.textContent = '';
-      grid.replaceChildren(); grid.hidden = true; earlier.hidden = later.hidden = true;
+      grid.replaceChildren(); grid.hidden = true; earlier.hidden = later.hidden = jump.hidden = true;
       detail.className = 'small muted ddetail'; detail.textContent = 'Their diary shows here as soon as you pick them.';
       return;
     }
-    grid.hidden = false; earlier.hidden = later.hidden = dis;
+    grid.hidden = false; earlier.hidden = later.hidden = dis; jump.hidden = dis || !who;
+    const nf = who && !dis ? nextFree(who, o.skipJob, o.skipVisit) : '';
     const pc = o.post ? String(o.post() || '') : '', a = pc.trim() ? L.inArea(jobsArr(), pc, today, S.areas, o.skipJob) : null, inArea = {};
     if (a && a.near) a.near.forEach(d => { if (!who || d.items.some(i => i.who === who)) inArea[d.date] = 1; });
     title.textContent = who ? (who === 'Shop' ? 'Shop diary' : who + '’s diary') : 'Whole diary, nobody chosen yet';
@@ -2030,7 +2042,7 @@ function dayStrip(input, o){
         'aria-label':L.fmtDay(d) + (off ? ', day off' : load.length ? ', ' + load.length + ' booked' : ', free'), title:off ? who + ' cannot work this day' : load.join(', ') || 'Nothing booked', onclick:() => pick(d)},
         h('span', {class:'dw', text:L.fmtDay(d).split(' ')[0]}), h('b', {class:'dn', text:String(Number(d.slice(8)))}),
         h('span', {class:'ds' + (load.length && !off ? ' busy' : ''), text:off ? 'Day off' : past ? 'Gone' : load.length ? load.length + ' booked' : 'Free'}),
-        inArea[d] ? h('span', {class:'da', text:'In ' + a.out}) : null));
+        inArea[d] ? h('span', {class:'da', text:'In ' + a.out}) : null, d === nf && d !== cur ? h('span', {class:'dnx', text:'Next free'}) : null));
     });
     detail.className = 'small ddetail';
     if (!L.validISO(cur)){ detail.className = 'small muted ddetail'; detail.textContent = dis ? 'No date set.' : 'Tap a day to choose it.'; return; }
@@ -2038,7 +2050,7 @@ function dayStrip(input, o){
     detail.replaceChildren(h('b', {text:'Chosen: ' + L.fmtDay(cur) + '. '}), o.quiet ? '' : on.length ? whoText + ' already has on: ' + on.join(', ') + '.' : whoText + ' has nothing else booked that day.');
   }
   draw();
-  return {node:h('div', {class:'dpick'}, input, h('div', {class:'dhead'}, h('div', {class:'grow'}, title, ' ', range), clear, earlier, later), grid, detail), refresh:draw};
+  return {node:h('div', {class:'dpick'}, input, h('div', {class:'dhead'}, h('div', {class:'grow'}, title, ' ', range), clear, jump, earlier, later), grid, detail), refresh:draw, show:d => setWeek(L.validISO(d) ? d : today)};
 }
 /* ---------- book a measure for someone who has not ordered yet ---------- */
 function measureDialog(){
@@ -2868,8 +2880,8 @@ function backBlock(job, b, shop){
   return [h('p', {}, h('b', {text:L.backReason(b) + '. '}), b.note || ''),
     h('p', {class:'small muted', text:'Sent back by ' + (b.fitter || 'the fitter') + ' ' + whenText(b.at) + (L.validISO(b.date) ? '. It was booked for ' + L.fmtDay(b.date) + (b.slot ? ' ' + b.slot : '') : '') + '.'}),
     pics.length ? h('div', {class:'thumbs'}, pics.map(p => picThumb(job, p, {back:b.k}))) : null,
-    shop ? h('p', {class:'small', text:'It is out of the diary until you deal with it. The stock, the price and the Shopify reservation have not been changed.'}) : null,
-    shop ? h('div', {class:'bar'}, btn('Deal with it', () => backDoneDialog(job, b), 'pri')) : null];
+    shop ? h('p', {class:'small', text:'It is out of the diary until you deal with it and pick the new day. The stock, the price and the Shopify reservation have not been changed.'}) : null,
+    shop ? h('div', {class:'bar'}, btn('Deal with it and rebook', () => backDoneDialog(job, b), 'pri')) : null];
 }
 function backDialog(job){
   if (!needDb()) return;
@@ -2896,32 +2908,56 @@ function backDialog(job){
     h('h3', {text:'Why is it going back?'}), box, field('What happened', note), field('Sent back by', who), h('h3', {text:'Photographs'}), pics.node, s.box),
     [btn('Cancel', closeModal), go]));
 }
-function backDoneDialog(job, b, thenDiary){
+function backDoneDialog(job, b){
   if (!needDb()) return;
-  const s = sayer(), what = h('textarea', {class:'in', id:'backDone', placeholder:'Rang the customer and rebooked, swapped the damaged roll, booked a subfloor inspection'});
-  const go = btn(thenDiary ? 'Dealt with, put it in the diary' : 'Mark as dealt with', async () => {
-    const text = what.value.trim(), cur = S.jobs.get(job.id) || job;
+  const s = sayer(), c = job.customer || {}; let slot = job.slot || '';
+  const what = h('textarea', {class:'in', id:'backDone', placeholder:'Rang the customer and rebooked, swapped the damaged roll, booked a subfloor inspection'});
+  const fitSel = h('select', {class:'in', id:'backFitterNew'}, h('option', {value:'', text:'Nobody yet'}));
+  const fitters = S.fitters.slice(); if (job.fitter && fitters.indexOf(job.fitter) === -1) fitters.unshift(job.fitter);
+  fitters.forEach(f => fitSel.append(h('option', {value:f, text:f, selected:f === job.fitter})));
+  const date = h('input', {class:'in', id:'backDate', type:'date', value:''});
+  const none = h('input', {type:'checkbox', id:'backNoDate'});
+  const strip = dayStrip(date, {skipJob:job.id, person:() => fitSel.value, post:() => job.type === 'Collection' ? '' : c.postcode});
+  const slotSeg = h('div', {class:'seg sm'}), free = h('div', {class:'guide tight'}), when = h('div', {class:'sec'});
+  function draw(){
+    slotSeg.replaceChildren(); [['', 'Any time'], ['AM', 'AM'], ['PM', 'PM']].forEach(x => slotSeg.append(h('button', {type:'button', class:slot === x[0] ? 'on' : '', onclick:() => { slot = x[0]; draw(); }}, x[1])));
+    free.replaceChildren(h('p', {}, h('b', {text:'Next free day for each fitter'})));
+    if (!fitters.length) free.append(h('p', {class:'small muted', text:'No fitters are set up yet. Add them under Setup.'}));
+    fitters.forEach(f => { const d = nextFree(f, job.id);
+      free.append(h('div', {class:'area-row'}, h('div', {class:'grow'}, h('b', {text:f}), h('div', {class:'small', text:d ? L.fmtDay(d) : 'Nothing free in the next 8 weeks'})),
+        d ? (f === fitSel.value && d === date.value ? chip('Chosen', 'ok') : btn('Use this', () => { fitSel.value = f; date.value = d; none.checked = false; strip.show(d); draw(); }, 'sm')) : null)); });
+    when.hidden = none.checked;
+  }
+  fitSel.addEventListener('change', () => { date.value = ''; strip.show(''); draw(); });
+  date.addEventListener('change', draw); none.addEventListener('change', draw);
+  const go = btn('Save', async () => {
+    const text = what.value.trim(), cur = S.jobs.get(job.id) || job, f = fitSel.value, d = none.checked ? '' : date.value;
     if (!text){ s.say('Say what was done about it.', true); return; }
-    const p = {backs:{}}; p.backs[b.k] = {on:false, doneAt:nowISO(), doneBy:S.me.id || '', doneNote:text};
-    if (thenDiary){
-      const after = Object.assign({}, cur, {backs:Object.assign({}, cur.backs)}); after.backs[b.k] = Object.assign({}, after.backs[b.k], {on:false});
-      const can = L.canConfirmDiary(after, S.off);
-      if (!can.ok){ s.say('It cannot go in the diary yet. ' + can.why.join(' '), true); return; }
-      p.diary = true;
-    }
+    if (!none.checked && !L.validISO(d)){ s.say('Tap the new day in the diary, or tick that there is no new date yet.', true); return; }
+    if (d && offMsg(f, d)){ s.say(offMsg(f, d), true); return; }
+    const p = {backs:{}, fitter:f, date:d, slot:slot}; p.backs[b.k] = {on:false, doneAt:nowISO(), doneBy:S.me.id || '', doneNote:text};
+    const after = Object.assign({}, cur, {fitter:f, date:d, backs:Object.assign({}, cur.backs)}); after.backs[b.k] = Object.assign({}, after.backs[b.k], {on:false});
+    const can = d ? L.canConfirmDiary(after, S.off) : {ok:false, why:[]};
+    p.diary = !!(d && can.ok);
+    if (d && cur.ret === 'needed'){ p.ret = 'booked'; p.retWhy = ''; }
+    const where = d ? L.fmtDay(d) + (slot ? ' ' + slot : '') + (f ? ' with ' + f : '') : '';
     go.disabled = true;
     try {
-      await patchJob(job.id, p, 'Sent-back job dealt with: ' + text + (thenDiary ? '. Put in the diary for ' + L.fmtDay(cur.date) + (cur.fitter ? ' with ' + cur.fitter : '') : ''));
-      closeModal(); toast(thenDiary ? 'Dealt with and in the diary for ' + L.fmtDay(cur.date) : 'Dealt with. Set the date and put it back in the diary when it is ready.');
+      await patchJob(job.id, p, 'Sent-back job dealt with: ' + text + '. ' + (d ? (p.diary ? 'Rebooked for ' : 'Pencilled in for ') + where : 'No new date yet'));
+      closeModal();
+      toast(p.diary ? 'Rebooked for ' + where + '. Ring the customer with the arrival time.' : d ? 'Pencilled in for ' + where + '. Not confirmed yet: ' + can.why.join(' ') : 'Dealt with. No new date yet, so it is not in the diary.', !!d && !p.diary);
     } catch (e){ go.disabled = false; dbFail(e); }
   }, 'pri');
-  openModal(dlg(thenDiary ? 'Deal with it and put in the diary' : 'Deal with it', h('div', {class:'sec'},
+  add(when, [field('Fitter', fitSel), strip.node, field('Time of day', slotSeg), free]);
+  draw();
+  openModal(dlg('Deal with it and rebook', h('div', {class:'sec'},
     h('p', {}, h('b', {text:L.backReason(b) + '. '}), b.note || ''),
-    h('p', {class:'small muted', text:'Sent back by ' + (b.fitter || 'the fitter') + ' ' + whenText(b.at) + '.'}),
+    h('p', {class:'small muted', text:'Sent back by ' + (b.fitter || 'the fitter') + ' ' + whenText(b.at) + (L.validISO(b.date) ? '. It was booked for ' + L.fmtDay(b.date) + (b.slot ? ' ' + b.slot : '') : '') + '.'}),
     field('What was done about it', what),
-    h('p', {class:'small muted', text:thenDiary ? 'Saving this puts the job in the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + '. Nothing else on the job is changed.'
-      : 'This only records that it has been dealt with. Change the date, the fitter, the items or the price on the job yourself. It goes back in the diary when you press Put in the diary.'}), s.box),
-    [btn('Cancel', closeModal), go], true));
+    h('h3', {text:'The new day'}), when,
+    h('label', {class:'tick'}, none, 'No new date yet, it is waiting on something'),
+    h('p', {class:'small muted', text:'Saving puts the job in the diary on the new day, as long as its stock and checks are still in order. The items, the price and the Shopify reservation are not changed.'}), s.box),
+    [btn('Cancel', closeModal), go]));
 }
 function signOffDialog(job){
   const s = sayer(), bal = L.balanceOf(job), c = job.customer || {};

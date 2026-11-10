@@ -52,12 +52,13 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/Alex Sample/.test(await pg.locator('#view').innerText()), 'the job is still there after reloading the page');
     // a fitter who cannot do the job sends it back from site, and the shop is told to act
     const tmr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    app.store.setDoc(docPath('settings/main'), {fitters:['Sonnie'], bays:['W4-01']});
+    app.store.setDoc(docPath('settings/main'), {fitters:['Sonnie', 'Lennox'], bays:['W4-01']});
     app.store.setDoc(docPath('jobs/tback'), {v:1, ref:'#T1', source:'shop', status:'open', type:'Fitting', date:tmr, slot:'AM', fitter:'Sonnie', diary:true, shopifyClosed:false,
       customer:{name:'Bea Returned', phone:'07700 900555', address:'1 Test Street', postcode:'G81 1XP'},
       lines:{l1:{n:1, title:'Test carpet', sub:'', unit:'m', qty:36, hold:'draft', holdRef:'#D1', state:'allocated', bay:'W4-01', picked:true, checked:true, price:100, w:4}}, total:100, pay:{}, notes:'', quote:[], drafts:{},
       arrival:{slot:'08:30 to 09:30', forDate:tmr, at:new Date().toISOString(), by:''}, sizeCheck:'verified', rooms:{r1:{n:1, name:'Bedroom', len:3.5, wid:3, area:10.5, source:'shop', status:'verified', verBy:'Shop', verRole:'shop', verOn:tmr}}, pre:{}, log:{}});
     await pg.reload(); await pg.waitForFunction(() => document.querySelector('#storeText') && document.querySelector('#storeText').textContent === 'Shopify live', null, {timeout:10000});
+    await pg.evaluate(() => fetch('/api/db/update', {method:'POST', headers:{'x-ifd':'1', 'content-type':'application/json'}, body:JSON.stringify({path:'settings/main', data:{estimators:[]}})}));   // so the other open screen hears about the fitters too
     await pg.locator('#tabs .tab', {hasText:'Today'}).click();
     ok(/Nothing has been sent back/.test(await pg.locator('#actSec').innerText()), 'Today says nothing has been sent back when nothing has');
     await pg.locator('#tabs .tab', {hasText:'Diary'}).click();
@@ -84,17 +85,24 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/Sonnie has sent Bea Returned back to the shop/.test(await b.pg.locator('#toast').innerText()), 'the shop’s screen is told the moment it happens');
     await b.pg.locator('#actSec .row', {hasText:'Bea Returned'}).click();
     await b.pg.waitForSelector('#backCard');
-    ok(await b.pg.locator('#sheet').getByRole('button', {name:'Put in the diary', exact:true}).count() === 0 && await b.pg.locator('#sheet').getByRole('button', {name:'Deal with it and put in the diary'}).isEnabled(),
-      'it cannot simply be put back in the diary: the button beside the date deals with the send-back first');
-    await b.pg.locator('#sheet').getByRole('button', {name:'Deal with it and put in the diary'}).click();
-    await b.pg.locator('#modal').getByRole('button', {name:/Dealt with, put it in the diary/}).click();
-    ok(/Say what was done/.test(await b.pg.locator('#modal').innerText()) && app.store.getDoc('jobs/tback').data.diary === false, 'dealing with it needs a note of what was done');
-    await b.pg.fill('#backDone', 'Rang the customer, rebooked for next week.');
-    await b.pg.locator('#modal').getByRole('button', {name:/Dealt with, put it in the diary/}).click();
+    ok(await b.pg.locator('#sheet').getByRole('button', {name:'Put in the diary', exact:true}).count() === 0, 'it cannot simply be put back in the diary while it is sent back');
+    await b.pg.locator('#sheet .card', {hasText:'Installation: when and who'}).getByRole('button', {name:'Deal with it and rebook'}).click();
+    await b.pg.locator('#modal').getByRole('button', {name:'Save', exact:true}).click();
+    ok(/Say what was done/.test(await b.pg.locator('#modal').innerText()), 'dealing with it needs a note of what was done');
+    await b.pg.fill('#backDone', 'Rang the customer, rebooked.');
+    await b.pg.locator('#modal').getByRole('button', {name:'Save', exact:true}).click();
+    ok(/Tap the new day/.test(await b.pg.locator('#modal').innerText()) && Object.values(app.store.getDoc('jobs/tback').data.backs)[0].on === true, 'and either a new day or a clear statement that there is none yet');
+    const freeRow = b.pg.locator('#modal .area-row', {hasText:'Lennox'});
+    ok(new RegExp(String(Number(tmr.slice(8)))).test(await freeRow.innerText()), 'it shows the next free day for each fitter');
+    await freeRow.getByRole('button', {name:'Use this'}).click();
+    ok(await b.pg.locator('#backFitterNew').inputValue() === 'Lennox' && await b.pg.locator('#backDate').inputValue() === tmr && /Lennox.s diary/.test(await b.pg.locator('#modal .dpick').innerText()), 'using one picks that fitter and day and brings up their diary');
+    await b.pg.selectOption('#backFitterNew', 'Sonnie');
+    await b.pg.locator('#modal .area-row', {hasText:'Sonnie'}).getByRole('button', {name:'Use this'}).click();
+    await b.pg.locator('#modal').getByRole('button', {name:'Save', exact:true}).click();
     await b.pg.waitForFunction(() => document.querySelector('#modal').hidden && !document.querySelector('#backCard'), null, {timeout:6000});
-    const done = Object.values(app.store.getDoc('jobs/tback').data.backs)[0];
+    const rb = app.store.getDoc('jobs/tback').data, done = Object.values(rb.backs)[0];
     ok(done.on === false && /rebooked/.test(done.doneNote) && /^u_/.test(done.doneBy) && done.note === 'Screed is still wet in the back bedroom.', 'the shop records what was done and the original reason is kept');
-    ok(app.store.getDoc('jobs/tback').data.diary === true, 'the same button puts it back in the diary, with the date and fitter the shop chose');
+    ok(rb.diary === true && rb.fitter === 'Sonnie' && rb.date === tmr && rb.lines.l1.bay === 'W4-01' && rb.total === 100, 'saving rebooks it into the diary on the chosen day with the chosen fitter, and nothing else changes');
     ok(/Nothing has been sent back/.test(await b.pg.locator('#actSec').innerText()) && /Sent back before/.test(await b.pg.locator('#sheet').innerText()), 'Act now clears and the job keeps the history');
     await b.pg.keyboard.press('Escape');
     await pg.keyboard.press('Escape'); await pg.getByRole('button', {name:'Back to the shop'}).click();
@@ -115,7 +123,9 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/1 booked/.test(await busy.innerText()), 'choosing the person brings up their diary with what they already have on each day');
     const offCell = await cellOf(m1, day(2));
     ok(/Day off/.test(await offCell.innerText()) && await offCell.isDisabled(), 'a day they cannot work shows as a day off and cannot be chosen');
-    const free = await cellOf(m1, day(3)); await free.click();
+    const free = await cellOf(m1, day(3));
+    ok(/Next free/.test(await free.innerText()), 'their next free day is marked, skipping the booked day and the day off');
+    await free.click();
     ok(await pg.locator('#saleDate').inputValue() === day(3) && /Chosen:/.test(await pg.locator('#modal .ddetail').innerText()) && /nothing else booked/.test(await pg.locator('#modal .ddetail').innerText()), 'tapping a day chooses it and says what else is on');
     await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click();
     // the same on a job: tap a day in the fitter's diary, or clear it
