@@ -483,8 +483,9 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
       const resent = L.quoteWait(job({email:{at:at(8)}, text:{at:at(1)}}, {c1:{at:at(7), outcome:'deciding'}}), t);
       return w0.state === 'unsent' && w1.state === 'waiting' && w1.ringOn === L.addDays(t, 5) && w4.state === 'waiting' && w5.state === 'ring' && w5.days === 5
         && again.state === 'waiting' && again.ringOn === L.addDays(t, 5) && again.calls === 1 && noans.state === 'waiting' && noans.ringOn === L.addDays(t, 1) && next.state === 'ring'
-        && resent.state === 'waiting' && resent.ringOn === L.addDays(t, 4) && resent.calls === 0; }),
-      'the five-day rule: a sent quote waits five days, then it is time to ring; a call restarts the wait, no answer comes back the next day, and sending it again starts afresh');
+        && resent.state === 'waiting' && resent.ringOn === L.addDays(t, 4) && resent.calls === 0
+        && L.quoteWait(job({email:{at:at(6)}}, {c1:{at:at(0), outcome:'yes'}}), t).state === 'yes' && L.quoteWait(job({email:{at:at(6)}}, {c1:{at:at(0), outcome:'changes'}}), t).state === 'change'; }),
+      'the five-day rule: a sent quote waits five days, then it is time to ring; a call restarts the wait, no answer comes back the next day, sending it again starts afresh, and a yes or a change stays flagged until it is acted on');
     await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#priceSec');
     await pg.locator('#priceSec .row.price', {hasText:'Quentin Quote'}).click(); await pg.waitForSelector('#quoteForm');
     const qn = await pg.evaluate(() => Array.from(document.querySelectorAll('#quoteLines .qline')).map(q => [q.querySelector('input').value, (q.querySelector('.qnote') || {}).textContent || '']));

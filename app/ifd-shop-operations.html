@@ -965,7 +965,9 @@ window.IFDLogic = (function(){
     if (!sent) return {state:'unsent', days:0, ringOn:'', last:null, sentAt:'', sentOn:'', calls:0};
     var calls = chasesOf(job).filter(function(c){ return String(c.at) >= sent; }), last = calls.length ? calls[calls.length - 1] : null;
     var sentOn = stampDay(sent), ringOn = addDays(stampDay(last ? last.at : sent), last && last.outcome === 'noanswer' ? RETRY_DAYS : CHASE_DAYS);
-    return {state:today >= ringOn ? 'ring' : 'waiting', days:Math.max(0, daysBetween(sentOn, today)), ringOn:ringOn, last:last, sentAt:sent, sentOn:sentOn, calls:calls.length};
+    /* a call that ended in yes, or in a change to the quote, is not finished until somebody acts on it */
+    var state = last && last.outcome === 'yes' ? 'yes' : last && last.outcome === 'changes' ? 'change' : today >= ringOn ? 'ring' : 'waiting';
+    return {state:state, days:Math.max(0, daysBetween(sentOn, today)), ringOn:ringOn, last:last, sentAt:sent, sentOn:sentOn, calls:calls.length};
   }
   /* ---------- once the customer has said yes ----------
      Goods ordered in hold the job where it is until the order details and the arrival date are entered. Carpet sold
@@ -1082,6 +1084,8 @@ window.IFDLogic = (function(){
         var qw = quoted(job) ? quoteWait(job, today) : null;
         if (qw && qw.state === 'unsent') w.push({tone:'bad', text:'Quote not sent to the customer yet'});
         else if (qw && qw.state === 'ring') w.push({tone:'bad', text:qw.last ? 'Quote: time to ring them again' : 'No reply to the quote in ' + qw.days + ' days: ring them'});
+        else if (qw && qw.state === 'yes') w.push({tone:'bad', text:'The customer said yes: enter it as a fitting, delivery or collection'});
+        else if (qw && qw.state === 'change') w.push({tone:'bad', text:'The customer wants the quote changed'});
       }
       else if (!validISO(job.date)){ if (!orderNeeded(job).length) w.push({tone:'warn', text:'No date set'}); }
       else {
@@ -1640,12 +1644,14 @@ function quoteStatus(job){
   const q = L.quoteOf(job), w = L.quoteWait(job, L.todayISO());
   if (w.state === 'unsent') return {text:'Not sent to the customer yet', tone:'bad', sent:''};
   const sent = sentHow(q) + ' ' + L.fmtDay(w.sentOn);
+  if (w.state === 'yes') return {text:'They said yes: enter it as a fitting, delivery or collection', tone:'bad', sent:sent};
+  if (w.state === 'change') return {text:'They want something changed: change the quote and send it again', tone:'bad', sent:sent};
   if (w.state === 'ring') return {text:w.last && w.last.outcome === 'noanswer' ? 'No answer last time: ring them again' : w.last ? 'Time to ring them again' : 'No reply in ' + w.days + ' days: ring them', tone:'bad', sent:sent};
   return {text:'Ring them on ' + L.fmtDay(w.ringOn) + ' if they have not been back', tone:'', sent:sent};
 }
 function openQuoted(id){
   openSheet(id); const j = S.jobs.get(id), w = j ? L.quoteWait(j, L.todayISO()) : null; if (!w) return;
-  if (w.state === 'ring') chaseDialog(j); else if (w.state === 'unsent') sendQuoteDialog(j, L.quoteOf(j));
+  if (w.state === 'ring') chaseDialog(j); else if (w.state === 'unsent') sendQuoteDialog(j, L.quoteOf(j)); else if (w.state === 'yes') acceptDialog(j); else if (w.state === 'change') quoteDialog(j);
 }
 function quotedRow(job){
   const c = job.customer || {}, q = L.quoteOf(job), w = L.quoteWait(job, L.todayISO()), st = quoteStatus(job), hot = w.state !== 'waiting';
@@ -1653,7 +1659,7 @@ function quotedRow(job){
     h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
       h('div', {class:'sub', text:[c.phone, 'Quoted by ' + (q.byName || 'someone')].filter(Boolean).join(' · ')}),
       h('div', {class:'meta'}, st.sent ? chip(st.sent, 'ok') : null, chip(st.text, st.tone), w.calls ? chip(w.calls + (w.calls === 1 ? ' call logged' : ' calls logged')) : null)),
-    h('div', {class:'end'}, h('span', {class:'num', text:L.money(L.quoteTotal(q))}), hot ? h('span', {class:'go', text:w.state === 'unsent' ? 'Send it' : 'Ring them'}) : null));
+    h('div', {class:'end'}, h('span', {class:'num', text:L.money(L.quoteTotal(q))}), hot ? h('span', {class:'go', text:w.state === 'unsent' ? 'Send it' : w.state === 'yes' ? 'Enter it' : w.state === 'change' ? 'Change it' : 'Ring them'}) : null));
 }
 /* the customer has said yes and something has to be ordered in: nothing more happens to the job until the order details are in */
 function toOrderJobs(){ return openJobs().filter(j => L.orderNeeded(j).length).sort((a, b) => String((a.accepted || {}).at || '').localeCompare(String((b.accepted || {}).at || ''))); }
@@ -2449,11 +2455,11 @@ function drawSheet(){
   const pq = L.quoteOf(job), sentBits = pq ? ['email', 'text', 'copy'].filter(k => pq.sent && pq.sent[k]).map(k => (k === 'email' ? 'Email opened to ' + pq.sent[k].to : k === 'text' ? 'Text opened to ' + pq.sent[k].to : 'Copied to send') + ' ' + whenText(pq.sent[k].at) + ' by ' + (pq.sent[k].byName || 'someone')) : [];
   const qw = pq && L.quoted(job) ? L.quoteWait(job, L.todayISO()) : null, qs = qw ? quoteStatus(job) : null, acc = job.accepted || null, calls = L.chasesOf(job);
   const priceQuoteCard = pq ? h('div', {class:'card', id:'quoteCard'}, h('h3', {}, 'Quote', chip(L.money(L.quoteTotal(pq)), 'info'),
-      acc ? chip('Accepted', 'ok') : job.lost ? chip('Not taken') : qw ? chip(qw.state === 'unsent' ? 'Not sent yet' : qw.state === 'ring' ? 'Ring them' : 'Waiting on the customer', qw.state === 'waiting' ? 'warn' : 'bad') : null),
+      acc ? chip('Accepted', 'ok') : job.lost ? chip('Not taken') : qw ? chip(qw.state === 'unsent' ? 'Not sent yet' : qw.state === 'ring' ? 'Ring them' : qw.state === 'yes' ? 'Said yes' : qw.state === 'change' ? 'Wants it changed' : 'Waiting on the customer', qw.state === 'waiting' ? 'warn' : 'bad') : null),
     L.quoteLines(pq).map(l => h('div', {class:'ln-top'}, h('span', {text:l.label}), h('b', {class:'num', text:L.money(l.price)}))),
     h('div', {class:'qtotal'}, h('span', {text:'Total'}), h('b', {class:'num', text:L.money(L.quoteTotal(pq))})),
     h('p', {class:'small muted', text:'Saved by ' + (pq.byName || 'someone') + ' ' + whenText(pq.at) + '. ' + (sentBits.length ? sentBits.join('. ') + '.' : 'Not sent to the customer yet.')}),
-    qs && qw.state !== 'unsent' ? h('p', {id:'quoteNext', style:qw.state === 'ring' ? 'font-weight:700;color:var(--bad)' : 'font-weight:600', text:qs.text + '.'}) : null,
+    qs && qw.state !== 'unsent' ? h('p', {id:'quoteNext', style:qw.state !== 'waiting' ? 'font-weight:700;color:var(--bad)' : 'font-weight:600', text:qs.text + '.'}) : null,
     calls.length ? h('div', {class:'log', id:'quoteCalls'}, calls.map(x => h('div', {text:whenText(x.at) + '  ' + (x.byName || 'Someone') + ' rang. ' + (L.CHASE_OUT[x.outcome] || x.outcome) + (x.note ? ': ' + x.note : '')}))) : null,
     acc ? h('p', {class:'small', id:'quoteAccepted', text:'The customer said yes ' + whenText(acc.at) + '. Taken by ' + (acc.byName || 'someone') + '.'}) : null,
     job.lost ? h('p', {class:'small', text:'Not going ahead: ' + (job.lost.why || 'no reason given') + '.'}) : null,
