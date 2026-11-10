@@ -1766,13 +1766,18 @@ function drawSheet(){
   const fitters = S.fitters.slice(); if (job.fitter && fitters.indexOf(job.fitter) === -1) fitters.unshift(job.fitter);
   fitters.forEach(f => fitSel.append(h('option', {value:f, text:f, selected:f === job.fitter})));
   const held = open && L.checksOutstanding(job).length > 0;
+  const boD = open ? L.backOpen(job) : null, backWhy = diary.why.filter(w => w.indexOf('Sent back to the shop by ') === 0), otherWhy = diary.why.filter(w => backWhy.indexOf(w) === -1);
+  const diaryAct = !open ? null : job.diary ? h('div', {class:'bar'}, btn('Take out of the diary', () => set({diary:false}, 'Taken out of the diary'), 'sm'))
+    : boD && !otherWhy.length ? h('div', {class:'sec'}, btn('Deal with it and put in the diary', () => backDoneDialog(job, boD, true), 'pri'),
+        h('p', {class:'small muted', text:(boD.fitter || 'The fitter') + ' sent this job back. Say what was done about it and it goes in the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + '.'}))
+    : h('div', {class:'sec'}, btn('Put in the diary', () => set({diary:true}, 'Put in the diary for ' + L.fmtDay(job.date)), 'pri', {disabled:!diary.ok}),
+        diary.ok ? null : h('p', {class:'small muted', text:'Not ready for the diary yet. ' + otherWhy.join(' ') + (boD ? ' ' + (boD.fitter || 'The fitter') + ' also sent this job back, which needs dealing with before it can go in.' : '')}),
+        boD ? h('div', {class:'bar'}, btn('Deal with the send-back', () => backDoneDialog(job, boD), 'sm')) : null);
   const diaryCard = h('div', {class:'card'}, h('h3', {}, job.type === 'Fitting' ? 'Installation: when and who' : 'When and who',
       job.diary ? (held ? chip('In the diary, awaiting checks', 'bad') : chip('In the diary', 'ok')) : held && L.validISO(job.date) ? chip('Date pencilled in, awaiting checks', 'warn') : chip('Not in the diary', open ? 'warn' : '')),
     typeSeg,
     field(job.type === 'Fitting' ? 'Fitter' : 'Who is doing it', fitSel), dayPick.node, slotSeg, areaDet,
-    open ? (job.diary ? h('div', {class:'bar'}, btn('Take out of the diary', () => set({diary:false}, 'Taken out of the diary'), 'sm'))
-      : h('div', {class:'sec'}, btn('Put in the diary', () => set({diary:true}, 'Put in the diary for ' + L.fmtDay(job.date)), 'pri', {disabled:!diary.ok}),
-          diary.ok ? null : h('p', {class:'small muted', text:'Locked until every item is in a bay and the checks are done. ' + diary.why.join(' ')}))) : null);
+    diaryAct);
 
   const pays = Object.keys(job.pay || {}).map(k => job.pay[k]).sort((a, b) => String(a.at).localeCompare(String(b.at)));
   const moneyCard = h('div', {class:'card'}, h('h3', {}, 'Money', bal > 0 ? chip(L.money(bal) + ' to pay', job.status === 'done' ? 'bad' : 'warn') : chip('Paid', 'ok')),
@@ -2891,22 +2896,31 @@ function backDialog(job){
     h('h3', {text:'Why is it going back?'}), box, field('What happened', note), field('Sent back by', who), h('h3', {text:'Photographs'}), pics.node, s.box),
     [btn('Cancel', closeModal), go]));
 }
-function backDoneDialog(job, b){
+function backDoneDialog(job, b, thenDiary){
   if (!needDb()) return;
   const s = sayer(), what = h('textarea', {class:'in', id:'backDone', placeholder:'Rang the customer and rebooked, swapped the damaged roll, booked a subfloor inspection'});
-  const go = btn('Mark as dealt with', async () => {
-    const text = what.value.trim();
+  const go = btn(thenDiary ? 'Dealt with, put it in the diary' : 'Mark as dealt with', async () => {
+    const text = what.value.trim(), cur = S.jobs.get(job.id) || job;
     if (!text){ s.say('Say what was done about it.', true); return; }
-    go.disabled = true;
     const p = {backs:{}}; p.backs[b.k] = {on:false, doneAt:nowISO(), doneBy:S.me.id || '', doneNote:text};
-    try { await patchJob(job.id, p, 'Sent-back job dealt with: ' + text); closeModal(); toast('Dealt with. Set the date and put it back in the diary when it is ready.'); }
-    catch (e){ go.disabled = false; dbFail(e); }
+    if (thenDiary){
+      const after = Object.assign({}, cur, {backs:Object.assign({}, cur.backs)}); after.backs[b.k] = Object.assign({}, after.backs[b.k], {on:false});
+      const can = L.canConfirmDiary(after, S.off);
+      if (!can.ok){ s.say('It cannot go in the diary yet. ' + can.why.join(' '), true); return; }
+      p.diary = true;
+    }
+    go.disabled = true;
+    try {
+      await patchJob(job.id, p, 'Sent-back job dealt with: ' + text + (thenDiary ? '. Put in the diary for ' + L.fmtDay(cur.date) + (cur.fitter ? ' with ' + cur.fitter : '') : ''));
+      closeModal(); toast(thenDiary ? 'Dealt with and in the diary for ' + L.fmtDay(cur.date) : 'Dealt with. Set the date and put it back in the diary when it is ready.');
+    } catch (e){ go.disabled = false; dbFail(e); }
   }, 'pri');
-  openModal(dlg('Deal with it', h('div', {class:'sec'},
+  openModal(dlg(thenDiary ? 'Deal with it and put in the diary' : 'Deal with it', h('div', {class:'sec'},
     h('p', {}, h('b', {text:L.backReason(b) + '. '}), b.note || ''),
     h('p', {class:'small muted', text:'Sent back by ' + (b.fitter || 'the fitter') + ' ' + whenText(b.at) + '.'}),
     field('What was done about it', what),
-    h('p', {class:'small muted', text:'This only records that it has been dealt with. Change the date, the fitter, the items or the price on the job yourself. It goes back in the diary when you press Put in the diary.'}), s.box),
+    h('p', {class:'small muted', text:thenDiary ? 'Saving this puts the job in the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + '. Nothing else on the job is changed.'
+      : 'This only records that it has been dealt with. Change the date, the fitter, the items or the price on the job yourself. It goes back in the diary when you press Put in the diary.'}), s.box),
     [btn('Cancel', closeModal), go], true));
 }
 function signOffDialog(job){

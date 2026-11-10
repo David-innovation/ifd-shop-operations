@@ -84,17 +84,18 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/Sonnie has sent Bea Returned back to the shop/.test(await b.pg.locator('#toast').innerText()), 'the shop’s screen is told the moment it happens');
     await b.pg.locator('#actSec .row', {hasText:'Bea Returned'}).click();
     await b.pg.waitForSelector('#backCard');
-    ok(await b.pg.locator('#sheet').getByRole('button', {name:'Put in the diary'}).isDisabled(), 'it cannot go back in the diary until the shop has dealt with it');
-    await b.pg.locator('#backCard').getByRole('button', {name:'Deal with it'}).click();
-    await b.pg.locator('#modal').getByRole('button', {name:'Mark as dealt with'}).click();
-    ok(/Say what was done/.test(await b.pg.locator('#modal').innerText()), 'dealing with it needs a note of what was done');
+    ok(await b.pg.locator('#sheet').getByRole('button', {name:'Put in the diary', exact:true}).count() === 0 && await b.pg.locator('#sheet').getByRole('button', {name:'Deal with it and put in the diary'}).isEnabled(),
+      'it cannot simply be put back in the diary: the button beside the date deals with the send-back first');
+    await b.pg.locator('#sheet').getByRole('button', {name:'Deal with it and put in the diary'}).click();
+    await b.pg.locator('#modal').getByRole('button', {name:/Dealt with, put it in the diary/}).click();
+    ok(/Say what was done/.test(await b.pg.locator('#modal').innerText()) && app.store.getDoc('jobs/tback').data.diary === false, 'dealing with it needs a note of what was done');
     await b.pg.fill('#backDone', 'Rang the customer, rebooked for next week.');
-    await b.pg.locator('#modal').getByRole('button', {name:'Mark as dealt with'}).click();
+    await b.pg.locator('#modal').getByRole('button', {name:/Dealt with, put it in the diary/}).click();
     await b.pg.waitForFunction(() => document.querySelector('#modal').hidden && !document.querySelector('#backCard'), null, {timeout:6000});
     const done = Object.values(app.store.getDoc('jobs/tback').data.backs)[0];
     ok(done.on === false && /rebooked/.test(done.doneNote) && /^u_/.test(done.doneBy) && done.note === 'Screed is still wet in the back bedroom.', 'the shop records what was done and the original reason is kept');
+    ok(app.store.getDoc('jobs/tback').data.diary === true, 'the same button puts it back in the diary, with the date and fitter the shop chose');
     ok(/Nothing has been sent back/.test(await b.pg.locator('#actSec').innerText()) && /Sent back before/.test(await b.pg.locator('#sheet').innerText()), 'Act now clears and the job keeps the history');
-    ok(!(await b.pg.locator('#sheet').getByRole('button', {name:'Put in the diary'}).isDisabled()), 'once dealt with, the shop can put it back in the diary');
     await b.pg.keyboard.press('Escape');
     await pg.keyboard.press('Escape'); await pg.getByRole('button', {name:'Back to the shop'}).click();
     // choosing a day: the chosen person's diary, not a calendar box
