@@ -226,6 +226,9 @@ textarea.in{min-height:84px;resize:vertical}
 .dday .ds{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .dday .ds.busy{color:var(--ink);font-weight:600}
 .dday .da{font-size:11px;font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:1px 6px;margin-top:2px;overflow-wrap:anywhere}
+.dday .dfar{font-size:11px;font-weight:700;color:var(--bad);background:var(--bad-bg);border-radius:999px;padding:1px 6px;margin-top:2px;overflow-wrap:anywhere}
+.dday .dh{font-size:11px;font-weight:700;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 6px;margin-top:2px}
+.dday.far{border-color:var(--bad)}
 .dday .dnx{font-size:11px;font-weight:700;color:var(--info);background:var(--info-bg);border-radius:999px;padding:1px 6px;margin-top:2px}
 .dday.today{border-style:dashed}
 .dday.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
@@ -622,8 +625,9 @@ window.IFDLogic = (function(){
     return out;
   }
   /* the diary lock: a job only goes in the diary when every item is in a numbered bay and its checks are done */
-  function canConfirmDiary(job, off){
-    var why = [], bo = backOpen(job);
+  function canConfirmDiary(job, off, ctx){
+    var why = [], bo = backOpen(job), hc = hslClash(job, ctx);
+    if (hc) why.push(hslWhy(hc, job.fitter, job.date));
     if (bo) why.push('Sent back to the shop by ' + (bo.fitter || 'the fitter') + '. Deal with that first.');
     offClashes(job, off).forEach(function(c){ if (!c.v) why.push(c.who + ' cannot work on ' + fmtDay(c.date) + '.'); });
     if (!linesOf(job).length) why.push('Nothing has been sold on this job yet.');
@@ -667,6 +671,55 @@ window.IFDLogic = (function(){
     var v = (job && job.visits) || {};
     return Object.keys(v).map(function(k){ return v[k]; }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); });
   }
+  /* ---------- how much goes on one fitter's day ----------
+     One hall, stairs and landing a day, and the day's work kept within reach of each other. */
+  var HSL_RE = /stair|landing|\bh\W{0,2}s\W{0,2}l\b/i, LIMITS = {hsl:1, miles:10};
+  function hasHSL(job){
+    if (!job) return false;
+    if (job.hsl === true || job.hsl === false) return job.hsl;
+    return roomsOf(job).some(function(r){ return HSL_RE.test(r.name || ''); });
+  }
+  function limitsOf(l){ var hs = Number(l && l.hsl), mi = Number(l && l.miles); return {hsl:hs >= 1 ? Math.floor(hs) : LIMITS.hsl, miles:mi > 0 ? mi : LIMITS.miles}; }
+  function milesBetween(a, b){
+    if (!a || !b || !isFinite(a.lat) || !isFinite(a.lng) || !isFinite(b.lat) || !isFinite(b.lng)) return null;
+    var rad = Math.PI / 180, dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    var x = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 3958.8 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+  /* everything one person has on one day: installations and the visits before them */
+  function dayWork(jobs, person, date, skipJob, skipVisit){
+    var out = [];
+    (jobs || []).forEach(function(j){
+      if (!j || j.status !== 'open') return;
+      var c = j.customer || {}, o = outwardOf(c.postcode), nm = c.name || 'No name';
+      if (j.fitter === person && j.date === date && !(j.id === skipJob && !skipVisit) && j.type !== 'Collection' && linesOf(j).length) out.push({id:j.id, name:nm, out:o, what:j.type || 'Job', slot:j.slot || '', hsl:hasHSL(j), visit:false});
+      preOf(j).forEach(function(v){ if (v.status === 'booked' && v.who === person && v.date === date && !(j.id === skipJob && skipVisit && v.k === skipVisit)) out.push({id:j.id, name:nm, out:o, what:PRE_KINDS[v.kind], slot:v.slot || '', hsl:false, visit:true}); });
+    });
+    return out;
+  }
+  /* the furthest other piece of work that day from this postcode district; null when it cannot be told */
+  function dayReach(work, out, geo){
+    var far = null;
+    (work || []).forEach(function(x){
+      if (!x.out || !out) return;
+      var m = x.out === out ? 0 : milesBetween(geo && geo[out], geo && geo[x.out]); if (m === null) return;
+      if (!far || m > far.miles) far = {miles:m, from:x};
+    });
+    return far;
+  }
+  /* what stops, or should give pause to, putting this job on this fitter's day. ctx is {jobs, limits, geo}. */
+  function hslClash(job, ctx, fitter, date){
+    var f = fitter === undefined ? job && job.fitter : fitter, d = date === undefined ? job && job.date : date;
+    if (!ctx || !job || job.status === 'done' || job.status === 'cancelled' || !f || !validISO(d) || !hasHSL(job)) return null;
+    var others = dayWork(ctx.jobs, f, d, job.id, '').filter(function(x){ return x.hsl; }), lim = limitsOf(ctx.limits).hsl;
+    return others.length >= lim ? {limit:lim, others:others} : null;
+  }
+  function farClash(job, ctx){
+    if (!ctx || !job || job.status !== 'open' || !job.fitter || !validISO(job.date) || job.type === 'Collection' || !linesOf(job).length) return null;
+    var r = dayReach(dayWork(ctx.jobs, job.fitter, job.date, job.id, ''), outwardOf((job.customer || {}).postcode), ctx.geo), lim = limitsOf(ctx.limits).miles;
+    return r && r.miles > lim ? {miles:r.miles, from:r.from, limit:lim} : null;
+  }
+  function hslWhy(hc, who, date){ return who + ' already has a hall, stairs and landing on ' + fmtDay(date) + ' (' + hc.others[0].name + '). The limit is ' + hc.limit + ' a day.'; }
   /* a job the fitter could not do and has handed back to the shop from site */
   var BACK_REASONS = {nobody:'Nobody in or no access', floor:'Floor not ready', goods:'Wrong, short or damaged goods', sizes:'Sizes are wrong', customer:'Customer changed their mind', other:'Something else'};
   function backsOf(job){
@@ -680,12 +733,15 @@ window.IFDLogic = (function(){
   }
   function backReason(b){ return BACK_REASONS[b && b.reason] || 'Sent back'; }
   function hasShopifyDocs(job){ return !!(job.orderId || (job.drafts && Object.keys(job.drafts).length)); }
-  function warningsOf(job, today, off){
+  function warningsOf(job, today, off, ctx){
     var w = [];
     if (!job) return w;
     if (job.status === 'open'){
       var bo = backOpen(job);
       if (bo) w.push({tone:'bad', text:'Sent back by ' + (bo.fitter || 'the fitter') + ': ' + backReason(bo)});
+      var hc = hslClash(job, ctx), fc = farClash(job, ctx);
+      if (hc) w.push({tone:'bad', text:'Second hall, stairs and landing for ' + job.fitter + ' on ' + fmtDay(job.date)});
+      if (fc) w.push({tone:'warn', text:Math.round(fc.miles) + ' miles from ' + job.fitter + '’s other work that day (' + fc.from.name + ', ' + fc.from.out + ')'});
       offClashes(job, off).forEach(function(c){ w.push({tone:'bad', text:c.who + ' cannot work on ' + fmtDay(c.date) + ': move the ' + c.what.toLowerCase()}); });
       if (!linesOf(job).length){ /* an enquiry with a measure booked: there is no installation to date yet */ }
       else if (!validISO(job.date)) w.push({tone:'warn', text:'No date set'});
@@ -847,6 +903,7 @@ window.IFDLogic = (function(){
     linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
+    hasHSL:hasHSL, limitsOf:limitsOf, milesBetween:milesBetween, dayWork:dayWork, dayReach:dayReach, hslClash:hslClash, farClash:farClash, hslWhy:hslWhy,
     isFinalBay:isFinalBay, lineAllocated:lineAllocated, supplyOf:supplyOf, supplyState:supplyState, dLines:dLines, dRecs:dRecs, dGot:dGot, dOutstanding:dOutstanding,
     deliveryState:deliveryState, deliveryTrouble:deliveryTrouble, needsSupply:needsSupply, countPlan:countPlan,
     shelfMaths:shelfMaths, expectedOnShelf:expectedOnShelf, countToOnHand:countToOnHand,
@@ -895,6 +952,7 @@ const S = {
   inbox:{state:'idle', orders:[], at:0, msg:''}, inboxUnsub:null, inboxTimer:null,
   view:'today', refreshView:null,
   ui:{jobQ:'', jobFilter:'open', week:L.todayISO(), fitter:'', measureWho:'', fitterWho:'', stockQ:'', stock:null, stockBusy:false, stockMsg:''},
+  limits:{}, geo:{}, geoAsked:{},
   openJob:null, live:{},
   deliveries:new Map(), openDelivery:null, rcv:{}, take:null, counts:[], off:{}
 };
@@ -1086,7 +1144,8 @@ function saveSettings(patch){
       fitters: patch.fitters || (Array.isArray(cur.fitters) ? cur.fitters.slice() : []),
       estimators: patch.estimators || (Array.isArray(cur.estimators) ? cur.estimators.slice() : []),
       areas: patch.areas || (Array.isArray(cur.areas) ? cur.areas.slice() : []),
-      bays: patch.bays || (Array.isArray(cur.bays) ? cur.bays.slice() : [])
+      bays: patch.bays || (Array.isArray(cur.bays) ? cur.bays.slice() : []),
+      limits: patch.limits || (cur.limits && typeof cur.limits === 'object' ? cur.limits : {})
     });
   });
 }
@@ -1106,6 +1165,7 @@ function startDb(){
       if (b && (!was || was.k !== b.k)) toast((b.fitter || 'A fitter') + ' has sent ' + ((j.customer || {}).name || 'a job') + ' back to the shop. See Act now on Today.', true);
     });
     S.jobs = fresh;
+    wantGeo(openJobs().map(j => (j.customer || {}).postcode));
     if (!snap.metadata.fromCache){ clearTimeout(slow); S.db.state = 'ok'; }
     onData();
   }, dead);
@@ -1115,6 +1175,7 @@ function startDb(){
     S.fitters = Array.isArray(d.fitters) ? d.fitters.slice() : []; S.bays = Array.isArray(d.bays) ? d.bays.slice() : [];
     S.estimators = Array.isArray(d.estimators) ? d.estimators.slice() : [];
     S.areas = Array.isArray(d.areas) ? d.areas.filter(a => a && a.name && Array.isArray(a.codes)) : [];
+    S.limits = d.limits && typeof d.limits === 'object' ? d.limits : {};
     onData();
   }, quiet);
   db.collection('bays').onSnapshot(snap => { S.homeBays = new Map(snap.docs.map(d => [d.id, d.data()])); onData(); }, quiet);
@@ -1153,7 +1214,18 @@ const TABS = [
   {id:'more', label:'More', cls:'only-phone'}
 ];
 const VIEWS = {};
-function attentionJobs(){ const t = L.todayISO(); return jobsArr().filter(j => L.warningsOf(j, t, S.off).some(w => w.tone === 'bad' || j.status === 'done')); }
+/* what the day rules need: every job, the shop's limits, and where each postcode district is */
+function dayCtx(){ return {jobs:jobsArr(), limits:S.limits, geo:S.geo}; }
+/* find out where these postcode districts are, once each, then redraw */
+function wantGeo(postcodes, then){
+  const need = Array.from(new Set((postcodes || []).map(p => L.outwardOf(p)).filter(o => o && !S.geo[o] && !S.geoAsked[o])));
+  if (!need.length || !S.cap.geo) return;
+  need.forEach(o => { S.geoAsked[o] = 1; });
+  S.cap.geo.lookup(need).then(r => { let got = false; Object.keys(r || {}).forEach(o => { S.geo[o] = r[o]; got = true; }); if (got){ if (then) then(); refresh(); } }, () => { need.forEach(o => { delete S.geoAsked[o]; }); });
+}
+/* why this job cannot go on this fitter's day, or '' */
+function hslMsg(job, fitter, date){ const hc = L.hslClash(job, dayCtx(), fitter, date); return hc ? L.hslWhy(hc, fitter, date) : ''; }
+function attentionJobs(){ const t = L.todayISO(), cx = dayCtx(); return jobsArr().filter(j => L.warningsOf(j, t, S.off, cx).some(w => w.tone === 'bad' || j.status === 'done')); }
 /* jobs a fitter has handed back from site, and visits left unfinished with no return date: the shop acts on these first */
 function actNowJobs(){
   const at = j => { const b = L.backOpen(j), vs = L.visitsOf(j); return b ? b.at : vs.length ? vs[vs.length - 1].at : ''; };
@@ -1212,7 +1284,7 @@ function dateBlock(job){
   return h('div', {class:'dateblk' + (late ? ' late' : '')}, h('small', {text:p.dow}), h('b', {class:'num', text:String(p.day)}), h('small', {text:p.mon}));
 }
 function jobRow(job){
-  const stage = L.stageOf(job), warns = L.warningsOf(job, L.todayISO(), S.off), bal = L.balanceOf(job), c = job.customer || {};
+  const stage = L.stageOf(job), warns = L.warningsOf(job, L.todayISO(), S.off, dayCtx()), bal = L.balanceOf(job), c = job.customer || {};
   return h('button', {type:'button', class:'row', onclick:() => openSheet(job.id)},
     dateBlock(job),
     h('div', {class:'grow'},
@@ -1362,7 +1434,7 @@ VIEWS.diary = function(){
       h('b', {text:c.name || 'No name'}),
       h('span', {class:'sub', text:[j.type, j.slot, c.postcode].filter(Boolean).join(' · ')}),
       h('span', {class:'meta'}, L.backOpen(j) ? chip('Sent back to the shop', 'bad') : pencil ? chip(held ? 'Awaiting checks' : 'Pencilled, not ready', 'warn') : chip(L.STAGE_LABEL[stage], L.STAGE_TONE[stage]), j.fitter ? chip(j.fitter) : null,
-        j.status === 'open' && j.ret === 'booked' ? chip('Return visit', 'info') : null, offDay ? chip('Day off', 'bad') : null,
+        j.status === 'open' && j.ret === 'booked' ? chip('Return visit', 'info') : null, offDay ? chip('Day off', 'bad') : null, j.status === 'open' && L.hasHSL(j) ? chip('HSL', 'warn') : null,
         arr === 'overdue' ? chip('Time not confirmed', 'bad') : arr === 'ok' ? chip('Arrive ' + j.arrival.slot, 'ok') : null));
   }
   /* a measure or subfloor inspection: its own entry, never the installation */
@@ -1637,6 +1709,20 @@ VIEWS.setup = function(){
           areaName.value = ''; areaCodes.value = ''; change('areas', S.areas.concat([{name:nm, codes:codes}]), 'Added the area ' + nm + ' (' + codes.join(', ') + ')');
         }))));
   }
+  function limitsSection(){
+    const lim = L.limitsOf(S.limits);
+    const hs = h('input', {class:'in', id:'limHsl', type:'number', min:'1', step:'1', inputmode:'numeric', value:String(lim.hsl)}), mi = h('input', {class:'in', id:'limMiles', type:'number', min:'1', step:'1', inputmode:'numeric', value:String(lim.miles)});
+    return h('section', {class:'sec'}, h('h2', {}, 'A fitter’s day'),
+      h('div', {class:'card'},
+        h('p', {class:'muted', text:'These hold wherever a job is given a fitter and a day. A second hall, stairs and landing is refused. A job too far from the fitter’s other work that day is shown in red and has to be booked on purpose.'}),
+        h('div', {class:'grid2'}, field('Hall, stairs and landings in one day', hs), field('Furthest apart a day’s jobs should be (miles)', mi)),
+        h('p', {class:'small muted', text:'Miles are in a straight line between postcode districts, so the drive is longer. Clydebank to Helensburgh is about 14, Helensburgh to Coatbridge about 30.'}),
+        h('div', {class:'bar'}, btn('Save the limits', () => {
+          const a = Math.floor(Number(hs.value)), b = Math.round(Number(mi.value));
+          if (!(a >= 1) || !(b >= 1)){ toast('Both limits need a number of 1 or more.', true); return; }
+          change('limits', {hsl:a, miles:b}, 'Fitter’s day limits set: ' + a + ' hall, stairs and landing a day, jobs within ' + b + ' miles'); toast('Limits saved');
+        }))));
+  }
   const EMPTY = {fitters:'No fitters yet. Add each fitter or team so jobs can be given to them.', bays:'No bays yet. Add the codes that are on your racks so staff pick from a list.',
     estimators:'Nobody yet. Add whoever goes out to measure, so measure visits can be given to them. A fitter who also measures does not need adding twice.'};
   async function change(kind, list, text){ if (!needDb()) return; try { const p = {}; p[kind] = list; await saveSettings(p); logDay(text); } catch (e){ dbFail(e); } }
@@ -1666,6 +1752,7 @@ VIEWS.setup = function(){
           h('dt', {text:'Signed in as'}), h('dd', {text:S.me.name || 'This sign-in'})),
           h('div', {class:'bar'}, btn('Check the connection', connectShop, 'sm'), h('a', {class:'btn sm', href:L.ADMIN, target:'_blank', rel:'noopener'}, 'Open Shopify admin')))),
       editable(S.fitters, 'fitters', fitIn, 'Fitters', false),
+      limitsSection(),
       editable(S.estimators, 'estimators', estIn, 'People who measure', false, 'Everyone shares one login in this version. On the hosted app an estimator needs their own sign-in with an estimator role: their own visits and the measuring forms only, no prices and nobody else’s diary.'),
       areasSection(),
       editable(S.bays, 'bays', bayIn, 'Bays', true),
@@ -1736,7 +1823,7 @@ function drawSheet(){
   S.sheetDirty = false;
   const old = s.querySelector('.panel-body'), top = old ? old.scrollTop : 0;
   const c = job.customer || {}, stage = L.stageOf(job), open = job.status === 'open', lines = L.linesOf(job);
-  const warns = L.warningsOf(job, L.todayISO(), S.off), bal = L.balanceOf(job), diary = L.canConfirmDiary(job, S.off);
+  const warns = L.warningsOf(job, L.todayISO(), S.off, dayCtx()), bal = L.balanceOf(job), diary = L.canConfirmDiary(job, S.off, dayCtx());
   const drafts = Object.keys(job.drafts || {}).map(k => job.drafts[k]).filter(d => !d.deleted);
   const set = (patch, text) => patchJob(job.id, patch, text).catch(dbFail);
 
@@ -1757,13 +1844,19 @@ function drawSheet(){
 
   const typeSeg = h('div', {class:'seg sm'}, L.TYPES.map(t => h('button', {type:'button', class:job.type === t ? 'on' : '', disabled:!open, onclick:() => { if (job.type !== t) set({type:t}, 'Changed to ' + t); }}, t)));
   const slotSeg = h('div', {class:'seg sm'}, [['', 'Any time'], ['AM', 'AM'], ['PM', 'PM']].map(x => h('button', {type:'button', class:(job.slot || '') === x[0] ? 'on' : '', disabled:!open, onclick:() => { if ((job.slot || '') !== x[0]) set({slot:x[0]}, 'Time slot set to ' + x[1]); }}, x[1])));
-  const pickDate = v => { const om = offMsg(job.fitter, v); if (om){ toast(om, true); drawSheet(); return; } const p = {date:v}; if (!v) p.diary = false; if (v && job.ret === 'needed'){ p.ret = 'booked'; p.retWhy = ''; } set(p, v ? 'Date set to ' + L.fmtDay(v) : 'Date cleared'); };
+  const pickDate = v => { const om = offMsg(job.fitter, v) || (v ? hslMsg(job, job.fitter, v) : ''); if (om){ toast(om, true); drawSheet(); return; } const p = {date:v}; if (!v) p.diary = false; if (v && job.ret === 'needed'){ p.ret = 'booked'; p.retWhy = ''; } set(p, v ? 'Date set to ' + L.fmtDay(v) : 'Date cleared'); };
   const dateIn = h('input', {class:'in sm', id:'jobDate', type:'date', value:L.validISO(job.date) ? job.date : '', disabled:!open, onchange:e => { e.target.blur(); pickDate(e.target.value); }});
   const areaOut = L.outwardOf(c.postcode);
   const areaDet = open && job.type !== 'Collection' ? h('details', {}, h('summary', {class:'small', text:areaOut ? 'When are we next in ' + areaOut + '?' : 'When are we next in that area?'}),
     areaBox(() => c.postcode, pickDate, {skipJob:job.id, strip:true, person:() => job.fitter || '', empty:'There is no postcode on this job, so the area cannot be checked.'}).node) : null;
-  const dayPick = dayStrip(dateIn, {key:'job:' + job.id, clear:true, skipJob:job.id, person:() => job.fitter || '', post:() => job.type === 'Collection' ? '' : c.postcode});
-  const fitSel = h('select', {class:'in sm', id:'jobFitter', disabled:!open, onchange:e => { const v = e.target.value; e.target.blur(); const om = offMsg(v, job.date); if (om){ toast(om, true); drawSheet(); return; } set({fitter:v}, v ? 'Given to ' + v : 'Fitter cleared'); }}, h('option', {value:'', text:'Nobody yet'}));
+  const dayPick = dayStrip(dateIn, {key:'job:' + job.id, clear:true, install:true, hsl:() => L.hasHSL(job), skipJob:job.id, person:() => job.fitter || '', post:() => job.type === 'Collection' ? '' : c.postcode});
+  const hslAuto = job.hsl !== true && job.hsl !== false && L.hasHSL(job);
+  const hslTick = job.type === 'Fitting' ? h('label', {class:'tick'}, h('input', {type:'checkbox', id:'jobHsl', checked:L.hasHSL(job), disabled:!open, onchange:e => {
+      const on = e.target.checked, om = on ? hslMsg(Object.assign({}, job, {hsl:true}), job.fitter, job.date) : '';
+      if (om){ toast(om + ' Move one of them first.', true); drawSheet(); return; }
+      set({hsl:on}, on ? 'Marked as including a hall, stairs and landing' : 'Marked as having no hall, stairs and landing'); }}),
+    h('span', {}, 'Includes a hall, stairs and landing', hslAuto ? h('span', {class:'small muted', text:'  (picked up from the room names)'}) : null)) : null;
+  const fitSel = h('select', {class:'in sm', id:'jobFitter', disabled:!open, onchange:e => { const v = e.target.value; e.target.blur(); const om = offMsg(v, job.date) || (v ? hslMsg(job, v, job.date) : ''); if (om){ toast(om, true); drawSheet(); return; } set({fitter:v}, v ? 'Given to ' + v : 'Fitter cleared'); }}, h('option', {value:'', text:'Nobody yet'}));
   const fitters = S.fitters.slice(); if (job.fitter && fitters.indexOf(job.fitter) === -1) fitters.unshift(job.fitter);
   fitters.forEach(f => fitSel.append(h('option', {value:f, text:f, selected:f === job.fitter})));
   const held = open && L.checksOutstanding(job).length > 0;
@@ -1776,7 +1869,7 @@ function drawSheet(){
   const diaryCard = h('div', {class:'card'}, h('h3', {}, job.type === 'Fitting' ? 'Installation: when and who' : 'When and who',
       job.diary ? (held ? chip('In the diary, awaiting checks', 'bad') : chip('In the diary', 'ok')) : held && L.validISO(job.date) ? chip('Date pencilled in, awaiting checks', 'warn') : chip('Not in the diary', open ? 'warn' : '')),
     typeSeg,
-    field(job.type === 'Fitting' ? 'Fitter' : 'Who is doing it', fitSel), dayPick.node, slotSeg, areaDet,
+    hslTick, field(job.type === 'Fitting' ? 'Fitter' : 'Who is doing it', fitSel), dayPick.node, slotSeg, areaDet,
     diaryAct);
 
   const pays = Object.keys(job.pay || {}).map(k => job.pay[k]).sort((a, b) => String(a.at).localeCompare(String(b.at)));
@@ -2000,6 +2093,8 @@ function dayStrip(input, o){
   let week = keep || (L.validISO(input.value) && input.value >= today ? input.value : today);
   const title = h('b', {}), range = h('span', {class:'small muted'}), grid = h('div', {class:'dstrip', role:'group', 'aria-label':'Days'}), detail = h('p', {class:'small ddetail'});
   const person = () => o.person ? String(o.person() || '').trim() : '';
+  const okFar = {}; let ask = '';
+  const prompt = h('div', {class:'banner bad', hidden:true});
   const loadOf = (who, d) => {
     if (who) return dayLoad(who, d, {id:o.skipJob || ''}, o.skipVisit ? {k:o.skipVisit} : null);
     const out = [];
@@ -2014,7 +2109,12 @@ function dayStrip(input, o){
   const earlier = btn('Earlier', () => setWeek(L.addDays(week, -7)), 'sm'), later = btn('Later', () => setWeek(L.addDays(week, 7)), 'sm');
   const clear = o.clear ? btn('No date', () => pick(''), 'sm') : null;
   const jump = btn('Next free day', () => { const d = nextFree(person(), o.skipJob, o.skipVisit); if (d) setWeek(d); else toast('Nothing free in the next 8 weeks.', true); }, 'sm');
-  function pick(d){
+  function pick(d, sure){
+    const who = person(), lim = L.limitsOf(S.limits), out = o.post ? L.outwardOf(o.post()) : '';
+    const r = d && who && o.install && out ? L.dayReach(L.dayWork(jobsArr(), who, d, o.skipJob, o.skipVisit), out, S.geo) : null;
+    if (r && r.miles > lim.miles && !sure && !okFar[who + d]){ ask = d; draw(); return; }
+    if (sure) okFar[who + d] = 1;
+    ask = '';
     input.value = d;
     input.dispatchEvent(new Event('input', {bubbles:true})); input.dispatchEvent(new Event('change', {bubbles:true}));
     draw();
@@ -2032,25 +2132,39 @@ function dayStrip(input, o){
     grid.hidden = false; earlier.hidden = later.hidden = dis; jump.hidden = dis || !who;
     const nf = who && !dis ? nextFree(who, o.skipJob, o.skipVisit) : '';
     const pc = o.post ? String(o.post() || '') : '', a = pc.trim() ? L.inArea(jobsArr(), pc, today, S.areas, o.skipJob) : null, inArea = {};
+    const lim = L.limitsOf(S.limits), out = L.outwardOf(pc), isHsl = !!(o.hsl && o.hsl()), reachOf = {};
+    if (out) wantGeo([pc], draw);
     if (a && a.near) a.near.forEach(d => { if (!who || d.items.some(i => i.who === who)) inArea[d.date] = 1; });
     title.textContent = who ? (who === 'Shop' ? 'Shop diary' : who + '’s diary') : 'Whole diary, nobody chosen yet';
     range.textContent = L.fmtDay(days[0]) + ' to ' + L.fmtDay(days[6]);
     grid.replaceChildren();
     days.forEach(d => {
       const load = loadOf(who, d), off = !!(who && isOff(who, d)), past = d < today;
-      grid.append(h('button', {type:'button', class:'dday' + (d === cur ? ' on' : '') + (d === today ? ' today' : '') + (off ? ' off' : ''), disabled:dis || past || off, 'aria-pressed':d === cur ? 'true' : 'false',
-        'aria-label':L.fmtDay(d) + (off ? ', day off' : load.length ? ', ' + load.length + ' booked' : ', free'), title:off ? who + ' cannot work this day' : load.join(', ') || 'Nothing booked', onclick:() => pick(d)},
+      const work = who ? L.dayWork(jobsArr(), who, d, o.skipJob, o.skipVisit) : [], hsls = work.filter(x => x.hsl).length, full = isHsl && hsls >= lim.hsl;
+      const r = who && out && !past ? L.dayReach(work, out, S.geo) : null, far = !!(r && r.miles > lim.miles); reachOf[d] = r;
+      grid.append(h('button', {type:'button', class:'dday' + (d === cur ? ' on' : '') + (d === today ? ' today' : '') + (off || full ? ' off' : '') + (far && !full ? ' far' : ''), disabled:dis || past || off || full, 'aria-pressed':d === cur ? 'true' : 'false',
+        'aria-label':L.fmtDay(d) + (off ? ', day off' : full ? ', already has a hall, stairs and landing' : load.length ? ', ' + load.length + ' booked' : ', free') + (r ? ', ' + Math.round(r.miles) + ' miles from other work' : ''),
+        title:off ? who + ' cannot work this day' : full ? who + ' already has a hall, stairs and landing this day' : load.join(', ') || 'Nothing booked', onclick:() => pick(d)},
         h('span', {class:'dw', text:L.fmtDay(d).split(' ')[0]}), h('b', {class:'dn', text:String(Number(d.slice(8)))}),
-        h('span', {class:'ds' + (load.length && !off ? ' busy' : ''), text:off ? 'Day off' : past ? 'Gone' : load.length ? load.length + ' booked' : 'Free'}),
-        inArea[d] ? h('span', {class:'da', text:'In ' + a.out}) : null, d === nf && d !== cur ? h('span', {class:'dnx', text:'Next free'}) : null));
+        h('span', {class:'ds' + (load.length && !off ? ' busy' : ''), text:off ? 'Day off' : past ? 'Gone' : full ? 'HSL full' : load.length ? load.length + ' booked' : 'Free'}),
+        hsls && !full && !off && !past ? h('span', {class:'dh', text:'HSL on'}) : null,
+        r && !off && !past ? h('span', {class:far ? 'dfar' : 'da', text:r.miles < 0.5 ? 'Same area' : Math.round(r.miles) + (far ? ' mi away' : ' mi')}) : inArea[d] ? h('span', {class:'da', text:'In ' + a.out}) : null,
+        d === nf && d !== cur ? h('span', {class:'dnx', text:'Next free'}) : null));
     });
+    const ar = ask ? L.dayReach(L.dayWork(jobsArr(), who, ask, o.skipJob, o.skipVisit), out, S.geo) : null;
+    prompt.hidden = !ar;
+    if (ar) prompt.replaceChildren(h('p', {class:'grow'}, h('b', {text:L.fmtDay(ask) + ' is ' + Math.round(ar.miles) + ' miles from ' + who + '’s other work that day. '}),
+      ar.from.name + ' (' + ar.from.what.toLowerCase() + (ar.from.slot ? ' ' + ar.from.slot : '') + ') is in ' + ar.from.out + ' and this is ' + out + '. A day’s work is meant to stay within ' + lim.miles + ' miles.'),
+      btn('Book it anyway', () => pick(ask, true), 'sm'), btn('Pick another day', () => { ask = ''; draw(); }, 'sm'));
     detail.className = 'small ddetail';
     if (!L.validISO(cur)){ detail.className = 'small muted ddetail'; detail.textContent = dis ? 'No date set.' : 'Tap a day to choose it.'; return; }
-    const on = loadOf(who, cur), whoText = who || 'The diary';
-    detail.replaceChildren(h('b', {text:'Chosen: ' + L.fmtDay(cur) + '. '}), o.quiet ? '' : on.length ? whoText + ' already has on: ' + on.join(', ') + '.' : whoText + ' has nothing else booked that day.');
+    const on = loadOf(who, cur), whoText = who || 'The diary', cw = who ? L.dayWork(jobsArr(), who, cur, o.skipJob, o.skipVisit) : [], cr = who && out ? L.dayReach(cw, out, S.geo) : null;
+    const list = who && cw.length ? cw.map(x => x.name + ' (' + x.what.toLowerCase() + (x.slot ? ' ' + x.slot : '') + (x.out ? ', ' + x.out : '') + (x.hsl ? ', hall stairs and landing' : '') + ')') : on;
+    detail.replaceChildren(h('b', {text:'Chosen: ' + L.fmtDay(cur) + '. '}), o.quiet && !cr ? '' : list.length ? whoText + ' already has on: ' + list.join(', ') + '.' : whoText + ' has nothing else booked that day.',
+      cr && cr.miles > lim.miles ? h('span', {style:'color:var(--bad);font-weight:700', text:' ' + Math.round(cr.miles) + ' miles apart, over the ' + lim.miles + ' mile limit.'}) : null);
   }
   draw();
-  return {node:h('div', {class:'dpick'}, input, h('div', {class:'dhead'}, h('div', {class:'grow'}, title, ' ', range), clear, jump, earlier, later), grid, detail), refresh:draw, show:d => setWeek(L.validISO(d) ? d : today)};
+  return {node:h('div', {class:'dpick'}, input, h('div', {class:'dhead'}, h('div', {class:'grow'}, title, ' ', range), clear, jump, earlier, later), grid, prompt, detail), refresh:draw, show:d => setWeek(L.validISO(d) ? d : today)};
 }
 /* ---------- book a measure for someone who has not ordered yet ---------- */
 function measureDialog(){
@@ -2917,7 +3031,7 @@ function backDoneDialog(job, b){
   fitters.forEach(f => fitSel.append(h('option', {value:f, text:f, selected:f === job.fitter})));
   const date = h('input', {class:'in', id:'backDate', type:'date', value:''});
   const none = h('input', {type:'checkbox', id:'backNoDate'});
-  const strip = dayStrip(date, {skipJob:job.id, person:() => fitSel.value, post:() => job.type === 'Collection' ? '' : c.postcode});
+  const strip = dayStrip(date, {install:true, hsl:() => L.hasHSL(job), skipJob:job.id, person:() => fitSel.value, post:() => job.type === 'Collection' ? '' : c.postcode});
   const slotSeg = h('div', {class:'seg sm'}), free = h('div', {class:'guide tight'}), when = h('div', {class:'sec'});
   function draw(){
     slotSeg.replaceChildren(); [['', 'Any time'], ['AM', 'AM'], ['PM', 'PM']].forEach(x => slotSeg.append(h('button', {type:'button', class:slot === x[0] ? 'on' : '', onclick:() => { slot = x[0]; draw(); }}, x[1])));
@@ -2935,9 +3049,10 @@ function backDoneDialog(job, b){
     if (!text){ s.say('Say what was done about it.', true); return; }
     if (!none.checked && !L.validISO(d)){ s.say('Tap the new day in the diary, or tick that there is no new date yet.', true); return; }
     if (d && offMsg(f, d)){ s.say(offMsg(f, d), true); return; }
+    if (d && hslMsg(cur, f, d)){ s.say(hslMsg(cur, f, d), true); return; }
     const p = {backs:{}, fitter:f, date:d, slot:slot}; p.backs[b.k] = {on:false, doneAt:nowISO(), doneBy:S.me.id || '', doneNote:text};
     const after = Object.assign({}, cur, {fitter:f, date:d, backs:Object.assign({}, cur.backs)}); after.backs[b.k] = Object.assign({}, after.backs[b.k], {on:false});
-    const can = d ? L.canConfirmDiary(after, S.off) : {ok:false, why:[]};
+    const can = d ? L.canConfirmDiary(after, S.off, dayCtx()) : {ok:false, why:[]};
     p.diary = !!(d && can.ok);
     if (d && cur.ret === 'needed'){ p.ret = 'booked'; p.retWhy = ''; }
     const where = d ? L.fmtDay(d) + (slot ? ' ' + slot : '') + (f ? ' with ' + f : '') : '';
@@ -2995,7 +3110,7 @@ function signOffDialog(job){
     } else go.textContent = 'Save';
   }
   const backArea = areaBox(() => c.postcode, d => { next.value = d; nextPick.refresh(); showClash(); }, {skipJob:job.id, needPerson:true, strip:true, person:() => String(who.value || '').trim(), empty:'There is no postcode on this job, so the area cannot be checked.'});
-  const nextPick = dayStrip(next, {needPerson:true, quiet:true, skipJob:job.id, person:() => String(who.value || '').trim(), post:() => c.postcode});
+  const nextPick = dayStrip(next, {needPerson:true, quiet:true, install:true, skipJob:job.id, person:() => String(who.value || '').trim(), post:() => c.postcode});
   noDate.addEventListener('change', draw); next.addEventListener('change', showClash); who.addEventListener('change', () => { showClash(); backArea.refresh(); nextPick.refresh(); }); who.addEventListener('input', () => { backArea.refresh(); nextPick.refresh(); });
   async function save(){
     const fitter = String(who.value || '').trim();
@@ -3182,7 +3297,7 @@ function toJobLines(lines, startN, draftName){
 function saleDialog(job){
   if (!needShop() || !needDb()) return;
   const adding = !!(job && job.id);
-  const F = {lines:[], shopifyId:'', type:'', slot:'', sizeCheck:'', busy:false, saved:null};
+  const F = {lines:[], shopifyId:'', type:'', slot:'', sizeCheck:'', hsl:false, busy:false, saved:null};
   const s = sayer();
   const inp = (id, type, ph) => h('input', {class:'in', id:id, type:type, placeholder:ph || ''});
 
@@ -3212,7 +3327,7 @@ function saleDialog(job){
   /* when */
   const typeSeg = h('div', {class:'seg'}), slotSeg = h('div', {class:'seg'}), sizeBox = h('div', {class:'radios', role:'radiogroup', 'aria-label':'How the sizes will be checked'});
   const drawSegs = () => {
-    typeSeg.replaceChildren(); L.TYPES.forEach(t => typeSeg.append(h('button', {type:'button', class:F.type === t ? 'on' : '', onclick:() => { F.type = t; drawSegs(); }}, t)));
+    typeSeg.replaceChildren(); L.TYPES.forEach(t => typeSeg.append(h('button', {type:'button', class:F.type === t ? 'on' : '', onclick:() => { F.type = t; drawSegs(); if (typeof salePick !== 'undefined'){ saleHsl.hidden = t !== 'Fitting'; salePick.refresh(); } }}, t)));
     slotSeg.replaceChildren(); [['', 'Any time'], ['AM', 'AM'], ['PM', 'PM']].forEach(x => slotSeg.append(h('button', {type:'button', class:F.slot === x[0] ? 'on' : '', onclick:() => { F.slot = x[0]; drawSegs(); }}, x[1])));
     if (F.type === 'Fitting' && F.sizeCheck === 'none') F.sizeCheck = '';
     sizeBox.replaceChildren(); Object.keys(L.SIZE_CHECKS).filter(k => k !== 'none' || F.type !== 'Fitting').forEach(k => sizeBox.append(
@@ -3222,7 +3337,8 @@ function saleDialog(job){
   const date = inp('saleDate', 'date'); date.min = L.todayISO();
   const fitSel = h('select', {class:'in', id:'saleFitter'}, h('option', {value:'', text:'Nobody yet'}), S.fitters.map(f => h('option', {value:f, text:f})));
   const saleArea = areaBox(() => cPost.value, d => { date.value = d; salePick.refresh(); }, {strip:true, person:() => fitSel.value});
-  const salePick = dayStrip(date, {person:() => fitSel.value, post:() => cPost.value});
+  const salePick = dayStrip(date, {install:true, hsl:() => F.hsl && F.type === 'Fitting', person:() => fitSel.value, post:() => F.type === 'Collection' ? '' : cPost.value});
+  const saleHsl = h('label', {class:'tick'}, h('input', {type:'checkbox', id:'saleHsl', onchange:e => { F.hsl = e.target.checked; if (F.hsl && fitSel.value && L.validISO(date.value) && hslMsg({id:'', status:'open', hsl:true}, fitSel.value, date.value)){ date.value = ''; } salePick.refresh(); }}), 'Includes a hall, stairs and landing');
   cPost.addEventListener('input', () => { saleArea.refresh(); salePick.refresh(); }); fitSel.addEventListener('change', () => { saleArea.refresh(); salePick.refresh(); });
 
   /* items */
@@ -3299,6 +3415,7 @@ function saleDialog(job){
       if (!L.validISO(date.value)) out.push('Choose a date.');
       if (!F.sizeCheck) out.push('Say how the sizes will be checked.');
       if (offMsg(fitSel.value, date.value)) out.push(offMsg(fitSel.value, date.value));
+      if (F.hsl && F.type === 'Fitting' && hslMsg({id:'', status:'open', hsl:true}, fitSel.value, date.value)) out.push(hslMsg({id:'', status:'open', hsl:true}, fitSel.value, date.value));
     }
     if (!F.lines.length) out.push('Add at least one item.');
     F.lines.forEach(l => {
@@ -3334,7 +3451,7 @@ function saleDialog(job){
         drafts[L.gidNum(draft.id)] = {id:draft.id, name:draft.name, closed:false};
         await createJob(id, {v:1, ref:draft.name, source:'shop', orderId:'', orderName:'', quoteRef:'', createdAt:nowISO(), madeAt:nowISO(), customer:customer,
           type:F.type, date:date.value, slot:F.slot, fitter:fitSel.value, diary:false, status:'open', shopifyClosed:false,
-          lines:toJobLines(F.lines, 0, draft.name), total:added, pay:pay, notes:ctx.note, quote:[], drafts:drafts, sizeCheck:F.sizeCheck, rooms:{}, pre:{}},
+          lines:toJobLines(F.lines, 0, draft.name), total:added, pay:pay, notes:ctx.note, quote:[], drafts:drafts, sizeCheck:F.sizeCheck, rooms:{}, pre:{}, ...(F.hsl && F.type === 'Fitting' ? {hsl:true} : {})},
           'Shop sale saved. Draft ' + draft.name + ' holds the stock in Shopify');
         closeModal(); toast(F.saved.warn || 'Sale saved as ' + draft.name, !!F.saved.warn); openSheet(id);
       }
@@ -3347,7 +3464,7 @@ function saleDialog(job){
   const dialog = dlg(adding ? 'Add items to ' + ((job.customer || {}).name || 'the job') : 'New sale', h('div', {class:'sec'},
     adding ? null : h('div', {class:'card'}, h('h3', {}, 'Customer'), custFind, custRes, linked,
       h('div', {class:'grid2'}, field('Name', cName), field('Phone', cPhone)), h('div', {class:'grid2'}, field('Email', cEmail), field('Postcode', cPost)), field('Address', cAddr)),
-    adding ? null : h('div', {class:'card'}, h('h3', {}, 'How and when'), typeSeg, field('Fitter', fitSel), salePick.node, slotSeg, saleArea.node),
+    adding ? null : h('div', {class:'card'}, h('h3', {}, 'How and when'), typeSeg, saleHsl, field('Fitter', fitSel), salePick.node, slotSeg, saleArea.node),
     adding ? null : h('div', {class:'card'}, h('h3', {}, 'Sizes'), h('p', {class:'small muted', text:'Say how the sizes will be checked. The date above stays pencilled in until they are, and a measure or inspection can be booked from the job straight away.'}), sizeBox),
     h('div', {class:'card'}, h('h3', {}, 'Items'), takeDone() ? null : h('p', {class:'small muted', text:'Awaiting opening stocktake: the stock figures shown here are not confirmed yet.'}), prodFind, prodRes, linesBox,
       h('div', {class:'bar'}, btn('Add another charge', () => { F.lines.push({key:uid(), kind:'other', title:'', price:'', qty:1}); drawLines(); }, 'sm'), h('span', {class:'grow'}), h('span', {}, 'Total  ', totalEl))),
@@ -3844,6 +3961,7 @@ async function boot(){
   use('assets').then(a => { S.cap.assets = a; if (a && S.openJob && !$('#sheet').hidden && !editingIn($('#sheet'))) drawSheet(); });
   const caps = await Promise.all([use('db'), use('mcp'), use('user'), use('downloads')]);
   S.cap.db = caps[0]; S.cap.mcp = caps[1]; S.cap.user = caps[2]; S.cap.downloads = caps[3];
+  use('geo').then(g => { S.cap.geo = g; if (g) wantGeo(openJobs().map(j => (j.customer || {}).postcode)); });
   if (S.cap.user){ try { const me = await S.cap.user.me(); S.me = {id:me.id || '', name:me.name || ''}; } catch (e) {} }
   startDb(); connectShop();
 }

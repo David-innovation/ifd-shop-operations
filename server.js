@@ -162,6 +162,25 @@ function create(opts){
     send(res, 200, {id:id, url:'/_blob/' + id, sizeBytes:buf.length, contentType:type});
   }
 
+  /* ---------- where a postcode district is, to tell how far apart two jobs are ----------
+     Only the first half of a postcode (G84) is ever looked up, never a customer's full postcode. Answers are kept. */
+  async function geoRoute(res, url){
+    const codes = Array.from(new Set(String(url.searchParams.get('codes') || '').toUpperCase().split(',').map(x => x.trim()).filter(x => /^[A-Z]{1,2}\d[A-Z\d]?$/.test(x)))).slice(0, 40), out = {};
+    for (const c of codes){
+      const d = store.docPath('geo/' + c); let rec = st.getDoc(d.path);
+      const old = rec.exists && rec.data.none && now() - Date.parse(rec.data.at) > 7 * 86400000;
+      if (!rec.exists || old){
+        try {
+          const r = await fetchImpl('https://api.postcodes.io/outcodes/' + c, {headers:{accept:'application/json'}, signal:AbortSignal.timeout(6000)}), j = await r.json().catch(() => null);
+          const ok = !!(j && j.result && Number.isFinite(j.result.latitude) && Number.isFinite(j.result.longitude));
+          if (ok || r.status === 404){ const data = ok ? {lat:j.result.latitude, lng:j.result.longitude, at:iso()} : {none:true, at:iso()}; st.setDoc(d, data); rec = {exists:true, data:data}; }
+        } catch (e) { /* not known this time: the screens carry on without a distance */ }
+      }
+      if (rec.exists && !rec.data.none) out[c] = {lat:rec.data.lat, lng:rec.data.lng};
+    }
+    return send(res, 200, {codes:out});
+  }
+
   /* ---------- the router ---------- */
   async function handle(req, res){
     const url = new URL(req.url, 'http://x'), p = url.pathname, user = userOf(req), shopUser = user && SHOP_ROLES.indexOf(user.role) !== -1;
@@ -184,6 +203,7 @@ function create(opts){
     if (p.startsWith('/api/db/')) return dbRoute(req, res, url, user, p.slice(8));
     if (p === '/api/shopify' && req.method === 'POST') return shopifyRoute(req, res, user);
     if (p === '/api/shopify/status') return send(res, 200, {ready:shop.ready(), store:shop.store});
+    if (p === '/api/geo' && req.method === 'GET') return geoRoute(res, url);
     if (p === '/api/assets' && req.method === 'POST') return assetUpload(req, res, user);
     if (p.startsWith('/api/assets/') && req.method === 'DELETE'){
       const id = p.slice(12); if (!/^[0-9a-f]{32}$/.test(id)) return fail(res, 400, 'invalid_request', 'Bad id.');

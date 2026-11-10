@@ -180,3 +180,21 @@ test('an open screen can tell when the screens have been replaced', async () => 
     assert.match(got, new RegExp('event: version\\ndata: \\{"v":"' + s.app.version + '"\\}'), 'the live line says which build is running as soon as it connects');
   } finally { s.stop(); }
 });
+
+test('where a postcode district is: looked up once, kept, and only for the shop', async () => {
+  const s = await boot();
+  try {
+    const shop = await s.signIn('07700 900002');
+    const a = await s.req('GET', '/api/geo?codes=g84,ML5,ZZ99,not-a-code,G84', undefined, shop);
+    assert.strictEqual(a.status, 200);
+    assert.deepStrictEqual(Object.keys(a.json.codes).sort(), ['G84', 'ML5'], 'districts that exist come back; unknown and malformed ones do not');
+    assert.ok(Math.abs(a.json.codes.G84.lat - 56.014) < 0.001 && Math.abs(a.json.codes.ML5.lng + 4.032) < 0.001);
+    const asked = s.shopify.state.geo;
+    assert.strictEqual(asked, 3, 'each district is asked for once (G84, ML5 and the unknown ZZ99)');
+    await s.req('GET', '/api/geo?codes=G84,ML5,ZZ99', undefined, shop);
+    assert.strictEqual(s.shopify.state.geo, asked, 'the answers are kept, so nothing is asked twice');
+    assert.strictEqual((await s.req('GET', '/api/geo?codes=G84')).status, 401);
+    s.app.ensureUser('Sonnie', '07700 900003', 'fitter');
+    assert.strictEqual((await s.req('GET', '/api/geo?codes=G84', undefined, await s.signIn('07700 900003'))).status, 403);
+  } finally { s.stop(); }
+});

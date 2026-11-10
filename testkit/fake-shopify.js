@@ -35,6 +35,10 @@ function make(){
       const body = JSON.parse(init.body), op = (/(?:query|mutation)\s+(\w+)/.exec(body.query) || [])[1]; state.calls.push(op);
       return resp(200, {data:answer(op, body.variables || {})});
     }
+    if (String(url).indexOf('https://api.postcodes.io/outcodes/') === 0){
+      const c = String(url).split('/').pop(), at = {G81:[55.9, -4.4], G84:[56.014, -4.756], ML5:[55.86, -4.032], G13:[55.893, -4.345], G82:[55.95, -4.57]}[c]; state.geo = (state.geo || 0) + 1;
+      return at ? resp(200, {status:200, result:{outcode:c, latitude:at[0], longitude:at[1]}}) : resp(404, {status:404, error:'Outcode not found'});
+    }
     throw new Error('the tests do not expect a call to ' + url);
   }
   return {fetchImpl, state, DOMAIN};

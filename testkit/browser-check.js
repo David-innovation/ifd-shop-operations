@@ -77,6 +77,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     const jb = app.store.getDoc('jobs/tback').data, bk = Object.values(jb.backs)[0];
     ok(bk.on === true && bk.reason === 'floor' && bk.fitter === 'Sonnie' && bk.date === tmr && Object.keys(bk.photos).length === 1 && jb.diary === false, 'the fitter sends it back with the reason and a photo, and it leaves the diary');
     ok(jb.status === 'open' && jb.lines.l1.bay === 'W4-01' && jb.lines.l1.state === 'allocated' && jb.total === 100 && jb.date === tmr, 'sending it back changes nothing else: stock, bay, price and date are as they were');
+    await pg.waitForFunction(() => /With the shop/.test(document.querySelector('#sheet').innerText), null, {timeout:6000});
     const fs2 = await pg.locator('#sheet').innerText();
     ok(/With the shop/.test(fs2) && /Screed is still wet/.test(fs2) && !/£|Sign off this visit/.test(fs2), 'the fitter sees it is with the shop, with no prices and no sign-off');
     await b.pg.waitForFunction(() => /Bea Returned/.test((document.querySelector('#actSec') || {}).innerText || ''), null, {timeout:8000});
@@ -147,6 +148,59 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.locator('#modal .radio', {hasText:'Sonnie'}).locator('input').check();
     await pg.waitForFunction(() => document.querySelectorAll('#modal .dday').length === 7);
     ok(/Sonnie.s diary/.test(await pg.locator('#modal .dpick').innerText()) && await pg.locator('#modal input[type=date]:visible').count() === 0, 'then that person’s diary comes up, with no calendar box');
+    await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click();
+    // a fitter's day: one hall, stairs and landing, and the day's work kept within reach
+    const X = day(8), live = () => pg.waitForFunction(() => document.querySelector('#storeText') && document.querySelector('#storeText').textContent === 'Shopify live', null, {timeout:10000});
+    const mkJob = (id, name, pc, extra) => app.store.setDoc(docPath('jobs/' + id), Object.assign({v:1, ref:'#' + id.toUpperCase(), source:'shop', status:'open', type:'Fitting', date:'', slot:'', fitter:'Sonnie', diary:false, shopifyClosed:false,
+      customer:{name:name, phone:'07700 900556', address:'2 Test Street', postcode:pc},
+      lines:{l1:{n:1, title:'Test carpet', sub:'', unit:'m', qty:30, hold:'draft', holdRef:'#D2', state:'allocated', bay:'W4-01', picked:true, checked:true, price:90, w:4}}, total:90, pay:{}, notes:'', quote:[], drafts:{},
+      sizeCheck:'verified', rooms:{r1:{n:1, name:'Bedroom', len:3, wid:3, area:9, source:'shop', status:'verified', verBy:'Shop', verRole:'shop', verOn:tmr}}, pre:{}, log:{}}, extra || {}));
+    mkJob('h1', 'Helen Stairs', 'G84 7AA', {date:X, diary:true, rooms:{r1:{n:1, name:'Hall, stairs and landing', len:4, wid:1, area:4, source:'shop', status:'verified', verBy:'Shop', verRole:'shop', verOn:tmr}}});
+    mkJob('h2', 'Second Stairs', 'G84 8BB', {hsl:true});
+    mkJob('h3', 'Far Bedrooms', 'ML5 1AA');
+    mkJob('h4', 'Near Bedrooms', 'G82 1AA');
+    await pg.reload(); await live();
+    const openJob = async name => { await pg.keyboard.press('Escape'); await pg.locator('#tabs .tab', {hasText:'Jobs'}).click(); await pg.locator('#view .row', {has:pg.locator('.who', {hasText:name})}).first().click(); await pg.waitForSelector('#sheet .dstrip'); return pg.locator('#sheet .dpick'); };
+    let sx = await openJob('Second Stairs'), cx = await cellOf(sx, X);
+    ok(await pg.locator('#jobHsl').isChecked() && /HSL full/.test(await cx.innerText()) && await cx.isDisabled(), 'a second hall, stairs and landing cannot be put on a day the fitter already has one');
+    sx = await openJob('Near Bedrooms'); cx = await cellOf(sx, X);
+    await pg.waitForFunction(() => Array.from(document.querySelectorAll('#sheet .dday .da')).some(x => /\d+ mi$/.test(x.textContent)), null, {timeout:8000});
+    ok(/HSL on/.test(await cx.innerText()) && /\b8 mi\b/.test(await cx.innerText()) && !(await pg.locator('#jobHsl').isChecked()), 'other rooms can still go on that day, and it shows how near they are');
+    await cx.click();
+    await pg.waitForFunction(d => document.querySelector('#jobDate').value === d, X, {timeout:6000});
+    ok(app.store.getDoc('jobs/h4').data.date === X && await pg.locator('#sheet .dpick .banner:visible').count() === 0, 'a job within reach goes straight on');
+    sx = await openJob('Far Bedrooms'); cx = await cellOf(sx, X);
+    await pg.waitForFunction(() => Array.from(document.querySelectorAll('#sheet .dday .dfar')).some(x => /mi away/.test(x.textContent)), null, {timeout:8000});
+    ok(/30 mi away/.test(await cx.innerText()), 'a job an hour away shows in red with the miles');
+    await cx.click();
+    await pg.waitForSelector('#sheet .dpick .banner:visible');
+    ok(/30 miles from Sonnie.s other work that day/.test(await pg.locator('#sheet .dpick .banner').innerText()) && app.store.getDoc('jobs/h3').data.date === '', 'choosing it stops and says why, without booking anything');
+    await pg.locator('#sheet .dpick').getByRole('button', {name:'Book it anyway'}).click();
+    await pg.waitForFunction(d => document.querySelector('#jobDate').value === d, X, {timeout:6000});
+    ok(app.store.getDoc('jobs/h3').data.date === X, 'it can still be booked on purpose');
+    await pg.keyboard.press('Escape');
+    await pg.waitForFunction(() => Array.from(document.querySelectorAll('#view .row')).some(r => /Far Bedrooms/.test((r.querySelector('.who') || {}).innerText || '') && /30 miles from Sonnie.s other work that day \(Helen Stairs, G84\)/i.test(r.innerText)), null, {timeout:6000}).catch(() => {});
+    const farRow = await pg.locator('#view .row', {has:pg.locator('.who', {hasText:'Far Bedrooms'})}).first().innerText();
+    ok(/30 miles from Sonnie.s other work that day \(Helen Stairs, G84\)/i.test(farRow), 'and the job carries the warning afterwards: ' + farRow.replace(/\n+/g, ' | '));
+    // forced on by another route, it still cannot be confirmed
+    await pg.evaluate(d => fetch('/api/db/update', {method:'POST', headers:{'x-ifd':'1', 'content-type':'application/json'}, body:JSON.stringify({path:'jobs/h2', data:{date:d}})}), X);
+    sx = await openJob('Second Stairs');
+    await pg.waitForFunction(() => /already has a hall, stairs and landing/.test(document.querySelector('#sheet').innerText), null, {timeout:6000});
+    ok(await pg.locator('#sheet').getByRole('button', {name:'Put in the diary', exact:true}).isDisabled() && /Second hall, stairs and landing for Sonnie/.test(await pg.locator('#sheet').innerText()), 'a second one that gets onto the day some other way cannot be confirmed in the diary');
+    // the limit is the shop's to change
+    await pg.keyboard.press('Escape'); await pg.locator('#tabs .tab', {hasText:'Setup'}).click();
+    await pg.fill('#limHsl', '2'); await pg.fill('#limMiles', '40'); await pg.getByRole('button', {name:'Save the limits'}).click();
+    await pg.waitForFunction(() => true); const lim = () => app.store.getDoc('settings/main').data.limits || {};
+    for (let i = 0; i < 40 && lim().hsl !== 2; i++) await pg.waitForTimeout(100);
+    ok(lim().hsl === 2 && lim().miles === 40 && app.store.getDoc('settings/main').data.fitters.length === 2, 'the limits are set in Setup, without disturbing the rest of the settings');
+    sx = await openJob('Second Stairs');
+    ok(!(await pg.locator('#sheet').getByRole('button', {name:'Put in the diary', exact:true}).isDisabled()), 'with the limit raised to two, the second one is allowed');
+    await pg.keyboard.press('Escape');
+    ok(!/miles from/.test(await pg.locator('#view .row', {has:pg.locator('.who', {hasText:'Far Bedrooms'})}).first().innerText()), 'and with the distance raised, the far job is no longer flagged');
+    await pg.getByRole('button', {name:'New sale'}).first().click(); await pg.waitForSelector('#modal .dstrip');
+    await pg.locator('#modal .seg button', {hasText:'Fitting'}).click(); await pg.locator('#saleHsl').check(); await pg.selectOption('#saleFitter', 'Sonnie');
+    cx = await cellOf(pg.locator('#modal'), X);
+    ok(/HSL full/.test(await cx.innerText()) && await cx.isDisabled(), 'a new sale with a hall, stairs and landing cannot take a day that is already at the limit');
     await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click();
     // a screen left open brings itself up to date when the screens have been replaced, without losing work in hand
     await pg.locator('#tabs .tab', {hasText:'Today'}).click();

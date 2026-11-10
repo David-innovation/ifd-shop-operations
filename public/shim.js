@@ -97,7 +97,8 @@
     delete: ref => call('DELETE', '/api/assets/' + String(ref).replace(/^.*\//, '')),
     list: async () => ({assets:[], usage:{files:0, bytes:0, maxFiles:0, maxBytes:0}})
   };
-  const caps = {db:db, mcp:mcp, user:user, downloads:downloads, assets:assets};
+  const geo = { lookup: codes => call('GET', '/api/geo?codes=' + encodeURIComponent((codes || []).join(','))).then(r => r.codes || {}) };
+  const caps = {db:db, mcp:mcp, user:user, downloads:downloads, assets:assets, geo:geo};
   window.claude = {use: async name => caps[name] || null};
   /* a way out, since the shop's screen is shared */
   window.addEventListener('DOMContentLoaded', () => {
