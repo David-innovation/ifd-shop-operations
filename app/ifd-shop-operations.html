@@ -120,7 +120,6 @@ textarea.in{min-height:84px;resize:vertical}
 .sq{display:flex;gap:6px 12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
 .sq > span{font-weight:600;flex:1 1 120px;min-width:0}
 .sq .need{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);margin-top:2px}
-.sq.ask{border-color:var(--warn);background:var(--warn-bg)}
 .sq.miss{border-color:var(--bad);background:var(--bad-bg)} .sq.miss .need{color:var(--bad)}
 .sq .seg{flex:0 0 auto;min-width:150px;border-color:var(--muted)}
 .sq .seg button{min-height:42px;padding:6px 14px;color:var(--ink);background:var(--surface);white-space:nowrap}
@@ -2513,13 +2512,13 @@ function specInputs(P, init, dflt, onChange){
   const rows = [];
   const q = (label, control, keys, extra) => { const tag = h('small', {class:'need', text:'Answer needed'}), row = h('div', {class:'sq'}, h('span', {}, label, tag), control, extra || null); rows.push({row:row, tag:tag, keys:keys}); return row; };
   /* mark what is still unanswered without redrawing, so a tap is never lost under someone's finger */
-  function marks(){ const miss = need(); rows.forEach(r => { const todo = r.keys.some(k => miss.indexOf(k) !== -1); r.row.className = 'sq ' + (todo ? (flag ? 'miss' : 'ask') : 'answered'); r.tag.hidden = !todo; }); count(); }
+  function marks(){ const miss = need(); rows.forEach(r => { const todo = r.keys.some(k => miss.indexOf(k) !== -1); r.row.className = 'sq ' + (todo ? 'miss' : 'answered'); r.tag.hidden = !todo; }); count(); }
   const req = (key, label, id, name) => q(label, seg([[true, 'Required', id + 'Y', 'yes'], [false, 'Not required', id + 'N']], st[key], v => { st[key] = v; }), [name]);
   const yn = (key, label, id, name) => q(label, seg([[true, 'Yes', id + 'Y', 'yes'], [false, 'No', id + 'N']], st[key], v => { st[key] = v; }), [name]);
   const barIn = k => field(L.BAR_KINDS[k], h('input', {class:'in', id:P + 'Bar' + k, type:'number', min:'0', step:'1', inputmode:'numeric', placeholder:'How many', value:st.bars[k] || '',
     oninput:e => { st.bars[k] = Math.max(0, Math.floor(Number(e.target.value) || 0)); marks(); fire(); }}));
   const tally = h('span', {id:P + 'Count'});
-  function count(){ const n = need().length; tally.replaceChildren(n ? chip(n + (n === 1 ? ' question still to answer' : ' questions still to answer'), flag ? 'bad' : 'warn') : chip('All answered', 'ok')); }
+  function count(){ const n = need().length; tally.replaceChildren(n ? chip(n + (n === 1 ? ' question still to answer' : ' questions still to answer'), 'bad') : chip('All answered', 'ok')); }
   function draw(){
     const carpet = st.floor === 'carpet';
     head.replaceChildren(); box.replaceChildren(); rows.length = 0;
@@ -3094,8 +3093,8 @@ function findingsDialog(job, v){
     x.widths = ws;
     const needMsg = h('p', {class:'small', id:'fr' + i + 'Need', style:'color:var(--bad);font-weight:700', hidden:true});
     const sayNeed = () => { const miss = x.spec.need(); needMsg.hidden = !miss.length; needMsg.textContent = miss.length ? 'Answer these first, then tick the room: ' + miss.join(', ') + '.' : ''; };
-    x.spec = measure ? specInputs('fr' + i, x.isNew ? null : x.old.spec, dflt, () => { if (x.spec.need().length && x.ok.checked) x.ok.checked = false; if (!needMsg.hidden) sayNeed(); }) : null;
-    if (x.spec) x.ok.addEventListener('change', () => { if (x.ok.checked && x.spec.need().length){ x.ok.checked = false; x.spec.flagMissing(); sayNeed(); } else needMsg.hidden = true; });
+    x.spec = measure ? specInputs('fr' + i, x.isNew ? null : x.old.spec, dflt, () => { if (x.spec.need().length && x.ok.checked) x.ok.checked = false; sayNeed(); }) : null;
+    if (x.spec){ sayNeed(); x.ok.addEventListener('change', () => { if (x.ok.checked && x.spec.need().length) x.ok.checked = false; sayNeed(); }); }
     const was = h('p', {class:'small muted'});
     const show = () => { was.textContent = !x.isNew && L.roomChanged(x.old, x.sz.read()) ? 'Recorded as ' + L.roomSize(x.old) + '. Your size replaces it, the old one is kept in the history and the shop is asked to review.' : ''; };
     [x.sz.len, x.sz.wid, x.sz.area].forEach(el => el.addEventListener('input', show));

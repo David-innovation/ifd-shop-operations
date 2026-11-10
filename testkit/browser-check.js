@@ -268,9 +268,9 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
       'the room already knows it is carpet from what is on the order, and whoever measures is shown no roll, cut or direction: only the sizes and the questions');
     const qs = await pg.locator('#fr0Spec').innerText();
     ok(/Is new underlay required\?/.test(qs) && /Is new gripper required\?/.test(qs) && /Are door bars required\?/.test(qs) && /Is there old flooring down\?/.test(qs) && /Does the customer want a price to move furniture\?/.test(qs)
-      && /Not required/.test(qs) && /5 questions still to answer/.test(await pg.locator('#fr0Count').innerText()) && await pg.locator('#fr0Spec .sq.ask').count() === 5 && (qs.match(/ANSWER NEEDED/gi) || []).length === 5,
+      && /Not required/.test(qs) && /5 questions still to answer/.test(await pg.locator('#fr0Count').innerText()) && await pg.locator('#fr0Spec .sq.miss').count() === 5 && (qs.match(/ANSWER NEEDED/gi) || []).length === 5,
       'each question is a full question with Required or Not required, every unanswered one is marked, and the room counts what is left');
-    ok(await pg.evaluate(() => Array.from(document.querySelectorAll('#fr0Spec .sq.ask')).every(r => { const a = r.querySelector('span').getBoundingClientRect(), b = r.querySelector('.seg').getBoundingClientRect(); return r.getBoundingClientRect().height < 110 && b.left > a.left + 40; })),
+    ok(await pg.evaluate(() => Array.from(document.querySelectorAll('#fr0Spec .sq.miss')).every(r => { const a = r.querySelector('span').getBoundingClientRect(), b = r.querySelector('.seg').getBoundingClientRect(); return r.getBoundingClientRect().height < 110 && b.left > a.left + 40; })),
       'an unanswered question still reads as one row: the question on the left and its answers on the right');
     await pg.locator('#fr0Ok').click();
     ok(!(await pg.locator('#fr0Ok').isChecked()) && /Answer these first, then tick the room: underlay, gripper, door bars, old flooring, furniture/.test(await pg.locator('#fr0Need').innerText()) && await pg.locator('#fr0Spec .sq.miss').count() === 5,
@@ -278,7 +278,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.click('#fr0BarsY');
     ok(/how many door bars/.test(await pg.locator('#fr0Need').innerText()), 'saying door bars are required then asks how many');
     await answer(0, {bars:{cc:1}});
-    ok(/All answered/.test(await pg.locator('#fr0Count').innerText()) && await pg.locator('#fr0Spec .sq.ask, #fr0Spec .sq.miss').count() === 0 && await pg.locator('#fr0Need').isHidden() && await pg.locator('#fr0UnderlayY.on.yes').count() === 1,
+    ok(/All answered/.test(await pg.locator('#fr0Count').innerText()) && await pg.locator('#fr0Spec .sq.miss').count() === 0 && await pg.locator('#fr0Need').isHidden() && await pg.locator('#fr0UnderlayY.on.yes').count() === 1,
       'once they are all answered the marks clear and each answer shows filled in');
     await pg.locator('#fr0Ok').check();
     await pg.locator('#modal').getByRole('button', {name:'Submit findings'}).click();
