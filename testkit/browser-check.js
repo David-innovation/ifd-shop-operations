@@ -355,6 +355,8 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.click('#fr2Carpet');
     await pg.fill('#fr2HallLen', '3.2'); await pg.fill('#fr2HallWid', '1.1');
     await pg.fill('#fr2StepCount', '13'); await pg.fill('#fr2StepWid', '0.86'); await pg.fill('#fr2StepTread', '25'); await pg.fill('#fr2StepRiser', '20');
+    ok(/the stair width in centimetres, for example 86/.test(await pg.locator('#fr2Need').innerText()), 'a stair width typed in metres is caught: the stairs are sized in centimetres like the steps');
+    await pg.fill('#fr2StepWid', '86');
     const nd2 = await pg.locator('#fr2Need').innerText();
     ok(/whether the stairs turn/.test(nd2) && /the landing at its longest and widest/.test(nd2) && !/how many stairs/.test(nd2) && !/the hall/.test(nd2), 'it says exactly what is still missing from the stairs and the landing');
     await pg.click('#fr2TurnY'); await pg.fill('#fr2TurnCount', '2'); await pg.fill('#fr2TurnDepth', '40');
@@ -396,13 +398,24 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     // back in the shop, the sale starts from what was chosen, beside the sizes that were measured
     await pg.locator('#sheet').getByRole('button', {name:'Close'}).click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
     await pg.getByRole('button', {name:'Back to the shop'}).click();
+    await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#priceSec');
+    const pr = await pg.locator('#priceSec .row.price', {hasText:'Brief Customer'}).innerText();
+    ok(/To price/.test(await pg.locator('#priceSec h2').innerText()) && /07700 900777/.test(pr) && /Measured by Eddie/.test(pr) && /3 rooms: Bedroom 1, Bedroom 2, Hall, stairs and landing/.test(pr) && /Chosen in the shop: Royale Oak/.test(pr)
+      && /Measured today/.test(pr) && /Stairs to work out/.test(pr) && /Has drawings/.test(pr) && /Price it/.test(pr) && !/£/.test(pr),
+      'a measured job lands on the shop’s dashboard under To price, with the customer, who measured, the rooms and what was chosen');
+    await pg.locator('#priceSec .row.price', {hasText:'Brief Customer'}).click(); await pg.waitForSelector('#toPriceBanner');
+    ok(/Measured and ready to price/.test(await pg.locator('#toPriceBanner').innerText()) && /ring Brief Customer on 07700 900777/.test(await pg.locator('#toPriceBanner').innerText()) && await pg.locator('#toPriceBanner').getByRole('button', {name:'Price it'}).count() === 1,
+      'opening it says what to do next: check the summary, price it, ring the customer');
+    await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
+    ok(await pg.evaluate(() => { const L = window.IFDLogic, old = {hsl:{hall:{on:false}, stairs:{on:true, n:12, wid:80, tread:21, riser:21, winders:0, wdepth:0}, landing:{on:true, len:2.6, wid:2.2}}, area:432.92};
+      return L.roomArea(old) === 9.99 && /12 stairs, 80 cm wide/.test(L.hslText(old)); }), 'a stair width that was saved in centimetres is read as centimetres, so the area is right');
     await openJobPlain('Brief Customer'); await pg.waitForSelector('#pricingCard');
     const cc = await pg.locator('#checksCard').innerText();
-    ok(/Hall 3\.20 × 1\.10 m at its longest and widest\. 13 stairs, 0\.86 m wide[\s\S]*?Landing 2\.60 × 1\.90 m at its longest and widest/.test(cc) && await pg.locator('#checksCard .thumbs img, #checksCard .thumb').count() >= 1,
+    ok(/Hall 3\.20 × 1\.10 m at its longest and widest\. 13 stairs, 86 cm wide[\s\S]*?Landing 2\.60 × 1\.90 m at its longest and widest/.test(cc) && await pg.locator('#checksCard .thumbs img, #checksCard .thumb').count() >= 1,
       'the job shows the hall, the stairs and the landing in words, with the drawing beside them');
     const pc = await pg.locator('#pricingCard').innerText();
     ok(/Flooring: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Carpet: Hall, stairs and landing, hall[\s\S]*?1\.20 m off the 4 m roll, 4\.80 m²/.test(pc) && /Carpet: Hall, stairs and landing, landing[\s\S]*?2\.00 m off the 4 m roll, 8\.00 m²/.test(pc)
-      && /Stairs: Hall, stairs and landing[\s\S]*?13 stairs, 0\.86 m wide, each 25 cm deep and 20 cm high, plus 2 turning steps, 40 cm at the deepest[\s\S]*?Run 7\.35 m, 0\.86 m wide/.test(pc)
+      && /Stairs: Hall, stairs and landing[\s\S]*?13 stairs, 86 cm wide, each 25 cm deep and 20 cm high, plus 2 turning steps, 40 cm at the deepest[\s\S]*?Run 7\.35 m, 0\.86 m wide/.test(pc)
       && /Flooring underlay\s+18\.90 m²/.test(pc) && /Carpet underlay\s+14\.78 m²/.test(pc) && /Work out by hand\s+gripper for Hall, stairs and landing/.test(pc) && /Beading, round the walls\s+about 24\.60 m/.test(pc) && /Door bars, carpet to flooring\s+1/.test(pc) && /Door bars, flooring to flooring\s+1/.test(pc)
       && /Uplift and dispose: Bedroom 1, Bedroom 2\s+18\.90 m²/.test(pc) && /Furniture to move\s+Bedroom 1, Bedroom 2/.test(pc) && /customer is lifting it\s+Hall, stairs and landing/.test(pc) && !/£/.test(pc),
       'the shop gets one summary to price from: floor areas, carpet cuts, underlay, gripper, beading, door bars, uplift and furniture');

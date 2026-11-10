@@ -145,6 +145,10 @@ textarea.in{min-height:84px;resize:vertical}
 .fwrap h2.dh{margin:6px 0 0;font-family:var(--font-display);font-size:20px}
 .fday.shopside > header small{color:var(--muted)}
 .row.act{background:var(--bad-bg);align-items:flex-start}
+.pricenow h2{color:var(--info)} .pricenow .list{border:1.5px solid var(--info)}
+.row.price{background:var(--info-bg);align-items:flex-start}
+.row.price .sub{overflow-wrap:anywhere}
+.row.price .go{font-weight:700;text-decoration:underline;white-space:nowrap}
 .row.act .why{margin:4px 0 2px;font-weight:600;overflow-wrap:anywhere}
 .actnone{margin:0;color:var(--muted);font-size:13px} .actnone b{color:var(--ink);margin-right:6px}
 .card.backcard{border-color:var(--bad);background:var(--bad-bg)}
@@ -515,7 +519,7 @@ window.IFDLogic = (function(){
   var SPARE = 0.10; /* the guide allowance for cuts and waste. It is only ever shown, never saved into a room. */
   function num(v){ var n = Number(v); return isFinite(n) && n > 0 ? n : 0; }
   function fmtM(n){ return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2); }
-  function roomArea(r){ var a = num(r && r.area); return a ? round2(a) : round2(num(r && r.len) * num(r && r.wid)); }
+  function roomArea(r){ var x = hslOf(r); if (x) return hslArea(x); var a = num(r && r.area); return a ? round2(a) : round2(num(r && r.len) * num(r && r.wid)); }
   function roomSize(r){
     var l = num(r && r.len), w = num(r && r.wid), a = roomArea(r);
     if (l && w) return fmtM(l) + ' × ' + fmtM(w) + ' m' + (Math.abs(l * w - a) < 0.011 ? ' = ' : ', floor area ') + fmtM(a) + ' m²';
@@ -815,6 +819,7 @@ window.IFDLogic = (function(){
   var STAIR_EXTRA = 0.30;
   function hslOf(r){ var x = r && r.hsl; return x && typeof x === 'object' ? x : null; }
   function hslPart(x, k){ var pt = x && x[k]; return pt && pt.on ? pt : null; }
+  function stairWid(st){ var w = num(st && st.wid); return w > 5 ? round2(w / 100) : w; }   /* kept in metres; anything over 5 was typed in centimetres */
   function stairRun(st){
     if (!st) return 0;
     var n = Math.floor(num(st.n)), w = Math.floor(num(st.winders)), step = (num(st.tread) + num(st.riser)) / 100, turn = (num(st.wdepth) + num(st.riser)) / 100;
@@ -822,11 +827,11 @@ window.IFDLogic = (function(){
   }
   function hslArea(x){
     var h = hslPart(x, 'hall'), l = hslPart(x, 'landing'), st = hslPart(x, 'stairs');
-    return round2((h ? num(h.len) * num(h.wid) : 0) + (l ? num(l.len) * num(l.wid) : 0) + (st ? stairRun(st) * num(st.wid) : 0));
+    return round2((h ? num(h.len) * num(h.wid) : 0) + (l ? num(l.len) * num(l.wid) : 0) + (st ? stairRun(st) * stairWid(st) : 0));
   }
   function stairText(st){
     var n = Math.floor(num(st.n)), w = Math.floor(num(st.winders));
-    return n + (n === 1 ? ' stair, ' : ' stairs, ') + fmtM(st.wid) + ' m wide, each ' + num(st.tread) + ' cm deep and ' + num(st.riser) + ' cm high' + (w ? ', plus ' + w + (w === 1 ? ' turning step, ' : ' turning steps, ') + num(st.wdepth) + ' cm at the deepest' : '');
+    return n + (n === 1 ? ' stair, ' : ' stairs, ') + Math.round(stairWid(st) * 100) + ' cm wide, each ' + num(st.tread) + ' cm deep and ' + num(st.riser) + ' cm high' + (w ? ', plus ' + w + (w === 1 ? ' turning step, ' : ' turning steps, ') + num(st.wdepth) + ' cm at the deepest' : '');
   }
   function hslText(r){
     var x = hslOf(r); if (!x) return '';
@@ -856,7 +861,7 @@ window.IFDLogic = (function(){
             out.carpets.push({k:r.k, part:k, name:nm + ', ' + k, area:round2(num(pt.len) * num(pt.wid)), plan:pp, std:pp && !pp.fits && pp.limited ? carpetPlan(pt.len, pt.wid, {}) : null});
           });
           var sp = hslPart(hx, 'stairs');
-          if (sp) out.stairs.push({name:nm, text:stairText(sp), wid:num(sp.wid), run:stairRun(sp)});
+          if (sp) out.stairs.push({name:nm, text:stairText(sp), wid:stairWid(sp), run:stairRun(sp)});
         } else {
           var pl = planFor(job, r);
           out.carpets.push({k:r.k, name:nm, area:a, plan:pl, std:pl && !pl.fits && pl.limited ? carpetPlan(r.len, r.wid, {dir:s.dir}) : null});
@@ -883,6 +888,13 @@ window.IFDLogic = (function(){
     need(p.furniture.length, 'moving furniture', /furniture/i);
     return out;
   }
+  /* measured, the sizes are in, and nothing has been priced yet: the shop's next move */
+  function toPrice(job){
+    if (!job || job.status !== 'open' || linesOf(job).length) return false;
+    var pre = preOf(job);
+    return pre.length > 0 && pre.every(function(v){ return v.status === 'done'; }) && roomsOf(job).length > 0;
+  }
+  function lastFindings(job){ return preOf(job).filter(function(v){ return v.status === 'done'; }).sort(function(a, b){ return String(b.doneAt).localeCompare(String(a.doneAt)); })[0] || null; }
   function briefLine(job){
     var b = briefOf(job), out = [];
     if (b.rooms.length) out.push(b.rooms.map(function(r){ return r.name; }).join(', '));
@@ -1148,7 +1160,7 @@ window.IFDLogic = (function(){
     linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
-    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
+    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, toPrice:toPrice, lastFindings:lastFindings, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
     BRIEF_ROOMS:BRIEF_ROOMS, BRIEF_ALSO:BRIEF_ALSO, briefOf:briefOf, briefHas:briefHas, briefChoice:briefChoice, briefName:briefName, briefLine:briefLine,
     hasHSL:hasHSL, limitsOf:limitsOf, measureLimits:measureLimits, planMeasure:planMeasure, toArrange:toArrange, milesBetween:milesBetween, dayWork:dayWork, dayReach:dayReach, hslClash:hslClash, farClash:farClash, hslWhy:hslWhy,
     isFinalBay:isFinalBay, lineAllocated:lineAllocated, supplyOf:supplyOf, supplyState:supplyState, dLines:dLines, dRecs:dRecs, dGot:dGot, dOutstanding:dOutstanding,
@@ -1525,6 +1537,25 @@ function arrangeDialog(job, v){
 function hslMsg(job, fitter, date){ const hc = L.hslClash(job, dayCtx(), fitter, date); return hc ? L.hslWhy(hc, fitter, date) : ''; }
 function attentionJobs(){ const t = L.todayISO(), cx = dayCtx(); return jobsArr().filter(j => L.warningsOf(j, t, S.off, cx).some(w => w.tone === 'bad' || j.status === 'done')); }
 /* jobs a fitter has handed back from site, and visits left unfinished with no return date: the shop acts on these first */
+/* measured and ready for the shop: price it, then ring the customer. The longest wait is first. */
+function toPriceJobs(){ const at = j => (L.lastFindings(j) || {}).doneAt || ''; return openJobs().filter(L.toPrice).sort((a, b) => String(at(a)).localeCompare(String(at(b)))); }
+function openToPrice(id){ openSheet(id); setTimeout(() => { const el = document.getElementById('toPriceBanner'); if (el) el.scrollIntoView({block:'start'}); }, 80); }
+function priceRow(job){
+  const c = job.customer || {}, v = L.lastFindings(job) || {}, rooms = L.roomsOf(job), b = L.briefOf(job), p = L.pricingOf(job), cg = L.carpetGroups(job, rooms);
+  const days = v.doneAt ? Math.max(0, L.daysBetween(String(v.doneAt).slice(0, 10), L.todayISO())) : 0;
+  return h('button', {type:'button', class:'row price', onclick:() => openToPrice(job.id)},
+    h('div', {class:'grow'},
+      h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
+      h('div', {class:'sub', text:[c.phone, [c.address, c.postcode].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}),
+      h('div', {class:'sub', text:'Measured by ' + (v.doneBy || 'someone') + ' ' + whenText(v.doneAt) + '. ' + rooms.length + (rooms.length === 1 ? ' room: ' : ' rooms: ') + rooms.map(r => r.name || 'Room').join(', ') + '.'}),
+      h('div', {class:'sub', text:b.choices.length ? 'Chosen in the shop: ' + b.choices.map(x => x.title).join('; ') + '.' : 'Nothing was chosen in the shop yet.'}),
+      h('div', {class:'meta'}, chip(days === 0 ? 'Measured today' : days === 1 ? 'Measured yesterday' : 'Waiting ' + days + ' days', days >= 2 ? 'bad' : 'info'),
+        cg.unfit.length ? chip(cg.unfit.length + (cg.unfit.length === 1 ? ' room needs a join or a review' : ' rooms need a join or a review'), 'bad') : null,
+        p.stairs.length ? chip('Stairs to work out', 'warn') : null,
+        p.unasked.length ? chip('Some rooms have no answers', 'warn') : null,
+        Object.values(job.rooms || {}).some(r => L.picsOf(r).length) ? chip('Has drawings', '') : null)),
+    h('div', {class:'end'}, h('span', {class:'go', text:'Price it'})));
+}
 function actNowJobs(){
   const at = j => { const b = L.backOpen(j), vs = L.visitsOf(j); return b ? b.at : j.review && j.review.on ? j.review.at : vs.length ? vs[vs.length - 1].at : ''; };
   return openJobs().filter(j => L.backOpen(j) || j.ret === 'needed' || (j.review && j.review.on)).sort((a, b) => String(at(b)).localeCompare(String(at(a))));
@@ -1541,7 +1572,7 @@ function actRow(job){
 }
 function paintTabs(){
   const box = $('#tabs'); box.replaceChildren();
-  const badge = {today:inboxList().length + actNowJobs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length};
+  const badge = {today:inboxList().length + actNowJobs().length + toPriceJobs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length};
   TABS.forEach(t => {
     const on = S.view === t.id || (t.id === 'more' && ['tasks','activity','setup','deliveries','stocktake','measures'].indexOf(S.view) !== -1 && window.matchMedia('(max-width: 760px)').matches);
     box.append(h('button', {type:'button', class:'tab' + (t.cls ? ' ' + t.cls : '') + (on ? ' on' : ''), onclick:() => { if (t.id === 'sale') saleDialog(); else go(t.id); }},
@@ -1666,7 +1697,7 @@ VIEWS.today = function(){
     const todayJobs = open.filter(j => j.date === t || j.date === L.addDays(t, 1)).sort(sortOpen);
     const dueTasks = S.tasks.filter(x => !x.done && (!x.due || x.due <= t));
     const held = open.filter(j => L.checksOutstanding(j).length).sort(sortOpen);
-    const noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done')).sort(sortOpen);
+    const price = toPriceJobs(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j)).sort(sortOpen);
     const heldHot = held.some(j => (j.review && j.review.on) || j.diary || (L.validISO(j.date) && L.daysBetween(t, j.date) <= 7));
     body.replaceChildren();
     add(body, [
@@ -1676,6 +1707,7 @@ VIEWS.today = function(){
         : h('p', {class:'actnone', id:'actSec'}, h('b', {text:'Act now'}), 'Nothing has been sent back from site.'),
       S.estimators.length ? h('div', {class:'estrip', id:'estStrip'}, S.estimators.map(e => { const ld = estimatorLoad(e);
         return h('button', {type:'button', class:'estrow' + (ld.urgent.length || ld.late.length ? ' hot' : ''), onclick:() => openPersonPage(e)}, h('b', {text:e}), h('span', {class:'what', text:estimatorLine(ld)}), h('span', {class:'open', text:'Open dashboard'})); })) : null,
+      price.length ? h('section', {class:'sec pricenow', id:'priceSec'}, h('h2', {}, 'To price', h('span', {text:'measured and waiting on the shop: price it, then ring the customer'})), h('div', {class:'list'}, price.map(priceRow))) : null,
       h('div', {class:'tiles'},
         h('button', {type:'button', class:'tile' + (inbox.length ? ' hot' : ''), onclick:() => { const el = document.getElementById('inboxSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(inbox.length)}), h('span', {text:'New from website'}), h('small', {text:'Waiting to be made into jobs'})),
         h('button', {type:'button', class:'tile' + (heldHot ? ' hot' : ''), onclick:() => { const el = document.getElementById('checksSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(held.length)}), h('span', {text:'Checks outstanding'}), h('small', {text:'Sizes, measures and inspections'})),
@@ -1688,7 +1720,7 @@ VIEWS.today = function(){
         listOf(inbox.map(inboxRow), shopOK() ? (S.inbox.state === 'loading' ? 'Checking Shopify for orders' : 'Nothing waiting') : 'Shopify is not connected', shopOK() ? (S.inbox.state === 'loading' ? '' : 'Website deposits and orders land here. One tap turns each into a job.') : 'Website orders will show here once Shopify is connected.')),
       h('section', {class:'sec', id:'checksSec'}, h('h2', {}, 'Checks outstanding', h('span', {text:'sizes, measures and subfloor inspections'})),
         listOf(held.map(checkRow), 'No checks outstanding', 'A job shows here until its sizes are verified and any measure or subfloor inspection has its findings in. It cannot be made ready for fitting before then.')),
-      noOrder.length ? h('section', {class:'sec'}, h('h2', {}, 'Measured, no order yet', h('span', {text:'ring them'})),
+      noOrder.length ? h('section', {class:'sec'}, h('h2', {}, 'Visited, no sizes and no order yet', h('span', {text:'ring them'})),
         listOf(noOrder.map(jobRow), '', '')) : null,
       h('section', {class:'sec'}, h('h2', {}, 'Ready to book in', h('span', {text:'everything allocated, checks done'})),
         listOf(open.filter(j => !j.diary && L.stockLines(j).length && L.allAllocated(j) && !L.checksOutstanding(j).length).sort(sortOpen).map(jobRow), 'Nothing waiting', 'A job shows here the moment its last item is put away and its checks are done, so it can go in the diary.')),
@@ -2228,6 +2260,10 @@ function drawSheet(){
   const backLog = earlier.length ? h('div', {class:'card'}, h('h3', {}, 'Sent back before'), h('div', {class:'log'}, earlier.slice().reverse().map(b => h('div', {text:whenText(b.at) + '  ' + (b.fitter || 'Fitter') + ': ' + L.backReason(b) + (b.note ? '. ' + b.note : '') + (b.doneAt ? '  Dealt with ' + whenText(b.doneAt) + ' by ' + nameOf(b.doneBy) + (b.doneNote ? ': ' + b.doneNote : '') : '')})))) : null;
   const briefCard = L.briefHas(job) || (open && job.source === 'measure') ? h('div', {class:'card', id:'briefCard'}, h('h3', {}, 'What the measure is for', open ? h('span', {class:'bar'}, btn(L.briefHas(job) ? 'Change' : 'Add', () => briefDialog(job), 'sm')) : null),
     L.briefHas(job) ? briefBlock(job) : h('p', {class:'muted', text:'Nothing listed. Add the rooms and what the customer picked, so whoever measures knows what to look at.'})) : null;
+  const lf = L.toPrice(job) ? L.lastFindings(job) || {} : null;
+  const toPriceBanner = lf ? h('div', {class:'banner info', id:'toPriceBanner'}, h('div', {class:'grow'}, h('b', {text:'Measured and ready to price. '}),
+      'The sizes came in from ' + (lf.doneBy || 'the measure') + ' ' + whenText(lf.doneAt) + '. Check the summary below, press Price it to build the quote, then ring ' + (c.name || 'the customer') + (c.phone ? ' on ' + c.phone : '') + '.'),
+    btn('Price it', () => saleDialog(job), 'pri sm')) : null;
   const priceBlock = pricingBlock(job, lines.length ? lines.map(l => l.title) : null, open);
   const pricingCard = priceBlock ? h('div', {class:'card', id:'pricingCard'}, h('h3', {}, 'For pricing, from the measure'), priceBlock) : null;
   const panel = h('div', {class:'panel', role:'dialog', 'aria-label':'Job ' + (job.ref || '')},
@@ -2240,7 +2276,7 @@ function drawSheet(){
       btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'},
       backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0)).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
-      custCard, briefCard, pricingCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
+      toPriceBanner, custCard, briefCard, pricingCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
       h('div', {class:'card'}, h('h3', {}, 'History'), h('div', {class:'log'}, logs.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': ' + x.text}))))));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -3007,7 +3043,7 @@ function hslInputs(P, r, name, onChange){
   const mk = (id, v, ph, step, mode) => h('input', {class:'in', id:P + id, type:'number', min:'0', step:step || '0.01', inputmode:mode || 'decimal', placeholder:ph, value:Number(v) > 0 ? Number(v) : '', oninput:() => { marks(); fire(); }});
   const o = k => x0[k] || {};
   const I = {hallLen:mk('HallLen', o('hall').len, 'm'), hallWid:mk('HallWid', o('hall').wid, 'm'), landLen:mk('LandLen', o('landing').len, 'm'), landWid:mk('LandWid', o('landing').wid, 'm'),
-    n:mk('StepCount', o('stairs').n, 'How many', '1', 'numeric'), wid:mk('StepWid', o('stairs').wid, 'm'), tread:mk('StepTread', o('stairs').tread, 'cm', '0.5'), riser:mk('StepRiser', o('stairs').riser, 'cm', '0.5'),
+    n:mk('StepCount', o('stairs').n, 'How many', '1', 'numeric'), wid:mk('StepWid', Number(o('stairs').wid) > 5 ? Number(o('stairs').wid) : Number(o('stairs').wid) * 100, 'cm', '0.5'), tread:mk('StepTread', o('stairs').tread, 'cm', '0.5'), riser:mk('StepRiser', o('stairs').riser, 'cm', '0.5'),
     winders:mk('TurnCount', o('stairs').winders, 'How many', '1', 'numeric'), wdepth:mk('TurnDepth', o('stairs').wdepth, 'cm', '0.5')};
   const pads = S.cap.assets ? {hall:sketchPad(P + 'Hall', 'hall'), landing:sketchPad(P + 'Land', 'landing')} : null;
   const v = el => Number(el.value) || 0, box = h('div', {class:'sec', id:P + 'Hsl'}), stills = {};
@@ -3015,11 +3051,12 @@ function hslInputs(P, r, name, onChange){
   const lacks = k => {
     if (st[k] === null) return ['whether there ' + (k === 'stairs' ? 'are stairs' : 'is a ' + k) + ' to do'];
     if (!st[k]) return [];
-    if (k !== 'stairs') return v(k === 'hall' ? I.hallLen : I.landLen) > 0 && v(k === 'hall' ? I.hallWid : I.landWid) > 0 ? [] : ['the ' + k + ' at its longest and widest'];
+    if (k !== 'stairs'){ const a = v(k === 'hall' ? I.hallLen : I.landLen), b = v(k === 'hall' ? I.hallWid : I.landWid);
+      return !(a > 0 && b > 0) ? ['the ' + k + ' at its longest and widest'] : a > 30 || b > 30 ? ['the ' + k + ' in metres, for example 2.6 (it looks too big)'] : []; }
     const out = [];
     if (!(v(I.n) >= 1)) out.push('how many stairs');
-    if (!(v(I.wid) > 0)) out.push('how wide the stairs are');
-    if (!(v(I.tread) > 0 && v(I.riser) > 0)) out.push('the depth and height of one step');
+    if (!(v(I.wid) > 0)) out.push('how wide the stairs are'); else if (v(I.wid) < 30 || v(I.wid) > 400) out.push('the stair width in centimetres, for example 86');
+    if (!(v(I.tread) > 0 && v(I.riser) > 0)) out.push('the depth and height of one step'); else if (v(I.tread) < 10 || v(I.tread) > 80 || v(I.riser) < 5 || v(I.riser) > 45) out.push('the step in centimetres, for example 25 deep and 20 high');
     if (st.turn === null) out.push('whether the stairs turn'); else if (st.turn && !(v(I.winders) >= 1 && v(I.wdepth) > 0)) out.push('the turning steps');
     return out;
   };
@@ -3037,7 +3074,7 @@ function hslInputs(P, r, name, onChange){
     add(box, [
       part('hall', 'Hall', ask('Is there a hall to do?', 'Hall', st.hall, x => { st.hall = x; }), shape('hall', 'Hall', I.hallLen, I.hallWid)),
       part('stairs', 'Stairs', ask('Are there stairs to do?', 'Stairs', st.stairs, x => { st.stairs = x; }), [
-        h('div', {class:'grid2'}, field('How many stairs', I.n), field('How wide the stairs are (m)', I.wid)),
+        h('div', {class:'grid2'}, field('How many stairs', I.n), field('How wide the stairs are (cm)', I.wid)),
         h('div', {class:'grid2'}, field('One step, front to back (cm)', I.tread), field('One step, height (cm)', I.riser)),
         ask('Do the stairs turn?', 'Turn', st.turn, x => { st.turn = x; }),
         st.turn ? h('div', {class:'grid2'}, field('How many turning steps', I.winders), field('A turning step at its deepest (cm)', I.wdepth)) : null,
@@ -3047,7 +3084,7 @@ function hslInputs(P, r, name, onChange){
   }
   draw();
   const obj = () => ({hall:{on:!!st.hall, len:st.hall ? v(I.hallLen) : 0, wid:st.hall ? v(I.hallWid) : 0},
-    stairs:{on:!!st.stairs, n:st.stairs ? Math.floor(v(I.n)) : 0, wid:st.stairs ? v(I.wid) : 0, tread:st.stairs ? v(I.tread) : 0, riser:st.stairs ? v(I.riser) : 0, winders:st.stairs && st.turn ? Math.floor(v(I.winders)) : 0, wdepth:st.stairs && st.turn ? v(I.wdepth) : 0},
+    stairs:{on:!!st.stairs, n:st.stairs ? Math.floor(v(I.n)) : 0, wid:st.stairs ? L.round2(v(I.wid) / 100) : 0, tread:st.stairs ? v(I.tread) : 0, riser:st.stairs ? v(I.riser) : 0, winders:st.stairs && st.turn ? Math.floor(v(I.winders)) : 0, wdepth:st.stairs && st.turn ? v(I.wdepth) : 0},
     landing:{on:!!st.landing, len:st.landing ? v(I.landLen) : 0, wid:st.landing ? v(I.landWid) : 0}});
   return {node:box, inputs:Object.keys(I).map(k => I[k]), need:need, hsl:obj, read:() => ({len:0, wid:0, area:L.hslArea(obj())}),
     sketches:() => (pads ? ['hall', 'landing'].filter(k => st[k] && pads[k].has()).map(k => ({part:k, pad:pads[k]})) : [])};
@@ -3285,6 +3322,7 @@ function findingsDialog(job, v){
       if (x.isNew && !x.nm) errs.push('Give the new room a name.');
       if (x.ok.checked && x.isHsl && x.sz.need().length) errs.push((x.nm || 'The new room') + ' still needs: ' + x.sz.need().join(', ') + '.');
       else if (x.ok.checked && !(L.roomArea(x.c) > 0)) errs.push('Enter the size of ' + (x.nm || 'the new room') + '.');
+      else if (x.ok.checked && !x.isHsl && (x.c.len > 30 || x.c.wid > 30)) errs.push((x.nm || 'The new room') + ' looks too big. Sizes are in metres, for example 3.2.');
       if (!x.ok.checked && x.changed) errs.push(x.isNew ? 'Tick ' + (x.nm || 'the new room') + ' as checked, or clear it.' : 'Tick ' + x.nm + ' as checked, or put its size back.');
       if (x.ok.checked && x.spec){ x.sp = x.spec.read();
         if (x.sp.spec.floor === 'carpet' && !x.isHsl && !(x.c.len > 0 && x.c.wid > 0)) errs.push('Enter the length and width of ' + (x.nm || 'the new room') + '. The shop works the carpet out from them.');
