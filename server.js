@@ -144,10 +144,10 @@ function create(opts){
     /* money, messages and cutting have rules of their own, so these plain routes may not change them */
     if ((what === 'set' || what === 'update') && d.coll === 'jobs') cmds.guardJobWrite(d, body.data, what === 'set', user);
     if ((what === 'set' || what === 'update') && d.path === 'settings/main') cmds.guardSettings(d, body.data, what === 'set', user);
-    if (what === 'set'){ st.setDoc(d, body.data); st.audit(user.id, 'set', d.path); broadcast(d.coll); return send(res, 200, {ok:true}); }
+    if (what === 'set'){ st.setDoc(d, body.data); cmds.reconcile(d); st.audit(user.id, 'set', d.path); broadcast(d.coll); return send(res, 200, {ok:true}); }
     if (what === 'update'){
       if (!st.updateDoc(d, body.data)) return fail(res, 404, 'invalid_argument', 'That record does not exist.');
-      st.audit(user.id, 'update', d.path); broadcast(d.coll); return send(res, 200, {ok:true});
+      cmds.reconcile(d); st.audit(user.id, 'update', d.path); broadcast(d.coll); return send(res, 200, {ok:true});
     }
     fail(res, 404, 'not_found', 'Not found.');
   }

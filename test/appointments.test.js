@@ -25,11 +25,13 @@ test('fitter slot API enforces assignments, fixed wording, dates, test mode and 
  assert.equal((await call('/api/cmd',user,{cmd:'msg.send',...body})).status,403);
  assert.equal((await call('/api/appointments/send',user,{...body,mode:'delay'})).status,409);
  const first=await call('/api/appointments/send',user,body);assert.equal(first.data.state,'sent');assert.equal(sent.length,1);assert.equal(sent[0].to,'+447700900555');assert.match(sent[0].body,/Thu 12 Nov, 8-10am/);
+ assert.equal(app.store.getDoc('jobs/slot').data.arrival.slot,'8-10am');
  assert.equal((await call('/api/appointments/send',user,body)).data.duplicate,true);assert.equal(sent.length,1);
  assert.equal((await call('/api/appointments/send',user,{...body,key:'different_key'})).status,409);assert.equal(sent.length,1);
  assert.equal((await call('/api/appointments/send',user,{...body,mode:'delay',key:'delay_same_slot'})).status,409);
  const delay={...body,slot:'1-3pm',mode:'delay',key:'delay_test_123'};
  assert.equal((await call('/api/appointments/send',user,delay)).data.state,'sent');assert.equal(sent.length,2);assert.match(sent[1].body,/Sorry, your fitter is delayed.*1-3pm/);assert.ok(sent[1].body.length<=160);
+ assert.equal(app.store.getDoc('jobs/slot').data.arrival.slot,'1-3pm');
  assert.equal((await call('/api/appointments/send',user,delay)).status,409);assert.equal(sent.length,2);
  assert.equal(Object.keys(app.store.getDoc('jobs/slot').data.msgs).length,2);
  app.store.updateDoc(docPath('jobs/slot'),{msgs:{uncertain:{kind:'other',channel:'sms',rev:'fit-slot:2026-11-12:2-4pm',state:'unsure'}}});
@@ -50,6 +52,7 @@ test('fitter slot API enforces assignments, fixed wording, dates, test mode and 
  assert.equal((await call('/api/appointments/send',estimator,{...vb,visitId:'cancelled'})).status,409);
  assert.equal((await call('/api/appointments/send',estimator,{...vb,mode:'delay'})).status,409);
  assert.equal((await call('/api/appointments/send',estimator,vb)).data.state,'sent');assert.match(sent.at(-1).body,/Your estimator will arrive/);
+ assert.equal(app.store.getDoc('jobs/visit').data.pre.one.arrival.slot,'8-10am');
  assert.equal((await call('/api/appointments/send',estimator,{...vb,visitId:'two',mode:'delay',slot:'1-3pm',key:'other_visit_delay'})).status,409);
  assert.equal((await call('/api/appointments/send',estimator,{...vb,mode:'delay',slot:'1-3pm',key:'visit_delay_123'})).data.state,'sent');assert.match(sent.at(-1).body,/Sorry, your estimator is delayed/);
  assert.equal((await call('/api/appointments/send',estimator,{...vb,visitId:'two',key:'visit_two_123'})).data.state,'sent');

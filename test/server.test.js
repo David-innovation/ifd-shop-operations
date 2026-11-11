@@ -33,6 +33,22 @@ const testJob = extra => Object.assign({v:1, ref:'#T9', source:'shop', status:'o
   total:377.4, fitterDue:150, pay:{}, notes:'', quote:[], drafts:{}, sizeCheck:'verified', pre:{}, log:{},
   rooms:{r1:{n:1, name:'Lounge', len:3, wid:3.8, area:11.4, source:'shop', status:'verified', verBy:'Shop', verRole:'shop', verOn:'2026-11-10'}}}, extra || {});
 
+test('accepted jobs enter diary only after preparation and checking, and explicit removal stays removed', async () => {
+  const s=await boot();try{
+    const owner=await s.signIn(OWNER),date=new Date(Date.now()+86400000).toISOString().slice(0,10);
+    const job=testJob({date,diaryAuto:true});s.app.store.setDoc(docPath('jobs/journey-diary'),job);
+    const change=data=>s.req('POST','/api/db/update',{path:'jobs/journey-diary',data},owner);
+    assert.equal((await change({diary:true})).status,409);
+    await s.req('POST','/api/cmd',{cmd:'cut',jobId:'journey-diary',lineK:'l1',byName:'David',bay:'W4-01'},owner);
+    assert.equal(s.app.store.getDoc('jobs/journey-diary').data.diary,false);
+    assert.equal((await change({lines:{l1:{checked:true}}})).status,200);
+    assert.equal(s.app.store.getDoc('jobs/journey-diary').data.diary,true);
+    await change({diary:false});await change({notes:'Further edit'});
+    assert.equal(s.app.store.getDoc('jobs/journey-diary').data.diary,false);
+    assert.equal(s.app.store.getDoc('jobs/journey-diary').data.diaryAuto,false);
+  }finally{s.stop();}
+});
+
 test('records merge the way the screens expect', () => {
   assert.deepStrictEqual(merge({a:{b:1, c:[1, 2]}, x:1}, {a:{c:[3], d:{e:1}}, y:2}), {a:{b:1, c:[3], d:{e:1}}, x:1, y:2});
   assert.strictEqual(normaliseMobile('07700 900123'), '+447700900123'); assert.strictEqual(normaliseMobile('+44 7700 900123'), '+447700900123'); assert.strictEqual(normaliseMobile('0141 952'), '');
@@ -589,19 +605,19 @@ test('catalogue pricing: each line worked out from the measure, Shopify’s pric
     // ---- carpet: 3.00 x 3.80 m off a 4 m roll at Shopify's £10 per m², with underlay, gripper, a door bar, the old floor lifted and furniture moved
     const carpet = mJob({r1:Object.assign({n:1, name:'Lounge', len:3, wid:3.8, area:11.4, spec:cs('carpet', {underlay:true, gripper:true, bars:{cc:1, cf:0, ff:0}, old:true, uplift:true, furniture:true})}, vr)}, [roll]);
     const c = L.catalogue(carpet, {}, {c1:{ppm:10}}, {});
-    assert.strictEqual(c.carpet.amount, 124); assert.strictEqual(c.carpet.text, '12.40 m² of Silver twist carpet × £10.00 per m²');
-    assert.strictEqual(c.underlay.amount, 68.29); assert.strictEqual(L.catalogue(carpet, {}, {c1:{ppm:10}}, {underlay:'12'}).underlay.amount, 79.69);
+    assert.strictEqual(c.carpet.amount, 124); assert.match(c.carpet.text, /12\.40 m² of Silver twist carpet × £10\.00 per m²/);
+    assert.strictEqual(c.underlay.amount, 68.29); assert.strictEqual(L.catalogue(carpet, {}, {c1:{ppm:10}}, {underlay:'12'}).underlay.amount, 91.09);
     assert.strictEqual(c.gripper.amount, 9); assert.match(c.gripper.text, /9 lengths of 1\.52 m × £1\.00/); assert.strictEqual(c.bars.amount, 9.99); assert.strictEqual(c.uplift.amount, 45.6); assert.strictEqual(c.furniture.amount, 30);
     assert.strictEqual(c.fitting.amount, 120); assert.match(c.fitting.text, /11\.40 m² × £5\.00 per m² = £57\.00, so the least charge of £120\.00 applies/);
     // a carpet Shopify has no price for is not guessed: the price per m² has to be typed, and the sum says it was
-    const bare = L.catalogue(carpet, {}, {}, {}).carpet; assert.strictEqual(bare.amount, 0); assert.strictEqual(bare.needRate, true); assert.match(bare.text, /no price per m² in Shopify\. Type the price per m²/);
-    const typed = L.catalogue(carpet, {}, {}, {carpetRate:12}).carpet; assert.strictEqual(typed.amount, 148.8); assert.match(typed.text, /£12\.00 per m² \(typed\)/);
+    const bare = L.catalogue(carpet, {}, {}, {}).carpet; assert.strictEqual(bare.amount, 0); assert.strictEqual(bare.needRate, true); assert.match(bare.text, /No price per m²/);
+    const typed = L.catalogue(carpet, {}, {}, {carpetRate:12}).carpet; assert.strictEqual(typed.amount, 148.8); assert.match(typed.text, /£12\.00 per m²/);
     // a hall, stairs and landing: the higher least charge, and the stairs are left for a person to add
     const hsl = mJob({r1:Object.assign({n:1, name:'Lounge', len:3, wid:3.8, area:11.4, spec:cs('carpet')}, vr),
       r2:Object.assign({n:2, name:'Hall, stairs and landing', len:0, wid:0, area:0, spec:cs('carpet'), hsl:{hall:{on:false, len:0, wid:0}, stairs:{on:true, n:12, wid:0.8, tread:21, riser:21, winders:0, wdepth:0}, landing:{on:true, len:2.6, wid:2.2}}}, vr)}, [roll]);
     const h1 = L.catalogue(hsl, {}, {c1:{ppm:10}}, {}), h2 = L.catalogue(hsl, {}, {c1:{ppm:10}}, {carpetExtra:4});
-    assert.strictEqual(h1.carpet.amount, 216); assert.strictEqual(h1.carpet.stairs, true); assert.match(h1.carpet.text, /The stairs are not in this figure: add the m² for them\./);
-    assert.strictEqual(h2.carpet.amount, 256); assert.match(h2.carpet.text, /That includes 4\.00 m² added for the stairs\./); assert.strictEqual(h1.fitting.amount, 150); assert.match(h1.fitting.text, /least charge of £150\.00 with a hall, stairs and landing applies/);
+    assert.strictEqual(h1.carpet.amount, 280); assert.match(h1.carpet.text, /cutting plan/);
+    assert.strictEqual(h2.carpet.amount, 280); assert.strictEqual(h1.fitting.amount, 150); assert.match(h1.fitting.text, /least charge of £150\.00 with a hall, stairs and landing applies/);
     // ---- laminate: the floor plus 10% in whole packs at Shopify's pack price; no fitting rate set means none is made up
     const lam = mJob({r1:Object.assign({n:1, name:'Lounge', len:5, wid:4.6, area:23, spec:cs('flooring', {underlay:true, gripper:null, beading:true})}, vr)}, [{k:'c1', title:'Royale Oak 12mm Herringbone Laminate', variantId:'gid://shopify/ProductVariant/701', unit:'packs'}]);
     const lamG = {c1:{ppm:0, cov:1.836, pack:20.18, type:'laminate flooring'}}, l1 = L.catalogue(lam, {}, lamG, {});
