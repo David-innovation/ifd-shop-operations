@@ -1002,7 +1002,7 @@ window.IFDLogic = (function(){
   function quoteMessage(job, q, shop){
     var first = firstName((job.customer || {}).name), p = quoteParts(q), ref = quoteRef(job, q), w = wordsOf(shop), line = function(l){ return l.label + ': ' + money(num(l.full) > num(l.price) ? l.full : l.price); };
     var less = p.discount ? [(p.pct ? p.pct + '% discount' : 'Discount') + ': -' + money(p.discount)] : [];
-    var out = ['Hi ' + (first || 'there') + ',', '', 'Thank you for having us out to measure. Here is your quote from ' + shop.name + '.', '', 'Quote reference: ' + ref, 'Date: ' + longDate(stampDay(q.at) || todayISO()), ''];
+    var out = ['Hi ' + (first || 'there') + ',', '', (job.source === 'catalogue' ? 'Thank you for choosing ' + shop.name + '. Here is your estimate based on the sizes supplied. Measurements and preparation will be checked before fitting.' : 'Thank you for having us out to measure. Here is your quote from ' + shop.name + '.'), '', 'Quote reference: ' + ref, 'Date: ' + longDate(stampDay(q.at) || todayISO()), ''];
     if (p.fit.length){
       out = out.concat(p.shop.map(line), less, ['To pay ' + shop.name + ': ' + money(p.shopTotal), ''], p.fit.map(line), ['To pay your fitter directly: ' + money(p.fitTotal), '', 'Total: ' + money(p.total), '', 'How payment works',
         money(p.shopTotal) + ' is paid to ' + shop.name + '.' + (w.terms ? ' ' + w.terms : ''),
