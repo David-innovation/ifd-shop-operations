@@ -606,9 +606,9 @@ test('catalogue pricing: each line worked out from the measure, Shopify’s pric
     const lam = mJob({r1:Object.assign({n:1, name:'Lounge', len:5, wid:4.6, area:23, spec:cs('flooring', {underlay:true, gripper:null, beading:true})}, vr)}, [{k:'c1', title:'Royale Oak 12mm Herringbone Laminate', variantId:'gid://shopify/ProductVariant/701', unit:'packs'}]);
     const lamG = {c1:{ppm:0, cov:1.836, pack:20.18, type:'laminate flooring'}}, l1 = L.catalogue(lam, {}, lamG, {});
     assert.strictEqual(l1.flooring.amount, 282.52); assert.match(l1.flooring.text, /23\.00 m² of Royale Oak 12mm Herringbone Laminate \+ 10% = 25\.30 m²: 14 packs of 1\.836 m² × £20\.18/);
-    assert.strictEqual(l1.fitting.amount, 0); assert.match(l1.fitting.text, /No fitting rate is set for laminate \(23\.00 m²\): type the fitting price/); assert.strictEqual(l1.beading.amount, 40);
+    assert.strictEqual(l1.fitting.amount, 506); assert.match(l1.fitting.text, /Herringbone laminate/); assert.strictEqual(l1.beading.amount, 40);
     assert.strictEqual(l1.underlay.amount, 0); assert.strictEqual(l1.underlay.needPick, true); assert.match(l1.underlay.text, /choose which underlay/);
-    const l2 = L.catalogue(lam, {fitLaminate:12}, lamG, {underlayFloor:{id:'u1', title:'15 m2 Premium Quality Silver Underlay · 1 Roll', cov:15, pack:59.9}});
+    const l2 = L.catalogue(lam, {fitLaminatePattern:12}, lamG, {underlayFloor:{id:'u1', title:'15 m2 Premium Quality Silver Underlay · 1 Roll', cov:15, pack:59.9}});
     assert.strictEqual(l2.fitting.amount, 276); assert.strictEqual(l2.underlay.amount, 119.8); assert.match(l2.underlay.text, /2 × 15 m2 Premium Quality Silver Underlay · 1 Roll \(covers 15 m² each\) × £59\.90/);
     // an underlay whose name says one size and whose Shopify coverage says another is not worked out
     assert.strictEqual(L.covClash('10 m2 Premium Quality Gold Underlay · 1 Roll', 15), 10); assert.strictEqual(L.covClash('15 m2 Premium Quality Silver Underlay · 1 Roll', 15), 0); assert.strictEqual(L.covClash('5.5mm Fibreboard Underlay · 7m2 Box', 7), 0); assert.strictEqual(L.covClash('Foam Laminate Underlay', 15), 0);
@@ -618,12 +618,12 @@ test('catalogue pricing: each line worked out from the measure, Shopify’s pric
     const eng = t => mJob({r1:Object.assign({n:1, name:'Lounge', len:5, wid:4, area:20, spec:cs('flooring')}, vr)}, [{k:'c1', title:t, variantId:'gid://shopify/ProductVariant/702', unit:'packs'}]);
     const engG = {c1:{ppm:68.78, cov:1.2, pack:82.54, type:'Real Wood Flooring'}}, keys = (job, g) => L.quoteRows(job, g).map(r => r.key + (r.must ? '!' : '')).join(',');
     const e1 = L.catalogue(eng('Harbour Engineered Herringbone'), {}, engG, {});
-    assert.strictEqual(e1.flooring.amount, 1568.26); assert.strictEqual(e1.fitting.amount, 600); assert.strictEqual(e1.glue.amount, 100); assert.strictEqual(e1.prep.amount, 0); assert.match(e1.prep.text, /Type the amount/);
+    assert.strictEqual(e1.flooring.amount, 1568.26); assert.strictEqual(e1.fitting.amount, 600); assert.strictEqual(e1.glue.amount, 100); assert.strictEqual(e1.prep.amount, 280); assert.match(e1.prep.text, /home check/);
     assert.strictEqual(keys(eng('Harbour Engineered Herringbone')), 'flooring,fitting,glue!,prep!');
     // told as wood by its Shopify product type when the name does not say so
     const e2 = L.catalogue(eng('Windsor Natural Oak'), {}, engG, {}); assert.strictEqual(e2.fitting.amount, 440); assert.strictEqual(e2.glue.amount, 100);
     assert.strictEqual(keys(eng('Windsor Natural Oak')), 'flooring,fitting'); assert.strictEqual(keys(eng('Windsor Natural Oak'), engG), 'flooring,fitting,glue!,prep!');
-    const e3 = L.catalogue(eng('Heritage Oak 14mm Chevron Engineered'), {}, engG, {}).fitting; assert.strictEqual(e3.amount, 0); assert.match(e3.text, /No fitting rate is set for engineered chevron/);
+    const e3 = L.catalogue(eng('Heritage Oak 14mm Chevron Engineered'), {}, engG, {}).fitting; assert.strictEqual(e3.amount, 600); assert.match(e3.text, /Engineered chevron/);
     assert.strictEqual(L.floorKind('Frostwood Oak 6.5mm Unilin Straight Waterproof Click Vinyl', 'LVT Flooring').wood, false); assert.strictEqual(L.floorKind('Frostwood Oak 6.5mm Unilin Straight Waterproof Click Vinyl', 'LVT Flooring').lvt, true);
     // ---- the price list: the owner's figures replace the defaults one by one, and a bad figure falls back to the default
     const pl = L.priceList({fitCarpet:6, gripper:'abc', doorBar:-1, uplift:'', furniture:0});

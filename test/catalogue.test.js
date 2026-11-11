@@ -1,0 +1,24 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const html=fs.readFileSync(path.join(__dirname,'../app/ifd-shop-operations.html'),'utf8'),L=require('../lib/rules').load(html);
+function harness(){class N{constructor(tag,p={},kids=[]){this.tag=tag;this.p=p;Object.assign(this,p);this.value=p.value||'';this.checked=!!p.checked;this.kids=kids.flat(Infinity).filter(Boolean);}append(...x){this.kids.push(...x.flat(Infinity).filter(Boolean));}replaceChildren(...x){this.kids=x.flat(Infinity).filter(Boolean);}}
+ const h=(tag,p,...kids)=>new N(tag,p||{},kids),walk=n=>[n,...(n.kids||[]).filter(x=>typeof x==='object').flatMap(walk)],saved=[];let modal,review;
+ const box={L,VIEWS:{},S:{prices:{fitLaminate:5,fitStraightMin:0},me:{id:'owner'}},PRODUCT_FIELDS:'id',Q_SEARCH:'search',h,btn:(text,onclick)=>h('button',{text,onclick}),field:(text,node)=>h('label',{text},node),variantTitle:(p,v)=>p.title,openModal:n=>{modal=n;},dlg:(title,body,buttons)=>h('dialog',{text:title},body,buttons),closeModal(){},sq:async()=>({products:{nodes:[]}}),uid:()=> 'fixture',nowISO:()=> '2026-11-11T12:00:00Z',createJob:async(id,j)=>saved.push(j),quoteDialog:j=>review=j,explain:e=>e.message};
+ vm.runInNewContext(html.slice(html.indexOf('/* Catalogue: Shopify remains'),html.indexOf('/* ---------- Jobs ---------- */')),box);
+ return {box,saved,get review(){return review;},nodes:()=>walk(modal),input:(label,value)=>{const n=walk(modal).find(n=>n.p['aria-label']===label||n.p.id===label);assert.ok(n,label);n.value=value;n.p.oninput?.({target:n});},text:()=>walk(modal).map(n=>n.text||'').join(' '),button:label=>walk(modal).find(n=>n.tag==='button'&&n.text===label)};
+}
+test('catalogue calculator rounds whole packs, recalculates changed sizes and saves unverified lead for review',async()=>{const x=harness(),p={title:'Oak laminate',productType:'laminate',coverage:{value:'2'},status:'ACTIVE'},v={id:'gid://shopify/ProductVariant/1',title:'Default Title',price:'20'};x.box.catalogueQuote(p,v);x.input('Length (m) for room 1','3');x.input('Width (m) for room 1','4');assert.match(x.text(),/7 packs/);assert.match(x.text(),/Estimated total: £200.00/);x.input('Length (m) for room 1','4');assert.match(x.text(),/9 packs/);assert.match(x.text(),/Estimated total: £260.00/);await x.button('Save sizes and review quote').onclick();assert.equal(x.saved.length,0);x.input('catalogueCustomer','ZZ TEST calculator');x.input('cataloguePhone','07700900555');await x.button('Save sizes and review quote').onclick();assert.equal(x.saved.length,1);assert.equal(x.saved[0].rooms.r0.status,'unverified');assert.equal(x.saved[0].diary,false);assert.ok(L.toPrice(x.saved[0]));assert.equal(x.review.source,'catalogue');});
+test('missing pack coverage is flagged and cannot create a calculator job',async()=>{const x=harness();x.box.catalogueQuote({title:'Oak laminate',productType:'laminate'},{id:'v',price:'20'});x.input('Length (m) for room 1','3');x.input('Width (m) for room 1','4');assert.match(x.text(),/Pack coverage is missing/);assert.doesNotMatch(x.text(),/Estimated total:/);x.input('catalogueCustomer','Test');x.input('cataloguePhone','07700900555');await x.button('Save sizes and review quote').onclick();assert.equal(x.saved.length,0);});
+test('engineered estimate includes website fitting, glue and preparation allowance',()=>{const x=harness();x.box.catalogueQuote({title:'Engineered herringbone oak',productType:'wood',coverage:{value:'2'}},{id:'v',price:'40'});x.input('Length (m) for room 1','3');x.input('Width (m) for room 1','4');assert.match(x.text(),/Fitting: £360.00/);assert.match(x.text(),/Full-spread glue: £60.00/);assert.match(x.text(),/Floor preparation: £168.00/);assert.match(x.text(),/Estimated total/);});
+test('catalogue API queries are read-only allowlisted',()=>{const {allowed}=require('../lib/shopify');assert.ok(allowed('query OpsCatalogue{products{nodes{id}}}','query'));assert.ok(allowed('query OpsCatalogueVariants{product{id}}','query'));assert.equal(allowed('mutation OpsCatalogue{productCreate{id}}','mutation'),null);});
+
+test('website fitting rates distinguish pattern, printed effect and click vinyl, with one minimum per job',()=>{
+ const calc=(title,area=6)=>L.catalogue({rooms:{a:{k:'a',name:'Room',len:area,wid:1,area,want:'c',spec:{floor:'flooring'}}},brief:{choices:[{k:'c',title,unit:'packs'}]}},{},{c:{cov:2,pack:20}},{});
+ assert.equal(calc('Oak straight laminate').fitting.amount,120);
+ assert.equal(calc('Oak herringbone laminate').fitting.amount,200);
+ assert.equal(calc('Oak herringbone laminate',20).fitting.amount,440);
+ assert.equal(calc('EGGER Rillington herringbone effect laminate').fitting.amount,120);
+ assert.equal(calc('Oak SPC herringbone').fitting.amount,200);
+ assert.equal(calc('Unknown glue-down LVT').fitting.amount,0);
+ assert.equal(L.priceList({fitLaminate:0,fitLvt:0}).fitLaminate,10);
+});
