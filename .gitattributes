@@ -1,0 +1,6 @@
+# One kind of line ending in the repository, whichever computer a change comes from.
+# Without this a change made on Windows rewrites every line of a file and cannot be merged with other work.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
