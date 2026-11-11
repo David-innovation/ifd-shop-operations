@@ -408,7 +408,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
       'opening it says what to do next: price it, then ring the customer');
     const qf = await pg.locator('#quoteForm').innerText(), qlab = await pg.evaluate(() => Array.from(document.querySelectorAll('#quoteLines .qline input[type=text]')).map(i => i.value));
     ok(/What was measured/.test(qf) && /Bedroom 1\s+3\.50 × 3\.00 m/.test(qf) && /Flooring: Royale Oak/.test(qf) && /Hall, stairs and landing\s+14\.78 m² in all/.test(qf) && /13 stairs, 86 cm wide/.test(qf)
-      && qlab.join('|') === 'Carpet|Flooring|Underlay|Gripper|Beading|Door bars|Fitting|Uplift and disposal|Moving furniture' && /18\.90 m² of floor, nothing added for wastage/.test(qf) && /3 rooms, 33\.68 m² of floor, 15 stairs/.test(qf),
+      && qlab.join('|') === 'Carpet|Flooring|Underlay|Gripper|Beading|Door bars|Fitting|Uplift and disposal|Moving furniture' && /18\.90 m² of floor as measured, nothing added for wastage/.test(qf) && /3 rooms, 33\.68 m² of floor, 15 stairs/.test(qf),
       'pricing opens straight from the dashboard: each room with its size and what it needs, then one price box for each thing to price');
     await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await pg.waitForFunction(() => document.querySelector('#modal').hidden);
     await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
@@ -1043,6 +1043,78 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.locator('#modal').getByRole('button', {name:'Cancel the job'}).click(); await modalGone();
     ok(fJob().status === 'cancelled' && shopify.state.acc[silver] === 242 && (shopify.state.deletes || 0) === delsBefore + 1 && Object.values(fJob().drafts)[0].deleted === true, 'cancelling the job deletes the draft once and the 2 rolls go back on sale');
     await closeSheet();
+    // ---- catalogue pricing: each line worked out from the measure, click to use it, a discount off the shop's part ----
+    qJob('k1', 'M-CAT', 'Cara Catalogue');
+    qJob('k2', 'M-WOOD', 'Wendy Wood', {brief:{rooms:[{name:'Lounge', want:'c1'}], choices:[{k:'c1', title:'Harbour Engineered Herringbone', variantId:'gid://shopify/ProductVariant/702', unit:'packs'}], also:[]},
+      rooms:{r1:Object.assign({n:1, name:'Lounge', len:5, wid:4, area:20, spec:cs('flooring')}, vr)}});
+    qJob('k3', 'M-LAMI', 'Lara Laminate', {brief:{rooms:[{name:'Lounge', want:'c1'}], choices:[{k:'c1', title:'Royale Oak 12mm Herringbone Laminate', variantId:'gid://shopify/ProductVariant/701', unit:'packs'}], also:[]},
+      rooms:{r1:Object.assign({n:1, name:'Lounge', len:5, wid:4.6, area:23, spec:cs('flooring', {underlay:true, gripper:null, beading:true})}, vr)}});
+    qJob('k4', 'M-RATE', 'Rita Rates');
+    await poke('k1'); await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#priceSec');
+    const price = async name => { await pg.locator('#priceSec .row.price', {hasText:name}).click(); await pg.waitForSelector('#quoteForm'); };
+    const uses = () => pg.evaluate(() => Array.from(document.querySelectorAll('#quoteLines .qline')).map(q => { const b = q.querySelector('.qcat button'); return b && !b.hidden ? b.textContent : ''; }).join('|'));
+    const prices = () => pg.evaluate(() => Array.from(document.querySelectorAll('#quoteLines .price')).map(i => i.value).join('|'));
+    const kq = id => { const q = Object.values(app.store.getDoc('jobs/' + id).data.quotes || {}); return q[q.length - 1]; };
+    await price('Cara Catalogue');
+    await pg.waitForFunction(() => /^Catalogue: 12\.40 m² of Silver twist carpet × £10\.00 per m²$/.test(document.querySelector('#qcat0').textContent), null, {timeout:8000});
+    ok(await uses() === 'Use £124.00|Use £68.29|Use £9.00|Use £9.99|Use £120.00|Use £45.60' && /11\.40 m² under carpet × £5\.99 per m² \(10mm\)/.test(await pg.locator('#qcat1').innerText()) && /About 13\.60 m round the walls, so 9 lengths of 1\.52 m × £1\.00/.test(await pg.locator('#qcat2').innerText())
+      && /so the least charge of £120\.00 applies/.test(await pg.locator('#qcat4').innerText()) && /£1\.50 to lift and £2\.50 to dispose/.test(await pg.locator('#qcat5').innerText()),
+      'each line shows the catalogue figure worked out from the measure: the carpet at Shopify’s price per m², the rest from the shop’s price list, with how it was worked out');
+    ok(await prices() === '|||||' && (await pg.locator('#quoteTotal').innerText()) === '£0.00' && await pg.locator('#qrate0').isHidden() && await pg.locator('#qextra0').isHidden(), 'nothing is priced until a person chooses to: the price boxes start empty');
+    await pg.click('#quse0');
+    ok(await pg.inputValue('#qp0') === '124.00' && (await pg.locator('#quoteTotal').innerText()) === '£124.00' && (await pg.locator('#quse0').innerText()) === 'In use' && await pg.locator('#quse0').isDisabled(), 'one click takes the catalogue price for a line, and the line says it is in use');
+    await pg.selectOption('#qund1', '12');
+    ok((await pg.locator('#quse1').innerText()) === 'Use £79.69' && /12mm/.test(await pg.locator('#qcat1').innerText()), 'choosing the thicker underlay reworks the figure');
+    await pg.fill('#qp1', '70'); await pg.click('#quoteFill');
+    ok(await prices() === '124.00|70|9.00|9.99|120.00|45.60' && (await pg.locator('#quoteTotal').innerText()) === '£378.59' && await pg.locator('#quoteFill').isDisabled() && (await pg.locator('#quse1').innerText()) === 'Use £79.69', 'Fill in the catalogue prices fills every empty box and leaves a price someone typed alone');
+    ok(await pg.locator('#quoteDisc button').allTextContents().then(t => t.join('|')) === 'No discount|5%|10%|15%|20%' && await pg.locator('#quoteSums').isHidden(), 'the discounts on offer are the ones on the price list');
+    await pg.click('#qdisc10');
+    ok((await pg.locator('#quoteTotal').innerText()) === '£352.73' && (await pg.locator('#quoteSums').innerText()) === 'Before discount £378.59. 10% off the shop’s part takes off £25.86. Fitting paid to the fitter is not discounted.' && await pg.inputValue('#qp0') === '124.00',
+      '10% comes off what the shop is paid and not off the fitter’s money, and the screen shows the before, the saving and the total');
+    await pg.fill('#quoteBy', 'Sam'); await pg.locator('#modal').getByRole('button', {name:'Save the quote'}).click(); await pg.waitForSelector('#msgForm');
+    const kmsg = await pg.inputValue('#msgBody'), k1q = kq('k1');
+    ok(/Carpet: £124\.00\nUnderlay: £70\.00\nGripper: £9\.00\nDoor bars: £9\.99\nUplift and disposal: £45\.60\n10% discount: -£25\.86\nTo pay Innovation Flooring Direct: £232\.73\n\nFitting: £120\.00\nTo pay your fitter directly: £120\.00\n\nTotal: £352\.73/.test(kmsg)
+      && !(await pg.evaluate(m => window.IFDLogic.hasSize(m, {ref:'M-CAT'}), kmsg)) && /Includes 10% discount of £25\.86\./.test(await pg.inputValue('#msgSms')),
+      'the customer sees the full prices, the discount as a saving, what is left to pay the shop and the fitter’s money untouched, and none of the sizes used to work it out');
+    ok(k1q.total === 352.73 && k1q.discount.pct === 10 && k1q.discount.amount === 25.86 && k1q.lines[0].price === 111.6 && k1q.lines[0].full === 124 && k1q.lines[0].key === 'carpet' && /12\.40 m² of Silver twist carpet/.test(k1q.lines[0].calc)
+      && k1q.lines[1].price === 63 && k1q.lines[1].full === 70 && !k1q.lines[1].calc && k1q.lines[4].label === 'Fitting' && k1q.lines[4].price === 120 && !('full' in k1q.lines[4]) && k1q.rates.fitCarpet === 5 && k1q.rates.underlay12 === 6.99,
+      'the quote keeps each full price, what it came down to, how it was worked out, the discount and the rates it was made with; a typed price is not passed off as a catalogue one');
+    await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone(); await pg.waitForSelector('#quoteCard');
+    const kcard = await pg.locator('#quoteCard').innerText();
+    ok(/Carpet\s*£124\.00/.test(kcard) && /12\.40 m² of Silver twist carpet × £10\.00 per m²/.test(kcard) && /10% discount on the shop’s part\s*-£25\.86/.test(kcard) && /Total\s*£352\.73/.test(kcard), 'the job shows the quote at full prices with the discount as its own line, and how each line was worked out');
+    await pg.locator('#quoteCard').getByRole('button', {name:'Change it'}).click(); await pg.waitForSelector('#quoteForm');
+    ok(await prices() === '124.00|70.00|9.00|9.99|120.00|45.60' && await pg.locator('#qdisc10').evaluate(b => b.classList.contains('on')) && (await pg.locator('#quoteTotal').innerText()) === '£352.73', 'changing the quote brings back the full prices and the discount, not the discounted figures discounted again');
+    await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await modalGone(); await closeSheet();
+    // engineered wood: fitting by how it is laid, glue always, and it cannot be quoted without floor preparation
+    await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#priceSec'); await price('Wendy Wood');
+    await pg.waitForFunction(() => /19 packs of 1\.2 m² × £82\.54/.test(document.querySelector('#qcat0').textContent), null, {timeout:8000});
+    const wrows = await pg.evaluate(() => Array.from(document.querySelectorAll('#quoteLines .qline input[type=text]')).map(i => i.value).join('|'));
+    ok(wrows === 'Flooring|Fitting|Full-spread glue|Floor preparation' && await uses() === 'Use £1,568.26|Use £600.00|Use £100.00|' && /Engineered herringbone fitting, 20\.00 m² × £30\.00 per m²/.test(await pg.locator('#qcat1').innerText()) && /Assessed for each floor\. Type the amount/.test(await pg.locator('#qcat3').innerText()),
+      'engineered herringbone is priced in whole packs with 10% for cuts, fitted at £30 per m² and glued at £5 per m²; floor preparation is never made up');
+    await pg.click('#quoteFill'); await pg.fill('#quoteBy', 'Sam'); await pg.locator('#modal').getByRole('button', {name:'Save the quote'}).click();
+    ok(/Floor preparation has to be priced: engineered wood is not quoted without it/.test(await pg.locator('#modal').innerText()) && !kq('k2'), 'an engineered wood quote cannot be saved without floor preparation');
+    await pg.fill('#qp3', '150'); await pg.locator('#modal').getByRole('button', {name:'Save the quote'}).click(); await pg.waitForSelector('#msgForm');
+    ok(kq('k2').total === 2418.26 && !kq('k2').discount && /Full-spread glue: £100\.00\nFloor preparation: £150\.00\nTo pay Innovation Flooring Direct: £1,818\.26\n\nFitting: £600\.00/.test(await pg.inputValue('#msgBody')), 'with it priced the quote saves, and the fitting is still the fitter’s money');
+    await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone(); await closeSheet();
+    // laminate: whole packs from Shopify, the underlay chosen by a person, no fitting figure where no rate is set, and a product with a doubtful size is not worked out
+    shopify.state.gold = true;
+    await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#priceSec'); await price('Lara Laminate');
+    await pg.waitForFunction(() => /14 packs of 1\.836 m² × £20\.18/.test(document.querySelector('#qcat0').textContent) && document.querySelectorAll('#qundf1 option').length === 4, null, {timeout:8000});
+    const uopts = await pg.locator('#qundf1 option').allTextContents();
+    ok(await uses() === 'Use £282.52||Use £40.00|' && /choose which underlay/.test(await pg.locator('#qcat1').innerText()) && /No fitting rate is set for laminate \(23\.00 m²\): type the fitting price/.test(await pg.locator('#qcat3').innerText())
+      && uopts[0] === 'Which flooring underlay' && /Silver Underlay · 1 Roll, £59\.90, covers 15 m²/.test(uopts[1]) && /Gold Underlay · 1 Roll, £39\.99, size to be checked/.test(uopts[3]),
+      'laminate is priced in whole packs; the underlay is not chosen for them, and where no fitting rate is set none is made up');
+    await pg.selectOption('#qundf1', 'gid://shopify/ProductVariant/9104');
+    ok(await pg.locator('#quse1').isHidden() && /says 10 m² and Shopify says it covers 15 m²\. It is not worked out until that is put right in Shopify/.test(await pg.locator('#qcat1').innerText()), 'an underlay whose name and Shopify coverage disagree is not worked out');
+    await pg.selectOption('#qundf1', silver);
+    ok((await pg.locator('#quse1').innerText()) === 'Use £119.80' && /2 × 15 m2 Premium Quality Silver Underlay · 1 Roll \(covers 15 m² each\) × £59\.90/.test(await pg.locator('#qcat1').innerText()), 'choosing the underlay prices it in whole rolls at Shopify’s price');
+    await pg.click('#quoteFill'); await pg.fill('#qp3', '200'); await pg.fill('#quoteBy', 'Sam'); await pg.locator('#modal').getByRole('button', {name:'Save the quote'}).click(); await pg.waitForSelector('#msgForm');
+    ok(kq('k3').total === 642.32 && kq('k3').lines[1].pick === silver && kq('k3').lines[1].price === 119.8 && !kq('k3').lines[3].calc, 'the quote remembers which Shopify underlay it was priced from');
+    await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone(); await pg.waitForSelector('#quoteCard');
+    await pg.locator('#quoteCard').getByRole('button', {name:'Customer said yes'}).click(); await pg.waitForSelector('#acceptForm');
+    await pg.waitForFunction(() => document.querySelectorAll('#accNeedSrc1 option').length === 5 && !/Looking in Shopify/.test(document.querySelector('#accNeeds').innerText), null, {timeout:8000});
+    ok(await pg.inputValue('#accNeedSrc1') === silver && await pg.inputValue('#accNeedUnits1') === '2', 'and offers that product first when the customer says yes, still for a person to confirm');
+    await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await modalGone(); await closeSheet(); shopify.state.gold = false;
     // a screen left open brings itself up to date when the screens have been replaced, without losing work in hand
     await pg.locator('#tabs .tab', {hasText:'Today'}).click();
     await pg.evaluate(() => { window.__mark = 1; document.querySelector('meta[name="ifd-version"]').content = 'an-older-build'; });
@@ -1098,6 +1170,17 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(app.store.getDoc('settings/main').data.words.terms === 'Half is paid when you order and the rest before your fitting day.' && app.store.getDoc('settings/main').data.msgs.allow.length === 3
       && await b.pg.evaluate(() => /is paid to Innovation Flooring Direct\. Half is paid when you order and the rest before your fitting day\./.test(window.IFDLogic.quoteMessage({ref:'M-X', customer:{name:'A'}}, {n:1, at:new Date().toISOString(), lines:[{label:'Carpet', price:5}]}, {name:'Innovation Flooring Direct', phone:'1', words:{terms:'Half is paid when you order and the rest before your fitting day.'}}))),
       'the owner changes how the shop’s part is paid, without disturbing the other settings, and quotes use the new wording');
+    // the price list is the owner's to set, and the pricing screen uses it
+    ok(await b.pg.inputValue('#pl-fitCarpet') === '5.00' && await b.pg.inputValue('#pl-fitEngHerringbone') === '30.00' && await b.pg.inputValue('#pl-gripperLen') === '1.52' && await b.pg.inputValue('#pl-waste') === '10' && await b.pg.inputValue('#pl-discounts') === '5, 10, 15, 20' && /come from Shopify/.test(await b.pg.locator('#pricesSec').innerText()), 'Setup shows the price list with the standing rates');
+    await b.pg.fill('#pl-fitCarpet', '6'); await b.pg.fill('#pl-fitCarpetMin', '60'); await b.pg.fill('#pl-discounts', '10, 25'); await b.pg.locator('#pricesSec').getByRole('button', {name:'Save the price list'}).click();
+    for (let i = 0; i < 60 && !((app.store.getDoc('settings/main').data.prices || {}).fitCarpet); i++) await b.pg.waitForTimeout(50);
+    const sm = app.store.getDoc('settings/main').data;
+    ok(sm.prices.fitCarpet === 6 && sm.prices.fitCarpetMin === 60 && sm.prices.discounts === '10, 25' && sm.prices.glue === 5 && sm.msgs.allow.length === 3 && sm.words.terms === 'Half is paid when you order and the rest before your fitting day.', 'the owner saves the price list without disturbing the other settings');
+    await b.pg.locator('#tabs .tab', {hasText:'Today'}).click(); await b.pg.waitForSelector('#priceSec'); await b.pg.locator('#priceSec .row.price', {hasText:'Rita Rates'}).click(); await b.pg.waitForSelector('#quoteForm');
+    await b.pg.waitForFunction(() => /^Catalogue: 12\.40 m²/.test(document.querySelector('#qcat0').textContent), null, {timeout:8000});
+    ok((await b.pg.locator('#quse4').innerText()) === 'Use £68.40' && /11\.40 m² × £6\.00 per m² = £68\.40$/.test(await b.pg.locator('#qcat4').innerText()) && await b.pg.locator('#quoteDisc button').allTextContents().then(t => t.join('|')) === 'No discount|10%|25%'
+      && kq('k1').rates.fitCarpet === 5 && kq('k1').total === 352.73, 'the pricing screen works from the new rates and offers the new discounts, and a quote already saved keeps the figures and rates it was made with');
+    await b.pg.locator('#modal').getByRole('button', {name:'Cancel'}).click();
     // with no mail server or text service set up, as the live system is until their details are entered, nothing can be sent and nothing says it was
     const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'ifd-b2-'));
     const app2 = create({env:{DATA_DIR:dir2, INSECURE_COOKIES:'1', SESSION_PEPPER:'t', OWNER_NAME:'David', OWNER_MOBILE:'07700 900001', SHOP_MOBILE:'07700 900002', SHOPIFY_STORE:'innovationflooring', SHOPIFY_CLIENT_ID:'test-id', SHOPIFY_CLIENT_SECRET:'test-secret'},
@@ -1126,6 +1209,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
       await up.locator('#tabs .tab', {hasText:/Setup|More/}).first().click(); if (!(await up.locator('#msgSetupSec').count())) await up.locator('#view').getByRole('button', {name:'Setup'}).click();
       await up.waitForFunction(() => /^Not set up yet/.test((document.querySelector('#setEmail') || {innerText:''}).innerText), null, {timeout:8000});
       ok(/^Not set up yet/.test(await up.locator('#setSms').innerText()) && /Only the owner can change these/.test(await up.locator('#msgSetupSec').innerText()) && await up.locator('#newMsgTo').count() === 0 && await up.locator('#setTerms').isDisabled(), 'Setup says plainly that email and texts are not set up, and the shop sign-in cannot change who messages go to');
+      ok(await up.locator('#pl-fitCarpet').isDisabled() && await up.locator('#pricesSec').getByRole('button', {name:'Save the price list'}).count() === 0 && /Only the owner can change these/.test(await up.locator('#pricesSec').innerText()), 'the shop sign-in can read the price list and cannot change it');
     } finally { app2.close(); fs.rmSync(dir2, {recursive:true, force:true}); }
     console.log(errors.length ? 'CONSOLE ERRORS:\n' + errors.join('\n') : 'browser checks on the hosted server passed: ' + passed);
     if (errors.length) process.exitCode = 1;

@@ -577,3 +577,74 @@ test('a send whose answer was lost is never sent again blind: it is looked up, o
     assert.strictEqual((await mail('u7', {key:k(9)})).json.state, 'sent', 'asked again afterwards, the same request reports that it went');
   } finally { s.stop(); }
 });
+
+test('catalogue pricing: each line worked out from the measure, Shopify’s prices and the shop’s price list; a discount off the shop’s part only; the price list is the owner’s', async () => {
+  const s = await boot();
+  try {
+    const L = s.app.rules, shop = await s.signIn(SHOPM), owner = await s.signIn(OWNER);
+    const cs = (floor, extra) => Object.assign({floor:floor, rollW:0, dir:'any', underlay:false, gripper:false, beading:null, bars:{cc:0, cf:0, ff:0}, old:false, uplift:null, furniture:false}, extra || {});
+    const vr = {status:'verified', verBy:'Eddie', verRole:'estimator', verOn:'2026-11-10', source:'estimator', want:'c1'};
+    const mJob = (rooms, choices) => ({v:1, ref:'M-CAT', source:'measure', status:'open', customer:{name:'Cat Alogue'}, lines:{}, quotes:{}, brief:{rooms:Object.keys(rooms).map(k => ({name:rooms[k].name, want:'c1'})), choices:choices, also:[]}, rooms:rooms});
+    const roll = {k:'c1', title:'Silver twist carpet · Roll R-801 · 4m wide', variantId:'gid://shopify/ProductVariant/801', unit:'m', w:4, widths:[4, 5]};
+    // ---- carpet: 3.00 x 3.80 m off a 4 m roll at Shopify's £10 per m², with underlay, gripper, a door bar, the old floor lifted and furniture moved
+    const carpet = mJob({r1:Object.assign({n:1, name:'Lounge', len:3, wid:3.8, area:11.4, spec:cs('carpet', {underlay:true, gripper:true, bars:{cc:1, cf:0, ff:0}, old:true, uplift:true, furniture:true})}, vr)}, [roll]);
+    const c = L.catalogue(carpet, {}, {c1:{ppm:10}}, {});
+    assert.strictEqual(c.carpet.amount, 124); assert.strictEqual(c.carpet.text, '12.40 m² of Silver twist carpet × £10.00 per m²');
+    assert.strictEqual(c.underlay.amount, 68.29); assert.strictEqual(L.catalogue(carpet, {}, {c1:{ppm:10}}, {underlay:'12'}).underlay.amount, 79.69);
+    assert.strictEqual(c.gripper.amount, 9); assert.match(c.gripper.text, /9 lengths of 1\.52 m × £1\.00/); assert.strictEqual(c.bars.amount, 9.99); assert.strictEqual(c.uplift.amount, 45.6); assert.strictEqual(c.furniture.amount, 30);
+    assert.strictEqual(c.fitting.amount, 120); assert.match(c.fitting.text, /11\.40 m² × £5\.00 per m² = £57\.00, so the least charge of £120\.00 applies/);
+    // a carpet Shopify has no price for is not guessed: the price per m² has to be typed, and the sum says it was
+    const bare = L.catalogue(carpet, {}, {}, {}).carpet; assert.strictEqual(bare.amount, 0); assert.strictEqual(bare.needRate, true); assert.match(bare.text, /no price per m² in Shopify\. Type the price per m²/);
+    const typed = L.catalogue(carpet, {}, {}, {carpetRate:12}).carpet; assert.strictEqual(typed.amount, 148.8); assert.match(typed.text, /£12\.00 per m² \(typed\)/);
+    // a hall, stairs and landing: the higher least charge, and the stairs are left for a person to add
+    const hsl = mJob({r1:Object.assign({n:1, name:'Lounge', len:3, wid:3.8, area:11.4, spec:cs('carpet')}, vr),
+      r2:Object.assign({n:2, name:'Hall, stairs and landing', len:0, wid:0, area:0, spec:cs('carpet'), hsl:{hall:{on:false, len:0, wid:0}, stairs:{on:true, n:12, wid:0.8, tread:21, riser:21, winders:0, wdepth:0}, landing:{on:true, len:2.6, wid:2.2}}}, vr)}, [roll]);
+    const h1 = L.catalogue(hsl, {}, {c1:{ppm:10}}, {}), h2 = L.catalogue(hsl, {}, {c1:{ppm:10}}, {carpetExtra:4});
+    assert.strictEqual(h1.carpet.amount, 216); assert.strictEqual(h1.carpet.stairs, true); assert.match(h1.carpet.text, /The stairs are not in this figure: add the m² for them\./);
+    assert.strictEqual(h2.carpet.amount, 256); assert.match(h2.carpet.text, /That includes 4\.00 m² added for the stairs\./); assert.strictEqual(h1.fitting.amount, 150); assert.match(h1.fitting.text, /least charge of £150\.00 with a hall, stairs and landing applies/);
+    // ---- laminate: the floor plus 10% in whole packs at Shopify's pack price; no fitting rate set means none is made up
+    const lam = mJob({r1:Object.assign({n:1, name:'Lounge', len:5, wid:4.6, area:23, spec:cs('flooring', {underlay:true, gripper:null, beading:true})}, vr)}, [{k:'c1', title:'Royale Oak 12mm Herringbone Laminate', variantId:'gid://shopify/ProductVariant/701', unit:'packs'}]);
+    const lamG = {c1:{ppm:0, cov:1.836, pack:20.18, type:'laminate flooring'}}, l1 = L.catalogue(lam, {}, lamG, {});
+    assert.strictEqual(l1.flooring.amount, 282.52); assert.match(l1.flooring.text, /23\.00 m² of Royale Oak 12mm Herringbone Laminate \+ 10% = 25\.30 m²: 14 packs of 1\.836 m² × £20\.18/);
+    assert.strictEqual(l1.fitting.amount, 0); assert.match(l1.fitting.text, /No fitting rate is set for laminate \(23\.00 m²\): type the fitting price/); assert.strictEqual(l1.beading.amount, 40);
+    assert.strictEqual(l1.underlay.amount, 0); assert.strictEqual(l1.underlay.needPick, true); assert.match(l1.underlay.text, /choose which underlay/);
+    const l2 = L.catalogue(lam, {fitLaminate:12}, lamG, {underlayFloor:{id:'u1', title:'15 m2 Premium Quality Silver Underlay · 1 Roll', cov:15, pack:59.9}});
+    assert.strictEqual(l2.fitting.amount, 276); assert.strictEqual(l2.underlay.amount, 119.8); assert.match(l2.underlay.text, /2 × 15 m2 Premium Quality Silver Underlay · 1 Roll \(covers 15 m² each\) × £59\.90/);
+    // an underlay whose name says one size and whose Shopify coverage says another is not worked out
+    assert.strictEqual(L.covClash('10 m2 Premium Quality Gold Underlay · 1 Roll', 15), 10); assert.strictEqual(L.covClash('15 m2 Premium Quality Silver Underlay · 1 Roll', 15), 0); assert.strictEqual(L.covClash('5.5mm Fibreboard Underlay · 7m2 Box', 7), 0); assert.strictEqual(L.covClash('Foam Laminate Underlay', 15), 0);
+    const gold = L.catalogue(lam, {}, lamG, {underlayFloor:{id:'u2', title:'10 m2 Premium Quality Gold Underlay · 1 Roll', cov:15, pack:39.99, clash:10}}).underlay;
+    assert.strictEqual(gold.amount, 0); assert.match(gold.text, /says 10 m² and Shopify says it covers 15 m²\. It is not worked out until that is put right in Shopify/);
+    // ---- engineered wood: fitting by how it is laid, glue always, floor preparation always and never made up
+    const eng = t => mJob({r1:Object.assign({n:1, name:'Lounge', len:5, wid:4, area:20, spec:cs('flooring')}, vr)}, [{k:'c1', title:t, variantId:'gid://shopify/ProductVariant/702', unit:'packs'}]);
+    const engG = {c1:{ppm:68.78, cov:1.2, pack:82.54, type:'Real Wood Flooring'}}, keys = (job, g) => L.quoteRows(job, g).map(r => r.key + (r.must ? '!' : '')).join(',');
+    const e1 = L.catalogue(eng('Harbour Engineered Herringbone'), {}, engG, {});
+    assert.strictEqual(e1.flooring.amount, 1568.26); assert.strictEqual(e1.fitting.amount, 600); assert.strictEqual(e1.glue.amount, 100); assert.strictEqual(e1.prep.amount, 0); assert.match(e1.prep.text, /Type the amount/);
+    assert.strictEqual(keys(eng('Harbour Engineered Herringbone')), 'flooring,fitting,glue!,prep!');
+    // told as wood by its Shopify product type when the name does not say so
+    const e2 = L.catalogue(eng('Windsor Natural Oak'), {}, engG, {}); assert.strictEqual(e2.fitting.amount, 440); assert.strictEqual(e2.glue.amount, 100);
+    assert.strictEqual(keys(eng('Windsor Natural Oak')), 'flooring,fitting'); assert.strictEqual(keys(eng('Windsor Natural Oak'), engG), 'flooring,fitting,glue!,prep!');
+    const e3 = L.catalogue(eng('Heritage Oak 14mm Chevron Engineered'), {}, engG, {}).fitting; assert.strictEqual(e3.amount, 0); assert.match(e3.text, /No fitting rate is set for engineered chevron/);
+    assert.strictEqual(L.floorKind('Frostwood Oak 6.5mm Unilin Straight Waterproof Click Vinyl', 'LVT Flooring').wood, false); assert.strictEqual(L.floorKind('Frostwood Oak 6.5mm Unilin Straight Waterproof Click Vinyl', 'LVT Flooring').lvt, true);
+    // ---- the price list: the owner's figures replace the defaults one by one, and a bad figure falls back to the default
+    const pl = L.priceList({fitCarpet:6, gripper:'abc', doorBar:-1, uplift:'', furniture:0});
+    assert.strictEqual(pl.fitCarpet, 6); assert.strictEqual(pl.gripper, 1); assert.strictEqual(pl.doorBar, 9.99); assert.strictEqual(pl.uplift, 1.5); assert.strictEqual(pl.furniture, 0); assert.strictEqual(pl.waste, 10);
+    assert.strictEqual(L.catalogue(carpet, {fitCarpet:12, fitCarpetMin:100}, {c1:{ppm:10}}, {}).fitting.amount, 136.8);
+    assert.strictEqual(L.discountsOf({discounts:'5, 10,15 ; 20, 10, 150, x, 0'}).join(), '5,10,15,20'); assert.strictEqual(L.discountsOf(L.priceList({})).join(), '5,10,15,20'); assert.strictEqual(L.discountsOf(L.priceList({discounts:'12.5'})).join(), '12.5');
+    // ---- a discount comes off what the shop is paid and never off the fitter's money; the customer sees full prices, the saving, and what is left to pay
+    assert.strictEqual(L.discounted('Carpet', 124, 10), 111.6); assert.strictEqual(L.discounted('Fitting', 120, 10), 120); assert.strictEqual(L.discounted('Underlay', 68.29, 15), 58.05); assert.strictEqual(L.discounted('Carpet', 124, 0), 124);
+    const q = {k:'qa', n:1, at:'2026-11-10T09:00:00.000Z', byName:'Sam', discount:{pct:10, amount:20.23}, lines:[{label:'Carpet', key:'carpet', price:111.6, full:124, calc:'12.40 m² of Silver twist carpet × £10.00 per m²'}, {label:'Underlay', price:61.46, full:68.29}, {label:'Door bars', price:8.99, full:9.99}, {label:'Fitting', price:120}]};
+    const parts = L.quoteParts(q); assert.strictEqual(parts.discount, 20.23); assert.strictEqual(parts.pct, 10); assert.strictEqual(parts.shopTotal, 182.05); assert.strictEqual(parts.fitTotal, 120); assert.strictEqual(L.quoteTotal(q), 302.05);
+    const qm = L.quoteMessage(carpet, q, SHOP);
+    assert.match(qm, /Carpet: £124\.00\nUnderlay: £68\.29\nDoor bars: £9\.99\n10% discount: -£20\.23\nTo pay Innovation Flooring Direct: £182\.05\n\nFitting: £120\.00\nTo pay your fitter directly: £120\.00\n\nTotal: £302\.05\n/);
+    assert.strictEqual(L.hasSize(qm, carpet), false, 'how a line was worked out, with its sizes, never reaches the customer'); assert.match(L.quoteText(carpet, q, SHOP), /Includes 10% discount of £20\.23\. To pay the shop: £182\.05\./);
+    assert.doesNotMatch(L.quoteMessage(carpet, {k:'qb', n:1, at:'2026-11-10T09:00:00.000Z', lines:[{label:'Carpet', price:124}, {label:'Fitting', price:120}]}, SHOP), /discount/i);
+    // an underlay priced from a Shopify product is carried to the yes screen as the product to offer first
+    assert.strictEqual(L.quoteNeeds(lam, {lines:[{label:'Underlay', price:119.8, pick:'gid://shopify/ProductVariant/9101'}]})[0].pickId, 'gid://shopify/ProductVariant/9101');
+    // ---- only the owner can change the price list
+    s.app.store.setDoc(docPath('settings/main'), {fitters:['Lennox']});
+    assert.strictEqual((await s.req('POST', '/api/db/update', {path:'settings/main', data:{prices:{fitCarpet:1}}}, shop)).status, 403);
+    assert.strictEqual((await s.req('POST', '/api/db/update', {path:'settings/main', data:{prices:{fitCarpet:6}}}, owner)).status, 200);
+    assert.strictEqual(s.app.store.getDoc('settings/main').data.prices.fitCarpet, 6);
+    assert.strictEqual((await s.req('POST', '/api/db/update', {path:'settings/main', data:{fitters:['Lennox', 'Sonnie']}}, shop)).status, 200, 'the rest of Setup is unaffected');
+  } finally { s.stop(); }
+});
