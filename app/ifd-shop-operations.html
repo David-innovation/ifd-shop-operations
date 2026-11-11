@@ -1050,6 +1050,7 @@ window.IFDLogic = (function(){
     } else {
       out = out.concat(p.shop.map(line), less, ['', 'Total: ' + money(p.total), '', 'How payment works', money(p.total) + ' is paid to ' + shop.name + '.' + (w.terms ? ' ' + w.terms : '')]);
     }
+    if(p.fit.length)out=out.concat(['','Before booking','Please arrange clear rooms and removal of existing flooring unless furniture moving or uplift is included above. Tell us about any known concealed cables or pipes. We will agree any extra work before proceeding.','Helpful fitting information'],fittingCare());
     return out.concat(['', 'To go ahead, or to change anything, ' + (shop.email ? 'reply to this email or ' : '') + 'ring us on ' + shop.phone + ' and quote ' + ref + '.', ''], signOff(shop)).join('\n');
   }
   /* the same quote as a text: short, because a long text is charged as several */
@@ -1316,7 +1317,7 @@ window.IFDLogic = (function(){
     for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
     return 'b' + (snap.date || '') + '-' + h.toString(36);
   }
-  function confirmLast(job){ var ms = msgsFor(job, 'confirm').filter(msgWent); return ms.length ? ms[ms.length - 1] : null; }
+  function confirmLast(job){ var ms = msgsFor(job, 'confirm').filter(function(m){return msgWent(m)&&(!job.fittingSheetRequired||m.channel==='email');}); return ms.length ? ms[ms.length - 1] : null; }
   function confirmChanges(job){ var last = confirmLast(job); return last ? snapChanges(last.snap, bookingSnap(job)) : []; }
   function confirmState(job){
     if (!job || job.status !== 'open' || job.type !== 'Fitting' || !job.diary || !validISO(job.date)) return 'na';
@@ -1331,31 +1332,41 @@ window.IFDLogic = (function(){
   function arrivalLine(job){
     if (arrivalConfirmed(job)) return 'Arrival: between ' + String(job.arrival.slot).replace(/\s+to\s+/i, ' and ');
     var half = job.slot === 'AM' ? 'in the morning' : job.slot === 'PM' ? 'in the afternoon' : '';
-    return half ? 'Arrival: ' + half + '. We will ring you beforehand to agree the time.' : 'Arrival: we will ring you beforehand to agree the time.';
+    return half ? 'Arrival: ' + half + '. Your fitter will text you an arrival time slot before the visit.' : 'Arrival: your fitter will text you an arrival time slot before the visit.';
   }
   /* what the customer has to do before the fitter arrives: taken from what was sold and what the measure found, then the shop's standing notes */
   function prepNotes(job, shop){
     var p = pricingOf(job), ls = linesOf(job), sold = function(re){ return ls.some(function(l){ return re.test(String(l.title || '')); }); }, out = [];
-    if (sold(/furniture/i)) out.push('We are moving the furniture' + (p.furniture.length ? ' in ' + p.furniture.join(', ') : '') + '. Please put away ornaments, electrics and anything breakable beforehand.');
-    else out.push('Please have the rooms cleared of furniture before we arrive.');
-    if (sold(/uplift|dispos/i)) out.push('We are lifting and taking away the old flooring' + (p.uplift.length ? ' in ' + p.uplift.join(', ') : '') + '.');
+    if (sold(/furniture/i)) out.push('Furniture moving is included as agreed' + (p.furniture.length ? ' in ' + p.furniture.map(customerItemName).join(', ') : '') + '. Please put away ornaments, electrics and anything breakable beforehand. Any rooms outside that agreement should be cleared before we arrive.');
+    else out.push('Please clear the rooms of furniture and personal belongings before we arrive, unless furniture moving is specifically included in your agreed order.');
+    if (sold(/uplift|dispos/i)) out.push((sold(/uplift/i)&&sold(/dispos/i)?'We are lifting and taking away the old flooring':sold(/uplift/i)?'Lifting the old flooring is included; disposal is only included if separately agreed':'Disposal of the old flooring is included; lifting it is only included if separately agreed') + (p.uplift.length ? ' in ' + p.uplift.map(customerItemName).join(', ') : '') + '.');
     if (p.oldLeft.length) out.push('Please have the old flooring in ' + p.oldLeft.join(', ') + ' lifted and cleared before we arrive.');
+    else if(!sold(/uplift|dispos/i))out.push('If old flooring is present, please arrange for it to be lifted and removed before fitting, unless this work is included in your agreed order. Contact us first if you are unsure or suspect hazardous materials.');
+    out.push('Please tell us in advance if you need help getting ready. Any extra work, price or change of date will be discussed and agreed before we proceed.');
     return out.concat(wordsOf(shop).prep);
   }
+  function fittingCare(){return ['Please tell us about any known cables, pipes or underfloor services, particularly around door frames, thresholds and skirting boards. We take reasonable care; if concealed services or unsafe conditions are found, work may need to pause while suitable checks or repairs are arranged. Any additional work and cost will be agreed first.',
+    'Your fitter will explain any essential preparation, installation or aftercare advice. If you choose not to follow it, we will record the advice and discuss whether the work can safely proceed. A warranty may not cover a defect caused by that departure, where its terms allow; unrelated cover is not automatically lost.',
+    'Nothing in these notes limits your statutory consumer rights or our responsibility to carry out our work with reasonable care and skill.'];}
+  function customerItemName(s){return String(s||'').split(' · ')[0].replace(/\b\d+(?:\.\d+)?\s*(?:mm|cm|m²|m2|metres?|meters?|m)\b/gi,'').replace(/\b\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?\b/gi,'').replace(/\s+/g,' ').trim();}
+  function fittingItems(job){var seen={},out=[];linesOf(job).forEach(function(l){var t=customerItemName(l.title);if(!t||/^(flooring|carpet)$/i.test(t)||seen[t])return;seen[t]=1;out.push(t);});return out;}
   function confirmSubject(job, shop, revised){ return (revised ? 'Updated fitting details from ' : 'Your fitting is booked with ') + shop.name + (job.ref ? ', ref ' + job.ref : ''); }
   function confirmMessage(job, shop, o){
     var first = firstName((job.customer || {}).name), c = job.customer || {}, due = fitterDue(job), bal = balanceOf(job), paid = paidOf(job), st = shopTotal(job), w = wordsOf(shop), changed = (o && o.changes) || [];
     var out = ['Hi ' + (first || 'there') + ',', ''];
     if (o && o.revised) out.push('The details of your fitting have changed' + (changed.length ? ' (' + changed.join(', ') + ')' : '') + '. This replaces our earlier confirmation.');
     else out.push('Thank you for your order with ' + shop.name + '. Your fitting is booked.');
-    out.push('', 'Reference: ' + (job.ref || ''), 'Date: ' + longDay(job.date) + ' ' + String(job.date).slice(0, 4), arrivalLine(job));
+    out.push('', 'Your job confirmation', 'Reference: ' + (job.ref || ''), 'Date: ' + longDay(job.date) + ' ' + String(job.date).slice(0, 4), arrivalLine(job));
     if (job.fitter) out.push('Fitter: ' + job.fitter);
     if (c.address || c.postcode) out.push('Address: ' + [c.address, c.postcode].filter(Boolean).join(', '));
+    var roomNames=roomsOf(job).map(function(r){return customerItemName(r.name);}).filter(Boolean);if(roomNames.length)out.push('Rooms: '+roomNames.join(', '));
+    var items=fittingItems(job);if(items.length){out.push('','Your flooring and agreed work');items.forEach(function(t){out.push('- '+t);});}
     out.push('', 'Payment', 'Total: ' + money(job.total));
     out.push('To pay ' + shop.name + ': ' + money(st) + '. ' + (bal > 0.004 ? (paid > 0 ? 'Paid so far: ' + money(paid) + '. Still to pay: ' + money(bal) + '.' : 'Still to pay: ' + money(bal) + '.') + (w.terms ? ' ' + w.terms : '') : bal < -0.004 ? 'Paid, with ' + money(-bal) + ' in credit.' : 'Paid in full, thank you.'));
     if (due > 0) out.push('To pay your fitter directly: ' + money(due) + ', on the day once the job is finished. It is not paid to the shop.');
     out.push('', 'Before we arrive'); prepNotes(job, shop).forEach(function(t){ out.push('- ' + t); });
-    return out.concat(['', 'If anything needs to change, ' + (shop.email ? 'reply to this email or ' : '') + 'ring us on ' + shop.phone + (job.ref ? ' and quote ' + job.ref : '') + '.', ''], signOff(shop)).join('\n');
+    out.push('', 'Helpful fitting information');fittingCare().forEach(function(t){out.push(t);});
+    return out.concat(['', 'We look forward to fitting your new floor. Thank you for choosing our team.', 'If anything needs to change, ' + (shop.email ? 'reply to this email or ' : '') + 'ring us on ' + shop.phone + (job.ref ? ' and quote ' + job.ref : '') + '.', ''], signOff(shop)).join('\n');
   }
   function confirmText(job, shop, o){
     var due = fitterDue(job), bal = balanceOf(job), when = arrivalConfirmed(job) ? ', arriving between ' + String(job.arrival.slot).replace(/\s+to\s+/i, ' and ') : job.slot === 'AM' ? ', in the morning' : job.slot === 'PM' ? ', in the afternoon' : '';
@@ -2156,7 +2167,7 @@ function confirmRow(job){
   return h('div', {class:'row static act'}, dateBlock(job),
     h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
       h('div', {class:'sub', text:'Fitting ' + L.fmtDay(job.date) + (job.slot ? ' ' + job.slot : '') + (job.fitter ? ' with ' + job.fitter : '') + (L.fitterDue(job) ? ' · ' + L.money(L.fitterDue(job)) + ' to the fitter on completion' : '')}),
-      h('div', {class:'meta'}, c.phone ? chip(c.phone) : null, chip(st === 'changed' ? 'Needs reconfirmation: ' + L.confirmChanges(job).join(', ') + ' changed' : 'In the diary, customer not told yet', 'bad'))),
+      h('div', {class:'meta'}, c.phone ? chip(c.phone) : null, chip(st === 'changed' ? 'Needs reconfirmation: ' + L.confirmChanges(job).join(', ') + ' changed' : job.fittingSheetRequired?'Job-confirmation email still needed':'In the diary, customer not told yet', 'bad')),job.fittingSheetIssue?h('p',{class:'banner warn',text:job.fittingSheetIssue}):null),
     h('div', {class:'bar'}, btn(st === 'changed' ? 'Send the new details' : 'Send the confirmation', () => confirmDialog(job), 'sm pri'), btn('Open', () => openSheet(job.id), 'sm')));
 }
 /* the customer has said yes and something has to be ordered in: nothing more happens to the job until the order details are in */
@@ -2352,6 +2363,7 @@ VIEWS.today = function(){
   function draw(){
     const t=L.todayISO(),isTest=j=>j.test===true||/\bZZ[ -]?TEST\b/i.test((j.customer||{}).name||'')||/^ZZ[- ]/i.test(j.ref||j.id||''), visible=j=>S.ui.showTestJobs||!isTest(j),filter=xs=>xs.filter(visible),open=filter(openJobs());
     const price=filter(toPriceJobs()),quotes=filter(quotedJobs()),unsent=quotes.filter(j=>L.quoteWait(j,t).state==='unsent'),waiting=quotes.filter(j=>L.quoteWait(j,t).state!=='unsent'),chase=waiting.filter(j=>L.quoteWait(j,t).state!=='waiting');
+    const emailIssues=filter(jobsArr()).filter(j=>j.status!=='cancelled'&&j.thankYouIssue);
     const conf=filter(confirmJobs()),failed=failedMsgs().filter(x=>visible(x.job)),act=filter(actNowJobs()),att=filter(attentionJobs()),inbox=inboxList(),toOrd=filter(toOrderJobs()),onOrd=filter(onOrderJobs()),cuts=cutAll().filter(x=>visible(x.job));
     const held=open.filter(j=>L.checksOutstanding(j).length),ready=open.filter(j=>!j.diary&&L.stockLines(j).length&&L.allAllocated(j)&&!L.checksOutstanding(j).length),noOrder=open.filter(j=>!L.linesOf(j).length&&L.preOf(j).length&&L.preOf(j).every(v=>v.status==='done')&&!L.toPrice(j)&&!L.quoted(j));
     const ring=contactItems(['overdue','soon']).filter(x=>visible(x.job)),tasks=S.tasks.filter(x=>!x.done&&(!x.due||x.due<=t)),owed=filter(jobsArr()).filter(j=>j.status!=='cancelled'&&L.balanceOf(j)>0);
@@ -2359,8 +2371,8 @@ VIEWS.today = function(){
     const urgent=new Set([...act,...att,...failed.map(x=>x.job)].map(j=>j.id)).size;
     const todayJobs=open.filter(j=>j.diary&&j.date===t),visits=[];open.forEach(j=>L.preOf(j).filter(v=>v.status==='booked'&&v.date===t).forEach(v=>visits.push({job:j,v})));
     const section=(title,rows,render,id)=>rows.length?h('section',{class:'sec',id},h('h2',{text:title+' · '+rows.length}),h('div',{class:'list'},rows.map(render))):null;
-    const groups={price:[section('Measured jobs to price',price,priceRow,'priceSec')],send:[section('Quotes to send',unsent,quotedRow,'quotedSec'),section('Booking confirmations',conf,confirmRow,'confirmSec'),section('Failed or uncertain messages',failed,failedRow,'failedSec')],follow:[section('Quotes needing a call or action',chase,quotedRow,'chaseSec'),section('Arrival times to arrange',ring,ringRow,'ringSec'),section('Visited, no sizes or order yet',noOrder,jobRow,'noOrderSec'),waiting.length>chase.length?h('details',{},h('summary',{text:'Quotes waiting for a reply · '+(waiting.length-chase.length)}),section('Not due a follow-up yet',waiting.filter(j=>L.quoteWait(j,t).state==='waiting'),quotedRow,'waitingSec')):null],attention:[section('Failed or uncertain messages',failed,failedRow,'attentionFailedSec'),section('Sent back from site',act,actRow,'actSec'),h('section',{class:'sec',id:'inboxSec'},h('h2',{},'New from website · '+inbox.length,btn('Check now',refreshInbox,'sm')),S.inbox.state==='error'?h('p',{text:S.inbox.msg}):null,listOf(inbox.map(inboxRow),S.inbox.state==='loading'?'Checking website orders':'No website orders waiting','')),section('Jobs needing attention',att,jobRow,'attentionSec'),section('Checks outstanding',held,checkRow,'checksSec'),section('Ready to book in',ready,jobRow,'readySec'),section('To order',toOrd,orderRow,'orderSec'),section('On order / arrivals to check',onOrd,onOrderRow,'onOrderSec'),section('Warehouse cutting',cuts,x=>cutRow(x,true),'cutSec'),section('Payments outstanding',owed,jobRow,'owedSec'),section('Tasks due',tasks,taskRow,'tasksSec')]};
-    const specs=[['price',price.length,'To price','Measured jobs ready for a quote','Open pricing list'],['send',unsent.length+conf.length+failed.length,'To send','Quotes, confirmations and message issues','Send messages'],['follow',chase.length+ring.length+noOrder.length,'Follow up','Customers due a call or next step','View follow-ups'],['attention',attentionCount,'Needs attention','Orders, checks, bookings and payments','Review work']];
+    const groups={price:[section('Measured jobs to price',price,priceRow,'priceSec')],send:[section('Thank-you emails needing attention',emailIssues,jobRow,'thanksSec'),section('Quotes to send',unsent,quotedRow,'quotedSec'),section('Booking confirmations',conf,confirmRow,'confirmSec'),section('Failed or uncertain messages',failed,failedRow,'failedSec')],follow:[section('Quotes needing a call or action',chase,quotedRow,'chaseSec'),section('Arrival times to arrange',ring,ringRow,'ringSec'),section('Visited, no sizes or order yet',noOrder,jobRow,'noOrderSec'),waiting.length>chase.length?h('details',{},h('summary',{text:'Quotes waiting for a reply · '+(waiting.length-chase.length)}),section('Not due a follow-up yet',waiting.filter(j=>L.quoteWait(j,t).state==='waiting'),quotedRow,'waitingSec')):null],attention:[section('Failed or uncertain messages',failed,failedRow,'attentionFailedSec'),section('Sent back from site',act,actRow,'actSec'),h('section',{class:'sec',id:'inboxSec'},h('h2',{},'New from website · '+inbox.length,btn('Check now',refreshInbox,'sm')),S.inbox.state==='error'?h('p',{text:S.inbox.msg}):null,listOf(inbox.map(inboxRow),S.inbox.state==='loading'?'Checking website orders':'No website orders waiting','')),section('Jobs needing attention',att,jobRow,'attentionSec'),section('Checks outstanding',held,checkRow,'checksSec'),section('Ready to book in',ready,jobRow,'readySec'),section('To order',toOrd,orderRow,'orderSec'),section('On order / arrivals to check',onOrd,onOrderRow,'onOrderSec'),section('Warehouse cutting',cuts,x=>cutRow(x,true),'cutSec'),section('Payments outstanding',owed,jobRow,'owedSec'),section('Tasks due',tasks,taskRow,'tasksSec')]};
+    const specs=[['price',price.length,'To price','Measured jobs ready for a quote','Open pricing list'],['send',unsent.length+conf.length+failed.length+emailIssues.length,'To send','Quotes, confirmations and message issues','Send messages'],['follow',chase.length+ring.length+noOrder.length,'Follow up','Customers due a call or next step','View follow-ups'],['attention',attentionCount,'Needs attention','Orders, checks, bookings and payments','Review work']];
     const select=k=>{selected=k;draw();body.querySelector('#workList')?.scrollIntoView({behavior:'smooth',block:'start'});};
     body.replaceChildren();add(body,[h('div',{class:'head'},h('div',{},h('h1',{text:'What needs doing today?'}),h('p',{text:L.fmtDay(t)})),h('div',{class:'bar'},btn('New quote',()=>go('catalogue'),'pri'),btn('Book a measure',measureDialog,'pri'),btn('New sale',saleDialog,'pri'))),banners(),
       urgent?h('div',{class:'simple-alert'},h('b',{text:urgent+' jobs have urgent issues'}),btn('Review urgent issues',()=>{selected='attention';draw();},'sm')):null,
@@ -2776,11 +2788,12 @@ VIEWS.setup = function(){
   /* the standard wording that goes on every quote and confirmation. The owner's to set. */
   function wordsSection(){
     const owner = S.me.role === 'owner', w = L.wordsOf(shopInfo());
+    const review = h('input',{class:'in',type:'url',id:'setReview',disabled:!owner,value:S.words.reviewUrl||''});
     const terms = h('textarea', {class:'in', id:'setTerms', disabled:!owner}), prep = h('textarea', {class:'in', id:'setPrep', disabled:!owner}); terms.value = w.terms; prep.value = w.prep.join('\n');
     return h('section', {class:'sec', id:'wordsSec'}, h('h2', {}, 'Wording on customer messages'),
       h('div', {class:'card'}, h('p', {class:'muted', text:'Messages are signed ' + SHOP.name + ' with the shop’s address, phone and ' + SHOP.email + ', never with a person’s name. Who sent each one is kept on the job.'}),
-        field('How the shop’s part is paid. It follows “£… is paid to ' + SHOP.name + '.”', terms), field('Notes on every fitting confirmation, one per line', prep),
-        owner ? h('div', {class:'bar'}, btn('Save the wording', async () => { try { await saveSettings({words:{terms:terms.value.trim(), prep:prep.value.trim()}}); logDay('Changed the standard wording on customer messages'); toast('Saved'); } catch (e){ toast(cmdSay(e), true); } }, 'sm pri'))
+        field('How the shop’s part is paid. It follows “£… is paid to ' + SHOP.name + '.”', terms), field('Notes on every fitting confirmation, one per line', prep), field('Review link — same invitation for every customer', review),
+        owner ? h('div', {class:'bar'}, btn('Save the wording', async () => { try { await saveSettings({words:{terms:terms.value.trim(), prep:prep.value.trim(),reviewUrl:review.value.trim()}}); logDay('Changed the standard wording on customer messages'); toast('Saved'); } catch (e){ toast(cmdSay(e), true); } }, 'sm pri'))
           : h('p', {class:'small muted', text:'Only the owner can change these.'})));
   }
   /* the shop's own rates. Product prices are Shopify's; these are for fitting and the extras. The owner's to set. */
@@ -3030,6 +3043,7 @@ function drawSheet(){
   const logs = Object.keys(job.log || {}).map(k => job.log[k]).sort((a, b) => String(b.at).localeCompare(String(a.at)));
   learnNames(Array.from(new Set(logs.map(x => x.by))));
   const bo = L.backOpen(job), earlier = L.backsOf(job).filter(b => b.on !== true);
+  const customerSignCard=h('div',{class:'card'},h('h3',{text:'Customer sign-off'}),Object.values(job.customerSignoffs||{}).map(r=>{const canvas=h('canvas',{width:600,height:220,style:'max-width:100%;height:auto;background:white'});setTimeout(()=>{const c=canvas.getContext('2d');c.lineWidth=2;(r.strokes||[]).forEach(s=>{c.beginPath();s.forEach((p,i)=>i?c.lineTo(p[0]*600,p[1]*220):c.moveTo(p[0]*600,p[1]*220));c.stroke();});},0);return h('div',{},h('p',{text:r.at+' · '+r.name+' · '+(r.outcome==='clear'?'No issues reported':'Issues recorded')}),h('p',{text:r.statement}),h('p',{text:r.note||r.reason||''}),r.signed?canvas:null);}),job.thankYouIssue?h('p',{class:'banner warn',text:job.thankYouIssue}):null);
   const backCard = bo ? h('div', {class:'card backcard', id:'backCard'}, h('h3', {}, 'Sent back to the shop', chip('Act now', 'bad')), backBlock(job, bo, true)) : null;
   const backLog = earlier.length ? h('div', {class:'card'}, h('h3', {}, 'Sent back before'), h('div', {class:'log'}, earlier.slice().reverse().map(b => h('div', {text:whenText(b.at) + '  ' + (b.fitter || 'Fitter') + ': ' + L.backReason(b) + (b.note ? '. ' + b.note : '') + (b.doneAt ? '  Dealt with ' + whenText(b.doneAt) + ' by ' + nameOf(b.doneBy) + (b.doneNote ? ': ' + b.doneNote : '') : '')})))) : null;
   const briefCard = L.briefHas(job) || (open && job.source === 'measure') ? h('div', {class:'card', id:'briefCard'}, h('h3', {}, 'What the measure is for', open ? h('span', {class:'bar'}, btn(L.briefHas(job) ? 'Change' : 'Add', () => briefDialog(job), 'sm')) : null),
@@ -3073,7 +3087,7 @@ function drawSheet(){
       btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'},
       backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0) && !(confirmBanner && /^(Fitting confirmation not sent|Needs reconfirmation)/.test(w.text))).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
-      toPriceBanner, orderBanner, cutBanner, confirmBanner, priceQuoteCard, msgsCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
+      toPriceBanner, orderBanner, cutBanner, confirmBanner, priceQuoteCard, msgsCard, customerSignCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
       h('div', {class:'card'}, h('h3', {}, 'History'), h('div', {class:'log'}, logs.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': ' + x.text}))))));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -5401,7 +5415,8 @@ function backDoneDialog(job, b){
     h('p', {class:'small muted', text:'Saving puts the job in the diary on the new day, as long as its stock and checks are still in order. The items, the price and the Shopify reservation are not changed.'}), s.box),
     [btn('Cancel', closeModal), go]));
 }
-function signOffDialog(job){
+function signOffDialog(job){ location.href='/appointments'; }
+function legacySignOffDialog(job){
   const s = sayer(), bal = L.balanceOf(job), c = job.customer || {};
   let mode = '', slot = '';
   const who = fitterPicker('signFitter', job.fitter || '');

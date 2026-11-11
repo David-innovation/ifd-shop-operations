@@ -20,8 +20,11 @@ function make(){
           const cutAt = raw.indexOf('\r\n\r\n'), head = raw.slice(0, cutAt), body = raw.slice(cutAt + 4);
           const h = name => (new RegExp('^' + name + ': (.*)$', 'mi').exec(head) || [])[1] || '';
           const plain = s => s.replace(/=\?UTF-8\?B\?([^?]+)\?=/g, (m, b) => Buffer.from(b, 'base64').toString('utf8'));
+          const parts=/multipart\/alternative/.test(h('Content-Type'))?body.split('--'+(/boundary="([^"]+)"/.exec(h('Content-Type'))||[])[1]).filter(x=>/Content-Type: text\//.test(x)):[];
+          const decode=s=>Buffer.from(s.replace(/\s+/g,''),'base64').toString('utf8').replace(/\r\n/g,'\n');
+          const part=kind=>{const x=parts.find(x=>x.includes('Content-Type: text/'+kind));return x?decode(x.slice(x.indexOf('\r\n\r\n')+4).trim()):'';};
           state.got.push({from:cur.from, to:cur.to.slice(), subject:plain(h('Subject')), fromHeader:plain(h('From')), replyTo:h('Reply-To'), id:h('Message-ID'),
-            text:Buffer.from(body.replace(/\s+/g, ''), 'base64').toString('utf8').replace(/\r\n/g, '\n'), head:head});
+            text:parts.length?part('plain'):decode(body),html:part('html'),head:head});
           if (state.loseAnswer > 0){ state.loseAnswer--; sock.destroy(); return; }
           const answer = '250 2.0.0 OK queued as FAKE' + state.got.length; cur = {from:'', to:[]};
           if (state.slow > 0){ setTimeout(() => say(answer), state.slow); return; }      /* a mail server that takes its time to answer */

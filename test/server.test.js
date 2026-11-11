@@ -26,6 +26,35 @@ async function boot(extra, o){
   return {app, base, req, cmd, job, texts, clock, shopify, mailbox, twilio, codeFor, signIn, dir, stop:() => { app.close(); if (mailbox) mailbox.close(); fs.rmSync(dir, {recursive:true, force:true}); }};
 }
 const SHOP = {name:'Innovation Flooring Direct', phone:'0141 952 5200', email:'help@example.test', address:'2 South Elgin Place, Clydebank G81 1XP'};
+test('customer sign-off enforces assignment, signatures, holds, immutable history and neutral email once',async()=>{
+ const s=await boot({}, {messaging:true});try{
+  s.app.ensureUser('Lennox',FITTER,'fitter');s.app.ensureUser('Other','07700900004','fitter');
+  const fitter=await s.signIn(FITTER),other=await s.signIn('07700900004'),owner=await s.signIn(OWNER);
+  s.app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['zed@example.test']},words:{reviewUrl:'https://example.test/review'}});
+  const j=testJob({date:'2026-11-10',diary:true,lines:{l1:{title:'Test carpet',unit:'m',qty:31,w:4,state:'allocated',bay:'W4-01',picked:true,checked:true}}});
+  s.app.store.setDoc(docPath('jobs/signed'),j);
+  const b={jobId:'signed',date:j.date,key:'customer_sign_1',outcome:'clear',name:'TEST CUSTOMER',agreed:true,strokes:[[[0.1,0.2],[0.3,0.4],[0.5,0.2]]]};
+  const sign=(body,cookie=fitter)=>s.req('POST','/api/appointments/signoff',body,cookie);
+  assert.equal((await sign(b,other)).status,403);
+  assert.equal((await sign({...b,strokes:[]})).status,400);
+  assert.equal((await sign({...b,agreed:false})).status,400);
+  assert.equal((await sign({...b,strokes:[[[2,0],[0,0]]]})).status,400);
+  assert.equal((await sign({...b,outcome:'issues',note:''})).status,400);
+  assert.equal((await sign(b)).status,200);assert.equal(s.job('signed').status,'done');
+  assert.equal((await sign(b)).json.duplicate,true);assert.equal(Object.keys(s.job('signed').customerSignoffs).length,1);
+  assert.equal((await s.req('POST','/api/db/update',{path:'jobs/signed',data:{customerSignoffs:{}}},owner)).status,409);
+  assert.equal((await s.req('POST','/api/db/set',{path:'jobs/signed',data:j},owner)).status,409);
+  await Promise.all([s.app.commands.poll(),s.app.commands.poll()]);await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,1);assert.match(s.mailbox.state.got[0].text,/honest feedback/);
+  s.app.store.setDoc(docPath('jobs/issues'),j);
+  assert.equal((await sign({...b,jobId:'issues',key:'customer_issues',outcome:'issues',note:'TEST: trim needs attention'})).status,200);
+  assert.equal(s.job('issues').status,'open');assert.equal(s.job('issues').ret,'needed');
+  await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,2);assert.match(s.mailbox.state.got[1].text,/trim needs attention/);assert.match(s.mailbox.state.got[1].text,/https:\/\/example.test\/review/);
+  s.app.store.setDoc(docPath('jobs/heldsign'),testJob({date:j.date,diary:true}));assert.equal((await sign({...b,jobId:'heldsign'})).status,409);
+  assert.equal((await s.req('POST','/api/db/update',{path:'jobs/heldsign',data:{status:'done'}},owner)).status,409);
+  s.app.store.setDoc(docPath('jobs/absent'),j);assert.equal((await sign({...b,jobId:'absent',strokes:[],reason:'Customer had to leave'})).status,200);assert.equal(s.job('absent').status,'open');
+  s.app.store.updateDoc(docPath('settings/main'),{words:{reviewUrl:''}});await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,3);assert.match(s.mailbox.state.got[2].text,/Google and Facebook/);
+ }finally{s.stop();}
+});
 /* a made-up fitting: one carpet room measured 3.00 x 3.80 m, 3.1 m sold off a 4 m roll, £377.40 in all of which £150 is the fitter's */
 const testJob = extra => Object.assign({v:1, ref:'#T9', source:'shop', status:'open', type:'Fitting', date:'', slot:'', fitter:'Lennox', diary:false, shopifyClosed:false, createdAt:'2026-11-10T09:00:00.000Z',
   customer:{name:'Zed Tester', phone:'07700 900555', email:'zed@example.test', address:'1 Test Street', postcode:'G81 1XP'},
@@ -68,6 +97,26 @@ test('pack quotes combine identical variants, preserve exact quantities and gate
     const changed=s.job('pack-diary');changed.rooms.a.area=13;
     assert.match(L.canConfirmDiary(changed,{},{}).why.join(' '),/changed after acceptance/);
   }finally{s.stop();}
+});
+
+test('fitting sheets email once per booking revision, omit sizes, and keep SMS separate', async()=>{
+ const s=await boot({}, {messaging:true});try{
+  s.app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['zed@example.test']}});
+  const j=testJob({date:'2026-11-20',diary:true,fittingSheetRequired:true,lines:{p:{title:'Meadow Oak 8mm',unit:'packs',qty:12,price:240},g:{title:'Full-spread glue',unit:'m²',qty:20,price:60},prep:{title:'Floor preparation',price:280}},total:1080,fitterDue:500});
+  s.app.store.setDoc(docPath('jobs/sheet'),j);await Promise.all([s.app.commands.poll(),s.app.commands.poll()]);await s.app.commands.poll();
+  assert.equal(s.mailbox.state.got.length,1);const first=s.mailbox.state.got[0];assert.match(first.text,/Your job confirmation/);assert.match(first.text,/Meadow Oak/);assert.doesNotMatch(first.text,/8mm|20 m²|12 packs|3\.00|3\.80/);assert.match(first.html,/font-size:14px/);assert.match(first.html,/statutory consumer rights/);assert.equal(s.app.rules.confirmState(s.job('sheet')),'sent');
+  s.app.store.updateDoc(docPath('jobs/sheet'),{date:'2026-11-21'});await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,2);assert.match(s.mailbox.state.got[1].text,/replaces our earlier confirmation/);
+  s.app.store.updateDoc(docPath('jobs/sheet'),{date:'2026-11-22'});s.mailbox.state.refuse['zed@example.test']=1;await s.app.commands.poll();await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,2);assert.match(s.job('sheet').fittingSheetIssue,/failed/);assert.equal(s.app.rules.confirmState(s.job('sheet')),'changed');
+  const failed=Object.entries(s.job('sheet').msgs).find(([k,m])=>m.state==='failed');await s.cmd('msg.retry',{jobId:'sheet',mk:failed[0],byName:'David'},await s.signIn(OWNER));await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,3);
+  const html=require('../lib/fitting-sheet').html('<script>bad</script>');assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>/);
+ }finally{s.stop();}
+});
+
+test('missing email setup stays visibly pending and old bookings are not emailed retrospectively',async()=>{
+ const s=await boot();try{
+  s.app.store.setDoc(docPath('jobs/pending-sheet'),testJob({date:'2026-11-20',diary:true,fittingSheetRequired:true}));await s.app.commands.poll();assert.match(s.job('pending-sheet').fittingSheetIssue,/not been set up/);assert.equal(Object.keys(s.job('pending-sheet').msgs||{}).length,0);
+  s.app.store.setDoc(docPath('jobs/old-booking'),testJob({date:'2026-11-20',diary:true}));await s.app.commands.poll();assert.equal(s.job('old-booking').fittingSheetIssue,undefined);
+ }finally{s.stop();}
 });
 
 test('records merge the way the screens expect', () => {
@@ -522,9 +571,9 @@ test('customer wording: references, the shop and the fitter paid apart with one 
     assert.match(supply, /Carpet: £300\.00\n\nTotal: £300\.00\n\nHow payment works\n£300\.00 is paid to Innovation Flooring Direct\./); assert.doesNotMatch(supply, /fitter/);
     // the booking confirmation: reference, date, arrival, fitter, address, the money both ways, what to do beforehand, how to reach the shop
     const cm = L.confirmMessage(job, SHOP);
-    assert.match(cm, /Your fitting is booked\.\n\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: in the morning\. We will ring you beforehand to agree the time\.\nFitter: Lennox\nAddress: 1 Test Street, G81 1XP\n/);
+    assert.match(cm, /Your fitting is booked\.\n\nYour job confirmation\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: in the morning\. Your fitter will text you an arrival time slot before the visit\.\nFitter: Lennox\nAddress: 1 Test Street, G81 1XP\n/);
     assert.match(cm, /Payment\nTotal: £599\.99\nTo pay Innovation Flooring Direct: £449\.99\. Paid so far: £120\.00\. Still to pay: £329\.99\. It is paid in the shop[^\n]*\nTo pay your fitter directly: £150\.00, on the day once the job is finished\. It is not paid to the shop\./);
-    assert.match(cm, /Before we arrive\n- Please have the rooms cleared of furniture before we arrive\.\n- We are lifting and taking away the old flooring\.\n- Please make sure someone aged 18 or over is in to let the fitter in\.\n- Please keep children and pets out of the rooms being fitted\./);
+    assert.match(cm, /Before we arrive/); assert.match(cm, /Please clear the rooms of furniture/); assert.match(cm, /We are lifting and taking away the old flooring/); assert.match(cm, /statutory consumer rights/);
     assert.match(cm, /ring us on 0141 952 5200 and quote M-2X4AM\.\n\nInnovation Flooring Direct\n2 South Elgin Place, Clydebank G81 1XP\n0141 952 5200\nhelp@example\.test$/); assert.strictEqual(L.confirmSubject(job, SHOP, false), 'Your fitting is booked with Innovation Flooring Direct, ref M-2X4AM');
     const timed = Object.assign({}, job, {arrival:{slot:'08:30 to 09:30', forDate:'2026-11-20'}});
     assert.match(L.confirmMessage(timed, SHOP), /\nArrival: between 08:30 and 09:30\n/); assert.match(L.confirmText(timed, SHOP), /booked for Fri 20 Nov, arriving between 08:30 and 09:30 with Lennox, ref M-2X4AM/);
@@ -534,7 +583,7 @@ test('customer wording: references, the shop and the fitter paid apart with one 
     assert.strictEqual(changed({total:650}), 'the price'); assert.strictEqual(changed({fitter:'Sonnie'}), 'the fitter'); assert.strictEqual(changed({fitterDue:100}), 'the fitting total'); assert.strictEqual(changed({}), '');
     assert.notStrictEqual(L.bookingRev(told), L.bookingRev(L.bookingSnap(Object.assign({}, job, {slot:'PM'})))); assert.strictEqual(L.bookingRev(told), L.bookingRev(L.bookingSnap(job))); assert.ok(L.bookingRev(told).length <= 40);
     const rv = L.confirmMessage(Object.assign({}, job, {slot:'PM'}), SHOP, {revised:true, changes:['morning or afternoon']});
-    assert.match(rv, /The details of your fitting have changed \(morning or afternoon\)\. This replaces our earlier confirmation\.\n\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: in the afternoon/); assert.strictEqual(L.confirmSubject(job, SHOP, true), 'Updated fitting details from Innovation Flooring Direct, ref M-2X4AM');
+    assert.match(rv, /The details of your fitting have changed \(morning or afternoon\)\. This replaces our earlier confirmation\.\n\nYour job confirmation\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: in the afternoon/); assert.strictEqual(L.confirmSubject(job, SHOP, true), 'Updated fitting details from Innovation Flooring Direct, ref M-2X4AM');
     // the owner's own wording replaces the standing wording, and only the owner can change it
     const own = Object.assign({}, SHOP, {words:{terms:'A deposit of half is taken with the order.', prep:'Please leave the heating off.'}});
     assert.match(L.quoteMessage(job, q, own), /£449\.99 is paid to Innovation Flooring Direct\. A deposit of half is taken with the order\./); assert.match(L.confirmMessage(job, own), /- Please leave the heating off\./); assert.doesNotMatch(L.confirmMessage(job, own), /aged 18/);
@@ -685,5 +734,7 @@ test('catalogue pricing: each line worked out from the measure, Shopify’s pric
     assert.strictEqual((await s.req('POST', '/api/db/update', {path:'settings/main', data:{fitters:['Lennox', 'Sonnie']}}, shop)).status, 200, 'the rest of Setup is unaffected');
   } finally { s.stop(); }
 });
+
+
 
 
