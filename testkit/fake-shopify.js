@@ -5,7 +5,7 @@ const resp = (status, obj) => ({ok:status >= 200 && status < 300, status:status,
 function make(){
   const state = {tokens:0, calls:[], expireNext:false, down:false, avail:36, drafts:0, docs:{}, orders:0};
   /* drafts this system has made, and what shop staff then do with them in Shopify's own admin: make the order, take payment, send the goods */
-  const priceOf = id => id === 'gid://shopify/ProductVariant/701' ? 20.18 : 0;
+  const priceOf = id => id === 'gid://shopify/ProductVariant/701' ? 20.18 : id === 'gid://shopify/ProductVariant/9101' ? 59.9 : id === 'gid://shopify/ProductVariant/9102' ? 70 : 0;
   function totalOf(input){
     let t = 0;
     (input.lineItems || []).forEach(it => {
@@ -38,20 +38,35 @@ function make(){
     inventoryItem:{id:'gid://shopify/InventoryItem/' + n, tracked:true, inventoryLevels:{nodes:[{location:{id:'gid://shopify/Location/1', name:'South Elgin Place'}, quantities:[{name:'available', quantity:avail}, {name:'on_hand', quantity:avail}, {name:'committed', quantity:0}, {name:'reserved', quantity:0}]}]}}});
   const carpet = () => ({id:'gid://shopify/Product/80', title:'Silver twist carpet', productType:'Carpet roll', status:'ACTIVE', coverage:null, ppm:{value:JSON.stringify({amount:'10.0', currency_code:'GBP'})}});
   const rolls = () => [roll(801, 4, 300), roll(802, 5, 200)];
+  /* accessories as the shop's catalogue has them: underlay sold by the roll and made for laminate and wood floors, and beading Shopify is not counting.
+     There is no carpet underlay, gripper or door bar product. Stock of the tracked ones goes down when a draft reserves it and back up if that draft is deleted. */
+  state.acc = {'gid://shopify/ProductVariant/9101':242, 'gid://shopify/ProductVariant/9102':250};
+  const accessory = (n, title, vTitle, price, cov, tracked) => { const id = 'gid://shopify/ProductVariant/' + n, avail = tracked ? state.acc[id] : 0;
+    return {id:'gid://shopify/Product/' + n, title:title, productType:'accessories', status:'ACTIVE', coverage:cov ? {value:String(cov)} : null, ppm:null,
+      variants:{nodes:[{id:id, title:vTitle, sku:null, price:price, inventoryQuantity:avail, inventoryPolicy:'DENY', rollNumber:null, rollWidth:null, rollLocation:null, rollStatus:null,
+        inventoryItem:{id:'gid://shopify/InventoryItem/' + n, tracked:tracked, inventoryLevels:{nodes:tracked ? [{location:{id:'gid://shopify/Location/1', name:'South Elgin Place'}, quantities:[{name:'available', quantity:avail}, {name:'on_hand', quantity:state.acc0[id]}, {name:'committed', quantity:0}, {name:'reserved', quantity:state.acc0[id] - avail}]}] : []}}}]}}; };
+  state.acc0 = Object.assign({}, state.acc);
+  const underlays = () => [accessory(9101, '15 m2 Premium Quality Silver Underlay', '1 Roll', '59.90', 15, true), accessory(9102, '1.8mm Thermo-X UFH Underlay', '1 Roll', '70.00', 10, true)];
+  const beading = () => [accessory(9103, 'White Laminate Beading', 'Default Title', '5.00', 2.4, false)];
+  const accVariant = id => { const p = underlays().concat(beading()).find(x => x.variants.nodes[0].id === id); return p ? Object.assign({}, p.variants.nodes[0], {product:Object.assign({}, p, {variants:undefined})}) : null; };
+  const reserve = (input, sign) => (input.lineItems || []).forEach(it => { if (it.variantId in state.acc && input.reserveInventoryUntil) state.acc[it.variantId] -= sign * (Number(it.quantity) || 0); });
   function answer(op, vars){
     const base = {shop:{myshopifyDomain:DOMAIN}};
     if (op === 'OpsShop') return {shop:{name:'Innovation Flooring Direct', myshopifyDomain:DOMAIN}, locations:{nodes:[{id:'gid://shopify/Location/1', name:'South Elgin Place', isActive:true}]}};
     if (op === 'OpsInbox') return Object.assign(base, {orders:{nodes:[order]}});
+    if (op === 'OpsSearch' && /accessory_/.test(String(vars.q || ''))){ const q = String(vars.q); state.accSearches = (state.accSearches || []).concat([q]);
+      return Object.assign(base, {products:{nodes:/accessory_underlay/.test(q) ? (/NOT tag:for_carpet/.test(q) ? underlays() : []) : /accessory_beading/.test(q) ? beading() : []}}); }
     if (op === 'OpsSearch') return Object.assign(base, {products:{nodes:/royale|oak|laminate/i.test(String(vars.q || '')) ? [Object.assign({}, variant().product, {variants:{nodes:[variant()]}})] : /twist|silver/i.test(String(vars.q || '')) ? [Object.assign(carpet(), {variants:{nodes:rolls()}})] : []}});
     if (op === 'OpsProduct') return Object.assign(base, {product:vars.id === 'gid://shopify/Product/80' ? Object.assign(carpet(), {variants:{nodes:rolls()}}) : null});
-    if (op === 'OpsVariants') return Object.assign(base, {nodes:(vars.ids || []).map(id => { const r = rolls().find(x => x.id === id); return id === 'gid://shopify/ProductVariant/701' ? variant() : r ? Object.assign(r, {product:carpet()}) : null; })});
+    if (op === 'OpsVariants') return Object.assign(base, {nodes:(vars.ids || []).map(id => { const r = rolls().find(x => x.id === id); return id === 'gid://shopify/ProductVariant/701' ? variant() : r ? Object.assign(r, {product:carpet()}) : accVariant(id); })});
     if (op === 'OpsAdjust'){ const c = vars.input.changes[0]; if (c.changeFromQuantity !== state.avail) return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:null, userErrors:[{field:['input'], message:'stale', code:'CHANGE_FROM_QUANTITY_STALE'}]}}; state.avail += c.delta; return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:{id:'g1'}, userErrors:[]}}; }
     if (op === 'OpsDraftCreate'){
       state.drafts++; state.lastDraft = vars.input; const id = 'gid://shopify/DraftOrder/' + (9000 + state.drafts);
-      state.docs[id] = {id:id, name:'#D' + state.drafts, status:'OPEN', total:totalOf(vars.input), input:vars.input, order:null};
+      state.docs[id] = {id:id, name:'#D' + state.drafts, status:'OPEN', total:totalOf(vars.input), input:vars.input, order:null}; reserve(vars.input, 1);
       return {draftOrderCreate:{draftOrder:{id:id, name:'#D' + state.drafts, status:'OPEN'}, userErrors:[]}};
     }
-    if (op === 'OpsDraft'){ const d = state.docs[vars.id]; return Object.assign(base, {draftOrder:d ? {id:d.id, name:d.name, status:d.status, totalPriceSet:money(d.total), order:d.order ? seenOrder(d.order) : null} : null}); }
+    if (op === 'OpsDraftDelete'){ const d = state.docs[vars.input.id]; if (d && !d.deleted){ d.deleted = true; d.status = 'DELETED'; if (d.input) reserve(d.input, -1); } state.deletes = (state.deletes || 0) + 1; return {draftOrderDelete:{deletedId:vars.input.id, userErrors:[]}}; }
+    if (op === 'OpsDraft'){ if (state.docs[vars.id] && state.docs[vars.id].deleted) return Object.assign(base, {draftOrder:null}); const d = state.docs[vars.id]; return Object.assign(base, {draftOrder:d ? {id:d.id, name:d.name, status:d.status, totalPriceSet:money(d.total), order:d.order ? seenOrder(d.order) : null} : null}); }
     if (op === 'OpsOrder'){ const d = Object.values(state.docs).find(x => x.order && x.order.id === vars.id); return Object.assign(base, {order:d ? seenOrder(d.order) : null}); }
     return base;
   }

@@ -7,7 +7,7 @@ const OWNER = '+447700900001', SHOPM = '+447700900002', FITTER = '+447700900003'
 async function boot(extra, o){
   const dir = (o && o.dir) || fs.mkdtempSync(path.join(os.tmpdir(), 'ifd-')), shopify = fake.make(), texts = [], clock = {t:Date.parse('2026-11-10T09:00:00Z')};
   /* with {messaging:true} the system is given a mail server and a text service to send through: stand-ins that keep what they are handed */
-  const mailbox = o && o.messaging ? fakeMail.make() : null, twilio = o && o.messaging ? fakeTwilio.make() : null, mailPort = mailbox ? await mailbox.listen() : 0;
+  const mailbox = o && o.messaging ? fakeMail.make() : null, twilio = o && o.messaging ? fakeTwilio.make({now:() => clock.t}) : null, mailPort = mailbox ? await mailbox.listen() : 0;
   const sending = mailbox ? Object.assign({SMTP_HOST:'127.0.0.1', SMTP_PORT:String(mailPort), SMTP_SECURE:'off', SMTP_USER:'shop@example.test', SMTP_PASS:'mail-test-pass', EMAIL_FROM:'Innovation Flooring Direct <shop@example.test>'}, twilio.env) : {};
   const env = Object.assign({DATA_DIR:dir, INSECURE_COOKIES:'1', SESSION_PEPPER:'test', OWNER_NAME:'David', OWNER_MOBILE:'07700 900001', SHOP_MOBILE:'07700 900002', SHOPIFY_STORE:'innovationflooring', SHOPIFY_CLIENT_ID:'test-id', SHOPIFY_CLIENT_SECRET:'test-secret'}, sending, extra || {});
   const app = create({env, fetch:(url, init) => twilio && twilio.handles(url) ? twilio.fetchImpl(url, init) : shopify.fetchImpl(url, init), sendText:async (to, body) => { texts.push({to, body}); }, now:() => clock.t, log:() => {}, pollMs:3600000});
@@ -25,6 +25,7 @@ async function boot(extra, o){
   const job = id => app.store.getDoc('jobs/' + id).data;
   return {app, base, req, cmd, job, texts, clock, shopify, mailbox, twilio, codeFor, signIn, dir, stop:() => { app.close(); if (mailbox) mailbox.close(); fs.rmSync(dir, {recursive:true, force:true}); }};
 }
+const SHOP = {name:'Innovation Flooring Direct', phone:'0141 952 5200', email:'help@example.test', address:'2 South Elgin Place, Clydebank G81 1XP'};
 /* a made-up fitting: one carpet room measured 3.00 x 3.80 m, 3.1 m sold off a 4 m roll, £377.40 in all of which £150 is the fitter's */
 const testJob = extra => Object.assign({v:1, ref:'#T9', source:'shop', status:'open', type:'Fitting', date:'', slot:'', fitter:'Lennox', diary:false, shopifyClosed:false, createdAt:'2026-11-10T09:00:00.000Z',
   customer:{name:'Zed Tester', phone:'07700 900555', email:'zed@example.test', address:'1 Test Street', postcode:'G81 1XP'},
@@ -325,10 +326,11 @@ test('money: overpayments, change and credit, the same entry twice, corrections,
     r = await s.cmd('pay', {jobId:'m3', kind:'refund', amount:20, method:'Cash', reason:'Door bar not needed', byName:'Sam', key:k(10)}, shop); assert.strictEqual(r.status, 200);
     p = s.job('m3').pay; assert.ok(p['p' + k(10)].kind === 'refund' && p['p' + k(10)].reason === 'Door bar not needed'); assert.strictEqual(L.paidOf(s.job('m3')), 40); assert.strictEqual(L.balanceOf(s.job('m3')), 187.4); assert.strictEqual(Object.keys(p).length, 4);
     // the receipt says the same as the ledger: live entries only, the refund as a refund, the fitter's money apart
-    const receipt = L.receiptMessage(s.job('m3'), 'Sam', {name:'Innovation Flooring Direct', phone:'0141 952 5200'});
+    const receipt = L.receiptMessage(s.job('m3'), SHOP);
     assert.match(receipt, /paid £60\.00 by card machine/); assert.match(receipt, /refunded £20\.00 by cash/); assert.doesNotMatch(receipt, /£50\.00|£150\.00 by/);
-    assert.match(receipt, /Paid to the shop so far: £40\.00\nStill to pay the shop: £187\.40\nFitting, paid to your fitter on completion: £150\.00/);
-    assert.match(L.receiptMessage(s.job('m2'), 'Sam', {name:'X', phone:'1'}), /In credit with the shop: £72\.60/);
+    assert.match(receipt, /Reference: #T9/); assert.match(receipt, /Paid to Innovation Flooring Direct so far: £40\.00\nStill to pay Innovation Flooring Direct: £187\.40\nFitting, paid straight to your fitter on the day: £150\.00\. This is not paid to the shop\./);
+    assert.match(receipt, /\nInnovation Flooring Direct\n2 South Elgin Place, Clydebank G81 1XP\n0141 952 5200\nhelp@example\.test$/); assert.doesNotMatch(receipt, /Sam/, 'the receipt is signed by the shop, not a person');
+    assert.match(L.receiptMessage(s.job('m2'), SHOP), /In credit with Innovation Flooring Direct: £72\.60/);
     // every change is on the job's own history, with who made it
     const hist = Object.values(s.job('m3').log).map(x => x.text).join('\n');
     assert.match(hist, /Recorded £50\.00 taken by cash\. Entered by Sam/); assert.match(hist, /corrected by Sam: Typed 50, the slip says 60\. Recorded £60\.00 taken by card machine/); assert.match(hist, /struck out by Sam: Entered on the wrong job/); assert.match(hist, /Recorded a refund of £20\.00 by cash: Door bar not needed/);
@@ -394,11 +396,12 @@ test('messages: only the mail server or the text service taking it counts as sen
     s.mailbox.state.badAuth = true; r = await send({key:k(6), rev:'qc'});
     assert.strictEqual(r.json.ok, false); assert.match(ms('g1')['m' + k(6)].err, /refused the sign-in/); s.mailbox.state.badAuth = false;
     // texts: accepted is "sent"; "delivered" only once the text service says the handset has it
-    const snap = L.bookingSnap(s.job('g2')), text = L.confirmMessage(s.job('g2'), 'Sam', {name:'Innovation Flooring Direct', phone:'0141 952 5200'});
-    const sms = (extra) => s.cmd('msg.send', Object.assign({jobId:'g2', kind:'confirm', channel:'sms', to:'07700 900555', body:text, rev:'r1', snap:snap, byName:'Sam'}, extra), shop);
+    const snap = L.bookingSnap(s.job('g2')), text = L.confirmText(s.job('g2'), SHOP), rev1 = L.bookingRev(snap);
+    const sms = (extra) => s.cmd('msg.send', Object.assign({jobId:'g2', kind:'confirm', channel:'sms', to:'07700 900555', body:text, rev:rev1, snap:snap, byName:'Sam'}, extra), shop);
     r = await sms({key:k(7)}); assert.strictEqual(r.json.ok, true); m = ms('g2')['m' + k(7)];
     assert.ok(m.state === 'sent' && m.to === '+447700900555' && /^SM[0-9a-f]{32}$/.test(m.ref) && m.snap.fitter === 'Lennox' && m.snap.date === '2026-11-20' && !m.deliveredAt);
-    assert.strictEqual(s.twilio.state.sent[0].body, text); assert.strictEqual(s.twilio.state.sent[0].to, '+447700900555'); assert.match(text, /Your fitting is booked for Friday 20 November\.[\s\S]*Your fitter is Lennox\.[\s\S]*fitting total of £150\.00 is paid on completion of the job, directly to your fitter/);
+    assert.strictEqual(s.twilio.state.sent[0].body, text); assert.strictEqual(s.twilio.state.sent[0].to, '+447700900555'); assert.match(text, /^Innovation Flooring Direct: your fitting is booked for Fri 20 Nov with Lennox, ref #T9\. £150\.00 for fitting is paid straight to your fitter on the day\. Still to pay the shop: £227\.40\. Any changes ring 0141 952 5200\.$/);
+    assert.strictEqual(m.revNo, 1, 'the first set of booking details the customer is told is revision 1');
     assert.strictEqual(L.confirmState(s.job('g2')), 'sent');
     await s.app.commands.poll(); m = ms('g2')['m' + k(7)];
     assert.ok(m.state === 'delivered' && m.deliveredAt); assert.match(Object.values(s.job('g2').log).map(x => x.text).join('\n'), /Fitting confirmation text to \+447700900555 delivered to the handset/);
@@ -417,7 +420,7 @@ test('messages: only the mail server or the text service taking it counts as sen
     s.app.store.setDoc(docPath('jobs/g3'), testJob({lines:{}, total:0, fitterDue:0, quotes:quote})); s.app.store.setDoc(docPath('jobs/g4'), testJob({date:'2026-11-20', diary:true}));
     r = await s.cmd('msg.prepared', {jobId:'g3', kind:'quote', channel:'copy', to:'', body:body, rev:'qa', byName:'Sam', how:'copied', key:k(10)}, shop); assert.strictEqual(r.status, 200);
     r = await s.cmd('msg.prepared', {jobId:'g3', kind:'quote', channel:'email', to:'zed@example.test', body:body, rev:'qa', byName:'Sam', how:'opened', key:k(11)}, shop); assert.strictEqual(r.status, 200);
-    r = await s.cmd('msg.prepared', {jobId:'g4', kind:'confirm', channel:'copy', to:'', body:text, rev:'r1', snap:snap, byName:'Sam', how:'copied', key:k(12)}, shop); assert.strictEqual(r.status, 200);
+    r = await s.cmd('msg.prepared', {jobId:'g4', kind:'confirm', channel:'copy', to:'', body:text, rev:rev1, snap:snap, byName:'Sam', how:'copied', key:k(12)}, shop); assert.strictEqual(r.status, 200);
     assert.deepStrictEqual(Object.values(ms('g3')).map(x => x.state), ['prepared', 'prepared']); assert.strictEqual(L.quoteSent(s.job('g3'), {k:'qa'}), '');
     const w3 = L.quoteWait(s.job('g3'), '2026-11-10'); assert.strictEqual(w3.state, 'unsent'); assert.strictEqual(w3.why, 'prepared'); assert.strictEqual(L.confirmState(s.job('g4')), 'todo', 'a copied confirmation still leaves the customer to be told');
     assert.strictEqual(s.mailbox.state.got.length, 3); assert.match(Object.values(s.job('g3').log).map(x => x.text).join('\n'), /Quote copied by Sam\. Prepared only: nothing was sent from here/);
@@ -456,7 +459,119 @@ test('messages: with no mail server or text service set up nothing is sent and n
     s.app.store.updateDoc(docPath('jobs/n1'), {msgs:{mstuck:{kind:'quote', channel:'email', to:'zed@example.test', body:'Hello', rev:'qa', byName:'Sam', state:'queued', at:'2026-11-10T09:00:00.000Z'}}});
     const dir = s.dir; s.app.close();
     const again = await boot({}, {dir:dir});
-    const m = again.job('n1').msgs.mstuck; assert.strictEqual(m.state, 'failed'); assert.match(m.err, /restarted while this was being sent, so it is not known to have gone/);
+    const m = again.job('n1').msgs.mstuck; assert.strictEqual(m.state, 'unsure'); assert.match(m.err, /restarted while this was being sent, so it is not known whether it went/);
+    assert.strictEqual((await again.cmd('msg.retry', {jobId:'n1', mk:'mstuck', byName:'Sam'}, await again.signIn(SHOPM))).json.error.code, 'unsure_first', 'and it is not sent again blind');
     again.stop();
   } catch (e){ try { s.stop(); } catch (x) {} throw e; }
+});
+
+test('customer wording: references, the shop and the fitter paid apart with one total, how each is paid, the shop’s sign-off and no person’s name', async () => {
+  const s = await boot();
+  try {
+    const L = s.app.rules, shop = await s.signIn(SHOPM), owner = await s.signIn(OWNER);
+    const job = testJob({ref:'M-2X4AM', date:'2026-11-20', slot:'AM', diary:true, total:599.99, pay:{p1:{at:'2026-11-10T09:00:00.000Z', amount:120, method:'Card machine'}},
+      lines:{a:{n:1, title:'Carpet', hold:'none', price:300}, b:{n:2, title:'Uplift and disposal', hold:'none', price:69.99}, c:{n:3, title:'Fitting', hold:'none', price:150}}});
+    const q = {k:'qa', n:2, at:'2026-11-10T09:00:00.000Z', byName:'Sam', lines:[{label:'Carpet', price:300}, {label:'Underlay', price:80}, {label:'Fitting', price:150}, {label:'Uplift and disposal', price:69.99}]};
+    const qm = L.quoteMessage(job, q, SHOP);
+    assert.strictEqual(L.quoteRef(job, q), 'M-2X4AM-Q2'); assert.strictEqual(L.quoteSubject(job, q, SHOP), 'Your quote from Innovation Flooring Direct, ref M-2X4AM-Q2');
+    assert.match(qm, /Quote reference: M-2X4AM-Q2\nDate: 10 November 2026\n\nCarpet: £300\.00\nUnderlay: £80\.00\nUplift and disposal: £69\.99\nTo pay Innovation Flooring Direct: £449\.99\n\nFitting: £150\.00\nTo pay your fitter directly: £150\.00\n\nTotal: £599\.99\n/);
+    assert.match(qm, /How payment works\n£449\.99 is paid to Innovation Flooring Direct\. It is paid in the shop, by card over the phone, or by bank transfer, and is due before your fitting day\.\n£150\.00 for the fitting is paid straight to your fitter on the day, once the job is finished\. It is not paid to the shop\./);
+    assert.match(qm, /reply to this email or ring us on 0141 952 5200 and quote M-2X4AM-Q2\.\n\nInnovation Flooring Direct\n2 South Elgin Place, Clydebank G81 1XP\n0141 952 5200\nhelp@example\.test$/); assert.doesNotMatch(qm, /Sam|David/);
+    // a reference that happens to look like a size (2X4, or ending 4AM) is not mistaken for one, but a real size still is
+    assert.strictEqual(L.hasSize(qm), true); assert.strictEqual(L.hasSize(qm, job), false); assert.strictEqual(L.hasSize(qm.replace('Carpet:', 'Carpet 5.4m x 4m:'), job), true);
+    const qt = L.quoteText(job, q, SHOP); assert.ok(qt.length <= 200 && /quote M-2X4AM-Q2\. To pay the shop: £449\.99\. Fitting, paid straight to your fitter on the day: £150\.00\. Total: £599\.99\./.test(qt), qt);
+    // supply only: one amount, all to the shop
+    const supply = L.quoteMessage(job, {k:'qb', n:1, at:'2026-11-10T09:00:00.000Z', lines:[{label:'Carpet', price:300}]}, SHOP);
+    assert.match(supply, /Carpet: £300\.00\n\nTotal: £300\.00\n\nHow payment works\n£300\.00 is paid to Innovation Flooring Direct\./); assert.doesNotMatch(supply, /fitter/);
+    // the booking confirmation: reference, date, arrival, fitter, address, the money both ways, what to do beforehand, how to reach the shop
+    const cm = L.confirmMessage(job, SHOP);
+    assert.match(cm, /Your fitting is booked\.\n\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: in the morning\. We will ring you beforehand to agree the time\.\nFitter: Lennox\nAddress: 1 Test Street, G81 1XP\n/);
+    assert.match(cm, /Payment\nTotal: £599\.99\nTo pay Innovation Flooring Direct: £449\.99\. Paid so far: £120\.00\. Still to pay: £329\.99\. It is paid in the shop[^\n]*\nTo pay your fitter directly: £150\.00, on the day once the job is finished\. It is not paid to the shop\./);
+    assert.match(cm, /Before we arrive\n- Please have the rooms cleared of furniture before we arrive\.\n- We are lifting and taking away the old flooring\.\n- Please make sure someone aged 18 or over is in to let the fitter in\.\n- Please keep children and pets out of the rooms being fitted\./);
+    assert.match(cm, /ring us on 0141 952 5200 and quote M-2X4AM\.\n\nInnovation Flooring Direct\n2 South Elgin Place, Clydebank G81 1XP\n0141 952 5200\nhelp@example\.test$/); assert.strictEqual(L.confirmSubject(job, SHOP, false), 'Your fitting is booked with Innovation Flooring Direct, ref M-2X4AM');
+    const timed = Object.assign({}, job, {arrival:{slot:'08:30 to 09:30', forDate:'2026-11-20'}});
+    assert.match(L.confirmMessage(timed, SHOP), /\nArrival: between 08:30 and 09:30\n/); assert.match(L.confirmText(timed, SHOP), /booked for Fri 20 Nov, arriving between 08:30 and 09:30 with Lennox, ref M-2X4AM/);
+    // a change to the day, morning or afternoon, the arrival time, the price, the fitter, the fitting total or the address is a new revision, and the revised message says so
+    const told = L.bookingSnap(job), changed = o => L.snapChanges(told, L.bookingSnap(Object.assign({}, job, o))).join();
+    assert.strictEqual(changed({date:'2026-11-21'}), 'the day'); assert.strictEqual(changed({slot:'PM'}), 'morning or afternoon'); assert.strictEqual(changed({arrival:{slot:'08:30 to 09:30', forDate:'2026-11-20'}}), 'the arrival time');
+    assert.strictEqual(changed({total:650}), 'the price'); assert.strictEqual(changed({fitter:'Sonnie'}), 'the fitter'); assert.strictEqual(changed({fitterDue:100}), 'the fitting total'); assert.strictEqual(changed({}), '');
+    assert.notStrictEqual(L.bookingRev(told), L.bookingRev(L.bookingSnap(Object.assign({}, job, {slot:'PM'})))); assert.strictEqual(L.bookingRev(told), L.bookingRev(L.bookingSnap(job))); assert.ok(L.bookingRev(told).length <= 40);
+    const rv = L.confirmMessage(Object.assign({}, job, {slot:'PM'}), SHOP, {revised:true, changes:['morning or afternoon']});
+    assert.match(rv, /The details of your fitting have changed \(morning or afternoon\)\. This replaces our earlier confirmation\.\n\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: in the afternoon/); assert.strictEqual(L.confirmSubject(job, SHOP, true), 'Updated fitting details from Innovation Flooring Direct, ref M-2X4AM');
+    // the owner's own wording replaces the standing wording, and only the owner can change it
+    const own = Object.assign({}, SHOP, {words:{terms:'A deposit of half is taken with the order.', prep:'Please leave the heating off.'}});
+    assert.match(L.quoteMessage(job, q, own), /£449\.99 is paid to Innovation Flooring Direct\. A deposit of half is taken with the order\./); assert.match(L.confirmMessage(job, own), /- Please leave the heating off\./); assert.doesNotMatch(L.confirmMessage(job, own), /aged 18/);
+    s.app.store.setDoc(docPath('settings/main'), {fitters:['Lennox']});
+    assert.strictEqual((await s.req('POST', '/api/db/update', {path:'settings/main', data:{words:{terms:'Pay whenever'}}}, shop)).status, 403);
+    assert.strictEqual((await s.req('POST', '/api/db/update', {path:'settings/main', data:{words:{terms:'A deposit of half is taken with the order.'}}}, owner)).status, 200);
+  } finally { s.stop(); }
+});
+
+test('a send whose answer was lost is never sent again blind: it is looked up, or a person checks, and the history is kept', async () => {
+  const s = await boot({}, {messaging:true});
+  try {
+    const shop = await s.signIn(SHOPM), L = s.app.rules, k = n => 'uns' + String(n).padStart(6, '0'), ms = id => s.job(id).msgs || {}, logOf = id => Object.values(s.job(id).log).map(x => x.text).join('\n');
+    s.app.store.setDoc(docPath('settings/main'), {msgs:{testOnly:true, allow:['zed@example.test', '07700 900555', '07700 900556']}});
+    const quote = {qa:{n:1, at:'2026-11-10T09:00:00.000Z', byName:'Sam', lines:[{label:'Carpet', price:200}], total:200}};
+    for (const id of ['u1', 'u2', 'u3', 'u4', 'u5']) s.app.store.setDoc(docPath('jobs/' + id), testJob({lines:{}, total:0, fitterDue:0, quotes:quote}));
+    const mail = (id, extra) => s.cmd('msg.send', Object.assign({jobId:id, kind:'quote', channel:'email', to:'zed@example.test', subject:'Your quote', body:'Hello Zed, your quote is £200.00', rev:'qa', byName:'Sam'}, extra), shop);
+    const text = (id, extra) => s.cmd('msg.send', Object.assign({jobId:id, kind:'quote', channel:'sms', to:'07700 900555', body:'Quote #T9-Q1. Total: £200.00', rev:'qa', byName:'Sam'}, extra), shop);
+    // EMAIL: the mail server took the message, then the line dropped before its answer came back
+    s.mailbox.state.loseAnswer = 1;
+    let r = await mail('u1', {key:k(1)});
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.ok, false); assert.strictEqual(r.json.state, 'unsure'); let m = ms('u1')['m' + k(1)];
+    assert.ok(m.state === 'unsure' && /handed to the mail server but its answer did not come back, so it is not known whether it went/.test(m.err) && m.unsureAt && !m.sentAt && !m.failedAt && /^<.+@example\.test>$/.test(m.ref), JSON.stringify(m));
+    assert.strictEqual(s.mailbox.state.got.length, 1, 'in truth the customer has it');
+    assert.strictEqual(L.quoteSent(s.job('u1'), {k:'qa'}), '', 'it does not count as sent'); assert.strictEqual(L.quoteWait(s.job('u1'), '2026-11-10').why, 'unsure'); assert.strictEqual(L.msgFailed(s.job('u1')).length, 1);
+    assert.ok(L.warningsOf(s.job('u1'), '2026-11-10', {}).some(w => /may not have gone: check before sending it again/.test(w.text))); assert.match(logOf('u1'), /NOT KNOWN WHETHER IT WENT/);
+    // it cannot be retried, and a fresh send to the same place is refused even if a second copy is asked for
+    assert.strictEqual((await s.cmd('msg.retry', {jobId:'u1', mk:'m' + k(1), byName:'Sam'}, shop)).json.error.code, 'unsure_first');
+    assert.strictEqual((await mail('u1', {key:k(2)})).json.error.code, 'unsure_first'); assert.strictEqual((await mail('u1', {key:k(2), again:true})).json.error.code, 'unsure_first');
+    assert.strictEqual((await s.cmd('msg.check', {jobId:'u1', mk:'m' + k(1), byName:'Sam'}, shop)).status, 400, 'an email cannot be looked up');
+    assert.strictEqual(s.mailbox.state.got.length, 1, 'nothing was sent again');
+    // a person checks the Sent folder: it did arrive. That needs saying how they know, and is written on the job
+    assert.strictEqual((await s.cmd('msg.resolve', {jobId:'u1', mk:'m' + k(1), went:true, byName:'Sam', note:''}, shop)).status, 400);
+    r = await s.cmd('msg.resolve', {jobId:'u1', mk:'m' + k(1), went:true, byName:'Sam', note:'It is in the Sent folder'}, shop); assert.strictEqual(r.json.state, 'sent'); m = ms('u1')['m' + k(1)];
+    assert.ok(m.state === 'sent' && m.confirmed.byName === 'Sam' && m.confirmed.note === 'It is in the Sent folder' && Object.keys(m.tries).length === 1 && m.body === 'Hello Zed, your quote is £200.00'); assert.ok(L.quoteSent(s.job('u1'), {k:'qa'}));
+    assert.match(logOf('u1'), /Sam checked and it did arrive \(It is in the Sent folder\)/); assert.strictEqual(s.mailbox.state.got.length, 1); assert.strictEqual(Object.keys(ms('u1')).length, 1);
+    assert.strictEqual((await s.cmd('msg.resolve', {jobId:'u1', mk:'m' + k(1), went:false, byName:'Sam'}, shop)).json.error.code, 'invalid_state', 'once settled it cannot be settled again');
+    // EMAIL: the line dropped and the message was lost with it. A person checks: it did not arrive. Only then can it be sent again, once
+    s.mailbox.state.loseMessage = 1;
+    r = await mail('u2', {key:k(3)}); assert.strictEqual(r.json.state, 'unsure'); assert.strictEqual(s.mailbox.state.got.length, 1);
+    r = await s.cmd('msg.resolve', {jobId:'u2', mk:'m' + k(3), went:false, byName:'Sam', note:'Not in Sent, customer has nothing'}, shop); assert.strictEqual(r.json.state, 'failed');
+    assert.match(ms('u2')['m' + k(3)].err, /Checked by Sam: it did not arrive\. Not in Sent, customer has nothing/);
+    r = await s.cmd('msg.retry', {jobId:'u2', mk:'m' + k(3), byName:'Sam'}, shop); assert.strictEqual(r.json.ok, true); assert.strictEqual(s.mailbox.state.got.length, 2); m = ms('u2')['m' + k(3)];
+    assert.ok(m.state === 'sent' && Object.keys(m.tries).length === 2 && Object.keys(ms('u2')).length === 1, 'the same message, with both tries on it');
+    // TEXT: the text service took it, then the line dropped. Asking the text service finds it, so it went, and nothing is sent twice
+    s.twilio.state.loseAnswer['+447700900555'] = 1;
+    r = await text('u3', {key:k(4)}); assert.strictEqual(r.json.state, 'unsure'); assert.strictEqual(s.twilio.state.sent.length, 1); assert.ok(!ms('u3')['m' + k(4)].ref);
+    assert.strictEqual((await text('u3', {key:k(5), again:true})).json.error.code, 'unsure_first'); assert.strictEqual(s.twilio.state.sent.length, 1);
+    r = await s.cmd('msg.check', {jobId:'u3', mk:'m' + k(4), byName:'Sam'}, shop); assert.strictEqual(r.status, 200); assert.strictEqual(r.json.ok, true); m = ms('u3')['m' + k(4)];
+    assert.ok(m.state === 'sent' && m.ref === s.twilio.state.sent[0].sid && m.err === ''); assert.match(logOf('u3'), /checked with the text service by Sam\. It has it, reference SM/); assert.strictEqual(s.twilio.state.sent.length, 1);
+    await s.app.commands.poll(); assert.strictEqual(ms('u3')['m' + k(4)].state, 'delivered', 'and from there it is followed to the handset as usual');
+    // TEXT: the line dropped and the text never got there. Straight away the text service has no record, which is too soon to be sure; a minute on it is, and it can be sent again once
+    s.twilio.state.loseText['+447700900555'] = 1;
+    r = await text('u4', {key:k(6)}); assert.strictEqual(r.json.state, 'unsure'); assert.strictEqual(s.twilio.state.sent.length, 1);
+    r = await s.cmd('msg.check', {jobId:'u4', mk:'m' + k(6), byName:'Sam'}, shop); assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'too_soon'); assert.strictEqual(ms('u4')['m' + k(6)].state, 'unsure');
+    s.twilio.state.listDown = true; s.clock.t += 61000;
+    r = await s.cmd('msg.check', {jobId:'u4', mk:'m' + k(6), byName:'Sam'}, shop); assert.strictEqual(r.status, 502, 'if the text service cannot be asked, nothing is decided'); assert.strictEqual(ms('u4')['m' + k(6)].state, 'unsure');
+    s.twilio.state.listDown = false;
+    r = await s.cmd('msg.check', {jobId:'u4', mk:'m' + k(6), byName:'Sam'}, shop); assert.strictEqual(r.json.state, 'failed'); assert.match(ms('u4')['m' + k(6)].err, /has no record of it, so it did not go\. It is safe to send it again/);
+    r = await s.cmd('msg.retry', {jobId:'u4', mk:'m' + k(6), byName:'Sam'}, shop); assert.strictEqual(r.json.ok, true); assert.strictEqual(s.twilio.state.sent.length, 2); assert.strictEqual(Object.keys(ms('u4')).length, 1);
+    // TEXT: left alone, the system asks the text service itself after a minute and settles it either way
+    s.twilio.state.loseAnswer['+447700900556'] = 1;
+    r = await text('u5', {key:k(7), to:'07700 900556'}); assert.strictEqual(r.json.state, 'unsure');
+    await s.app.commands.poll(); assert.strictEqual(ms('u5')['m' + k(7)].state, 'unsure', 'not inside the first minute');
+    s.clock.t += 61000; await s.app.commands.poll(); assert.ok(['sent', 'delivered'].indexOf(ms('u5')['m' + k(7)].state) !== -1); assert.match(logOf('u5'), /checked with the text service by the system\. It has it/);
+    assert.strictEqual(s.twilio.state.sent.filter(t => t.to === '+447700900556').length, 1);
+    // a fault at the text service while taking the text is also "not known", not "failed"
+    s.app.store.setDoc(docPath('jobs/u6'), testJob({lines:{}, total:0, quotes:quote})); s.twilio.state.fault = 1;
+    r = await text('u6', {key:k(8)}); assert.strictEqual(r.json.state, 'unsure'); assert.match(ms('u6')['m' + k(8)].err, /had a fault \(503\)/);
+    // the same request arriving again while the first is still on its way to the mail server is one message, and the answer says it is still going rather than "sent"
+    s.app.store.setDoc(docPath('jobs/u7'), testJob({lines:{}, total:0, quotes:quote})); s.mailbox.state.slow = 250; const before = s.mailbox.state.got.length;
+    const first = mail('u7', {key:k(9)}); await new Promise(x => setTimeout(x, 80));
+    const second = await mail('u7', {key:k(9)}); assert.strictEqual(second.json.duplicate, true); assert.strictEqual(second.json.state, 'queued'); assert.strictEqual(second.json.ok, false);
+    const done = await first; s.mailbox.state.slow = 0; assert.strictEqual(done.json.state, 'sent'); assert.strictEqual(s.mailbox.state.got.length, before + 1); assert.strictEqual(Object.keys(ms('u7')).length, 1);
+    assert.strictEqual((await mail('u7', {key:k(9)})).json.state, 'sent', 'asked again afterwards, the same request reports that it went');
+  } finally { s.stop(); }
 });

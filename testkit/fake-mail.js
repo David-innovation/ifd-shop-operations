@@ -3,7 +3,7 @@
    was given, and can be told to refuse an address or the sign-in. Nothing here ever leaves the machine. */
 const net = require('node:net');
 function make(){
-  const state = {got:[], refuse:{}, down:false, badAuth:false, signIns:0};
+  const state = {got:[], refuse:{}, down:false, badAuth:false, signIns:0, loseAnswer:0, loseMessage:0, slow:0};   /* loseAnswer: takes the message, then the line drops. loseMessage: the line drops and the message is gone too */
   const server = net.createServer(sock => {
     if (state.down){ sock.destroy(); return; }
     let buf = '', mode = 'cmd', auth = 0, cur = {from:'', to:[]};
@@ -16,12 +16,16 @@ function make(){
         if (mode === 'data'){
           const end = buf.indexOf('\r\n.\r\n'); if (end === -1) return;
           const raw = buf.slice(0, end); buf = buf.slice(end + 5); mode = 'cmd';
+          if (state.loseMessage > 0){ state.loseMessage--; sock.destroy(); return; }
           const cutAt = raw.indexOf('\r\n\r\n'), head = raw.slice(0, cutAt), body = raw.slice(cutAt + 4);
           const h = name => (new RegExp('^' + name + ': (.*)$', 'mi').exec(head) || [])[1] || '';
           const plain = s => s.replace(/=\?UTF-8\?B\?([^?]+)\?=/g, (m, b) => Buffer.from(b, 'base64').toString('utf8'));
           state.got.push({from:cur.from, to:cur.to.slice(), subject:plain(h('Subject')), fromHeader:plain(h('From')), replyTo:h('Reply-To'), id:h('Message-ID'),
             text:Buffer.from(body.replace(/\s+/g, ''), 'base64').toString('utf8').replace(/\r\n/g, '\n'), head:head});
-          say('250 2.0.0 OK queued as FAKE' + state.got.length); cur = {from:'', to:[]}; continue;
+          if (state.loseAnswer > 0){ state.loseAnswer--; sock.destroy(); return; }
+          const answer = '250 2.0.0 OK queued as FAKE' + state.got.length; cur = {from:'', to:[]};
+          if (state.slow > 0){ setTimeout(() => say(answer), state.slow); return; }      /* a mail server that takes its time to answer */
+          say(answer); continue;
         }
         const i = buf.indexOf('\r\n'); if (i === -1) return;
         const line = buf.slice(0, i), up = line.toUpperCase(); buf = buf.slice(i + 2);

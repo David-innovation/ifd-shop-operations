@@ -7,9 +7,9 @@ const { create } = require('../server'), fake = require('./fake-shopify'), fakeM
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8Dwn4GBgYmBgYGBgQEAEhACAXdBLswAAAAASUVORK5CYII=', 'base64');
 let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
 (async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ifd-b-')), shopify = fake.make(), texts = [], mailbox = fakeMail.make(), twilio = fakeTwilio.make(), mailPort = await mailbox.listen();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ifd-b-')), shopify = fake.make(), texts = [], mailbox = fakeMail.make(), twilio = fakeTwilio.make(), mailPort = await mailbox.listen(); let clockSkip = 0;
   const app = create({env:Object.assign({SMTP_HOST:'127.0.0.1', SMTP_PORT:String(mailPort), SMTP_SECURE:'off', EMAIL_FROM:'Innovation Flooring Direct <shop@example.test>'}, twilio.env, {DATA_DIR:dir, INSECURE_COOKIES:'1', SESSION_PEPPER:'t', OWNER_NAME:'David', OWNER_MOBILE:'07700 900001', SHOP_MOBILE:'07700 900002', SHOPIFY_STORE:'innovationflooring', SHOPIFY_CLIENT_ID:'test-id', SHOPIFY_CLIENT_SECRET:'test-secret'}),
-    fetch:(url, init) => twilio.handles(url) ? twilio.fetchImpl(url, init) : shopify.fetchImpl(url, init), sendText:async (to, body) => { texts.push({to, body}); }, log:() => {}, pollMs:3600000});
+    fetch:(url, init) => twilio.handles(url) ? twilio.fetchImpl(url, init) : shopify.fetchImpl(url, init), sendText:async (to, body) => { texts.push({to, body}); }, log:() => {}, pollMs:3600000, now:() => Date.now() + clockSkip});   // clockSkip lets a check move the server's clock on a minute
   await new Promise(r => app.server.listen(0, '127.0.0.1', r));
   const base = 'http://127.0.0.1:' + app.server.address().port, base0 = base, errors = [];
   const browser = await chromium.launch({executablePath:process.env.CHROME || '/usr/bin/google-chrome', headless:true, args:['--no-sandbox']});
@@ -502,8 +502,15 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/Take the sizes out of the wording/.test(await pg.locator('#modal').innerText()) && !Object.keys(app.store.getDoc('jobs/q1').data.quotes || {}).length, 'a size typed into the wording is refused: the customer is only given the figures');
     await pg.fill('#ql0', 'Carpet'); await pg.locator('#modal').getByRole('button', {name:'Save the quote'}).click(); await pg.waitForSelector('#msgForm');
     const qmsg = await pg.inputValue('#msgBody');
-    ok(/^Hi Quentin,/.test(qmsg) && /Carpet: £300\.00\nUnderlay: £80\.00\nGripper: £20\.00\nDoor bars: £9\.99\nFitting: £150\.00\nUplift and disposal: £40\.00\n\nTotal: £599\.99/.test(qmsg) && /Thanks again,\nSam\nInnovation Flooring Direct$/.test(qmsg)
-      && !(await pg.evaluate(m => window.IFDLogic.hasSize(m), qmsg)), 'the customer’s copy has the figures and the total, a thank you and the name of who sent it, and no sizes');
+    ok(/^Hi Quentin,/.test(qmsg) && /Quote reference: M-QUOTE-Q1\nDate: \d+ \w+ \d{4}\n/.test(qmsg)
+      && /Carpet: £300\.00\nUnderlay: £80\.00\nGripper: £20\.00\nDoor bars: £9\.99\nUplift and disposal: £40\.00\nTo pay Innovation Flooring Direct: £449\.99\n\nFitting: £150\.00\nTo pay your fitter directly: £150\.00\n\nTotal: £599\.99/.test(qmsg)
+      && /How payment works\n£449\.99 is paid to Innovation Flooring Direct\.[^\n]*\n£150\.00 for the fitting is paid straight to your fitter on the day, once the job is finished\. It is not paid to the shop\./.test(qmsg)
+      && /quote M-QUOTE-Q1\.\n\nInnovation Flooring Direct\n2 South Elgin Place, Clydebank G81 1XP\n0141 952 5200\nhelp@innovationflooringdirect\.com$/.test(qmsg) && !/Sam/.test(qmsg)
+      && !(await pg.evaluate(m => window.IFDLogic.hasSize(m, {ref:'M-QUOTE'}), qmsg)) && (await pg.locator('#msgSubject').innerText()) === 'Email subject: Your quote from Innovation Flooring Direct, ref M-QUOTE-Q1',
+      'the customer’s copy has the quote reference, what is paid to the shop and what is paid to the fitter as separate amounts with one total, how each is paid, the shop’s own sign-off with no person’s name, and no sizes');
+    const qsms = await pg.inputValue('#msgSms');
+    ok(/^Innovation Flooring Direct quote M-QUOTE-Q1\. To pay the shop: £449\.99\. Fitting, paid straight to your fitter on the day: £150\.00\. Total: £599\.99\./.test(qsms) && /goes as 2 texts/.test(await pg.locator('#msgSmsCount').innerText()) && await pg.inputValue('#msgBy') === 'Sam',
+      'the text version is short, carries the same reference and split, and says how many texts it will go as; the sender’s name is kept for the job, not put in the message');
     const q1 = () => app.store.getDoc('jobs/q1').data, q1m = () => Object.entries(q1().msgs || {}).map(([k, m]) => Object.assign({k:k}, m)).sort((x, y) => String(x.at).localeCompare(String(y.at)));
     const q1q = Object.entries(q1().quotes)[0];
     ok(q1q[1].total === 599.99 && q1q[1].byName === 'Sam' && !q1().msgs && mailbox.state.got.length === 0, 'the quote is saved on the job with who priced it, and saving it sends nothing');
@@ -523,7 +530,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     // a real send that the mail server refuses, then a second try that goes: one message, in the words as edited
     await pg.locator('#quotedSec .row', {hasText:'Quentin Quote'}).click(); await pg.waitForSelector('#msgForm');
     ok(await pg.inputValue('#msgBody') === qmsg, 'opening it again brings back the same words');
-    const edited = qmsg.replace('Thanks again,', 'We can fit before Christmas if you let us know this week.\n\nThanks again,');
+    const edited = qmsg.replace('To go ahead,', 'We can fit before Christmas if you let us know this week.\n\nTo go ahead,'); assert.ok(edited !== qmsg);
     await pg.fill('#msgBody', edited);
     mailbox.state.refuse['quote@example.com'] = 1;
     await pg.click('#msgSendEmail'); await pg.waitForSelector('#msgFail', {timeout:8000});
@@ -531,11 +538,11 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(f1.length === 1 && f1[0].channel === 'email' && /would not take that address: 550/.test(f1[0].err) && f1[0].failedAt && /It did not send\. The mail server would not take that address/.test(await pg.locator('#msgFail').innerText()) && mailbox.state.got.length === 0
       && await pg.evaluate(j => window.IFDLogic.quoteWait(j, window.IFDLogic.todayISO()).why === 'failed', q1()), 'a send the mail server refuses is shown as not sent, with the reason, and the quote still counts as unsent');
     await pg.waitForFunction(() => { const x = document.querySelector('#failedSec'); return !!x && /Quentin Quote/.test(x.innerText) && /Quote: Did not send by email to quote@example\.com/.test(x.innerText); }, null, {timeout:8000});
-    ok(/Messages that did not send/.test(await pg.locator('#failedSec h2').innerText()) && /would not take that address/.test(await pg.locator('#failedSec').innerText()) && await pg.locator('#failedSec').getByRole('button', {name:'Try again'}).count() === 1,
+    ok(/Messages to sort out/.test(await pg.locator('#failedSec h2').innerText()) && /would not take that address/.test(await pg.locator('#failedSec').innerText()) && await pg.locator('#failedSec').getByRole('button', {name:'Try again'}).count() === 1,
       'and the dashboard lists it under Messages that did not send, for the shop to act on');
     await pg.locator('#msgFail').getByRole('button', {name:'Try again'}).click(); await pg.waitForSelector('#msgOk', {timeout:8000});
     const sentE = q1m().filter(m => m.channel === 'email' && m.state === 'sent');
-    ok(sentE.length === 1 && sentE[0].k === f1[0].k && Object.keys(sentE[0].tries).length === 2 && mailbox.state.got.length === 1 && mailbox.state.got[0].text === edited && mailbox.state.got[0].to.join() === 'quote@example.com' && mailbox.state.got[0].subject === 'Your quote from Innovation Flooring Direct'
+    ok(sentE.length === 1 && sentE[0].k === f1[0].k && Object.keys(sentE[0].tries).length === 2 && mailbox.state.got.length === 1 && mailbox.state.got[0].text === edited && mailbox.state.got[0].to.join() === 'quote@example.com' && mailbox.state.got[0].subject === 'Your quote from Innovation Flooring Direct, ref M-QUOTE-Q1'
       && sentE[0].body === edited && sentE[0].ref === mailbox.state.got[0].id && sentE[0].rev === q1q[0] && sentE[0].byName === 'Sam' && sentE[0].sentAt && /Sent\. The mail server accepted it for quote@example\.com/.test(await pg.locator('#msgOk').innerText()),
       'trying again sends that one message: the customer gets the words exactly as edited, and the record keeps them with who sent it, which quote it was and the mail server’s reference');
     await pg.waitForFunction(() => !document.querySelector('#failedSec'), null, {timeout:8000});
@@ -543,14 +550,14 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(/already gone to quote@example\.com/.test(await pg.locator('#msgTwice').innerText()) && mailbox.state.got.length === 1 && q1m().length === 3, 'pressing send again does not send it twice: a second copy has to be asked for');
     // by text: sent once the text service takes it, delivered once the handset has it
     await pg.click('#msgSendText'); await pg.waitForFunction(() => /The text service accepted it for \+447700900321/.test((document.querySelector('#msgOk') || {innerText:''}).innerText), null, {timeout:8000});
-    ok(q1m().filter(m => m.channel === 'sms')[0].state === 'sent' && twilio.state.sent.length === 1 && twilio.state.sent[0].body === edited && twilio.state.sent[0].to === '+447700900321', 'a text goes out through the text service, in the same words');
+    ok(q1m().filter(m => m.channel === 'sms')[0].state === 'sent' && twilio.state.sent.length === 1 && twilio.state.sent[0].body === qsms && twilio.state.sent[0].to === '+447700900321', 'a text goes out through the text service, in the short wording');
     await app.commands.poll();
     const t1 = q1m().filter(m => m.channel === 'sms')[0];
     ok(t1.state === 'delivered' && t1.deliveredAt && /^SM/.test(t1.ref), 'and shows as delivered only when the text service says the handset has it');
     await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone(); await pg.waitForSelector('#msgsCard');
     await pg.waitForFunction(() => /Delivered/.test(document.querySelector('#msgsCard').innerText), null, {timeout:8000});
     const mc = await pg.locator('#msgsCard').innerText();
-    ok(/Quote\s+Delivered/.test(mc) && /Quote\s+Sent/.test(mc) && /Prepared, not sent/.test(mc) && /Reference </.test(mc) && /Copied\. Nothing was sent from here/.test(mc) && (await pg.locator('#msgsCard .msgtext').first().textContent()).includes('We can fit before Christmas'),
+    ok(/Quote\s+M-QUOTE-Q1\s+Delivered/.test(mc) && /Quote\s+M-QUOTE-Q1\s+Sent/.test(mc) && /Prepared, not sent/.test(mc) && /Reference </.test(mc) && /Copied\. Nothing was sent from here/.test(mc) && (await pg.locator('#msgsCard .msgtext').allTextContents()).some(t => t.includes('We can fit before Christmas')),
       'the job keeps every message with how far it got and exactly what it said');
     await pg.locator('#quoteCard').getByRole('button', {name:'Send it again'}).click(); await pg.waitForSelector('#msgForm');
     ok(await pg.inputValue('#msgBody') === edited, 'opening the quote message again shows the words that were sent, not a fresh draft');
@@ -586,8 +593,12 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     // audit finding 5: underlay, gripper and door bars are real things to get ready, with a quantity; fitting and uplift are services
     const needs = await pg.evaluate(() => Array.from(document.querySelectorAll('#accNeeds .accitem')).map(d => { const k = d.querySelector('select[id^="accNeedKind"]'), q = d.querySelector('input[id^="accNeedQty"]'), u = d.querySelector('select[id^="accNeedUnit"]');
       return d.querySelector('b').textContent + ':' + (k ? k.value : 'goods') + (k && k.value === 'pick' ? ':' + q.value + ' ' + u.value : ''); }));
-    ok(needs.length === 6 && needs[0] === 'Carpet:goods' && needs[1] === 'Underlay:pick:11.4 m²' && /^Gripper:pick:1[34](\.\d+)? metres$/.test(needs[2]) && needs[3] === 'Door bars:pick:1 items' && needs[4] === 'Fitting:service' && needs[5] === 'Uplift and disposal:service',
+    ok(needs.length === 6 && needs[0] === 'Carpet:goods' && needs[1] === 'Underlay · under carpet:pick:11.4 m²' && /^Gripper:pick:1[34](\.\d+)? metres$/.test(needs[2]) && needs[3] === 'Door bars · 1 carpet to carpet:pick:1 items' && needs[4] === 'Fitting:service' && needs[5] === 'Uplift and disposal:service',
       'the yes screen sorts the quote into goods, things to pick with their quantities from the measure, and services: ' + needs.join(' | '));
+    await pg.waitForFunction(() => !/Looking in Shopify/.test(document.querySelector('#accNeeds').innerText) && /No product in Shopify is set up for this yet/.test(document.querySelector('#accNeedNote1').innerText), null, {timeout:8000});
+    ok(shopify.state.accSearches.some(q => /accessory_underlay AND tag:for_carpet/.test(q)) && shopify.state.accSearches.some(q => /accessory_gripper/.test(q)) && shopify.state.accSearches.some(q => /accessory_doorbar/.test(q))
+      && await pg.locator('#accNeedSrc1 option').count() === 1 && await pg.inputValue('#accNeedSrc1') === 'none' && /picked and checked for the job and Shopify stock is not changed/.test(await pg.locator('#accNeedNote2').innerText()),
+      'for carpet underlay, gripper and door bars the yes screen looks in Shopify, finds no product set up for them, and says they will be picked without changing Shopify stock: the laminate underlays are not offered for carpet');
     await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click();
     ok(/Choose fitting, delivery or collection/.test(await pg.locator('#modal').innerText()) && !q1().accepted, 'it has to be entered as a fitting, a delivery or a collection');
     await pg.fill('#accLen0', '40');
@@ -627,7 +638,9 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.waitForSelector('#cutBanner');
     ok(/On the cutting list\. 10\.8 m of Silver twist carpet · Roll R-801 · 4m wide/.test(await pg.locator('#cutBanner').innerText()) && /To cut/.test(await pg.locator('#sheet .panel-head').innerText()) && /The customer said yes/.test(await pg.locator('#quoteAccepted').innerText())
       && await pg.locator('#quoteCard').getByRole('button', {name:'Customer said yes'}).count() === 0, 'the job says it is on the cutting list, and the quote shows as accepted');
-    ok(/Underlay[\s\S]*?11\.4 m²[\s\S]*?Not picked yet/.test(await pg.locator('#sheet').innerText()) && !/Underlay[^\n]*\n[^\n]*No stock needed/.test(await pg.locator('#sheet').innerText()), 'on the job the underlay shows its quantity and that it is not picked yet, not "No stock needed"');
+    ok(/Underlay[\s\S]*?11\.4 m²[\s\S]*?Not picked yet/.test(await pg.locator('#sheet').innerText()) && !/Underlay[^\n]*\n[^\n]*No stock needed/.test(await pg.locator('#sheet').innerText())
+      && /To be picked: not a Shopify stock item/.test(await pg.locator('#sheet').innerText()) && /Picking and checking this does not change Shopify stock/.test(await pg.locator('#sheet').innerText()),
+      'on the job the underlay shows its quantity and that it is not picked yet, not "No stock needed", and says plainly that picking it does not change Shopify stock');
     await closeSheet();
     await pg.locator('#tabs .tab', {hasText:'Today'}).click(); await pg.waitForSelector('#cutSec');
     ok(/10\.8 m\s+off the 4 m roll/.test(await pg.locator('#cutSec .row', {hasText:'Quentin Quote'}).innerText()) && !(await pg.locator('#quotedSec .row', {hasText:'Quentin Quote'}).count()), 'the dashboard shows it under To cut, and it has left the quotes');
@@ -650,7 +663,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
       && !c.ok && c.why.some(t => /^Underlay/.test(t)); }, Object.assign({id:'q1'}, q1())), 'with the carpet cut but the accessories not picked, the job is not ready, cannot go in the diary and cannot be finished');
     for (let i = 0; i < 3; i++){
       await prow().first().getByRole('button', {name:'Picked'}).click(); await pg.waitForSelector('#pickForm');
-      if (i === 0){ await pg.locator('#modal').getByRole('button', {name:'Save: it is picked'}).click(); ok(/Say where you have put it/.test(await pg.locator('#modal').innerText()), 'a pick has to say where the goods have been put'); }
+      if (i === 0){ await pg.locator('#modal').getByRole('button', {name:'Save: it is picked'}).click(); ok(/Say where you have put it/.test(await pg.locator('#modal').innerText()) && /not linked to a Shopify product, so marking it picked does not change Shopify stock/.test(await pg.locator('#pickStockNote').innerText()), 'a pick has to say where the goods have been put, and says it does not change Shopify stock'); }
       await pg.selectOption('#pickBay', 'W4-01'); await pg.locator('#modal').getByRole('button', {name:'Save: it is picked'}).click(); await modalGone();
       await pg.waitForFunction(n => document.querySelectorAll('#pickList .row').length >= 0 && Array.from(document.querySelectorAll('#pickList .row')).filter(r => /Quentin Quote/.test(r.innerText)).length === n, 2 - i, {timeout:6000});
     }
@@ -673,11 +686,14 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
       'the job shows the fitting total paid to the fitter, apart from what is left to pay the shop');
     await pg.locator('#sheet').getByRole('button', {name:'Put in the diary'}).click(); await pg.waitForSelector('#msgForm');
     const cm = await pg.inputValue('#msgBody'), longD = await pg.evaluate(d => window.IFDLogic.longDay(d), day(9));
-    ok(/^Hi Quentin,/.test(cm) && cm.includes('Your fitting is booked for ' + longD + '.') && /Your fitter is Lennox\./.test(cm) && /A reminder that the fitting total of £150\.00 is paid on completion of the job, directly to your fitter\./.test(cm)
-      && /Thanks again,\nSam\nInnovation Flooring Direct$/.test(cm) && q1().diary === true,
-      'putting a fitting in the diary brings up the customer’s confirmation: thank you, the day, the fitter’s name and the fitting total paid to the fitter on completion');
+    ok(/^Hi Quentin,/.test(cm) && /Your fitting is booked\.\n\nReference: M-QUOTE\n/.test(cm) && cm.includes('Date: ' + longD + ' ' + day(9).slice(0, 4) + '\nArrival: we will ring you beforehand to agree the time.\nFitter: Lennox\nAddress: 3 Test Street, G81 6EE\n')
+      && /Payment\nTotal: £599\.99\nTo pay Innovation Flooring Direct: £449\.99\. Still to pay: £449\.99\.[^\n]*\nTo pay your fitter directly: £150\.00, on the day once the job is finished\. It is not paid to the shop\./.test(cm)
+      && /Before we arrive\n- Please have the rooms cleared of furniture before we arrive\.\n- We are lifting and taking away the old flooring in Lounge\.\n- Please make sure someone aged 18 or over is in/.test(cm)
+      && /ring us on 0141 952 5200 and quote M-QUOTE\.\n\nInnovation Flooring Direct\n2 South Elgin Place, Clydebank G81 1XP\n0141 952 5200\nhelp@innovationflooringdirect\.com$/.test(cm) && !/Sam/.test(cm) && q1().diary === true
+      && (await pg.locator('#msgSubject').innerText()) === 'Email subject: Your fitting is booked with Innovation Flooring Direct, ref M-QUOTE',
+      'putting a fitting in the diary brings up the customer’s confirmation: the reference, the day, the arrival, the fitter, the address, what is paid to the shop and what to the fitter, what to do before we arrive, and the shop’s contact details');
     // audit finding 1 again: copying the confirmation does not make it sent, and the warning stays
-    await pg.click('#msgCopy'); await pg.waitForFunction(() => /Fitting confirmation\s+Prepared, not sent/.test(document.querySelector('#msgList').innerText), null, {timeout:8000});
+    await pg.click('#msgCopy'); await pg.waitForFunction(() => /Fitting confirmation\s+Booking revision 1\s+Prepared, not sent/.test(document.querySelector('#msgList').innerText), null, {timeout:8000});
     await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone();
     await pg.waitForSelector('#confirmBanner');
     ok(/Tell the customer\. The fitting is in the diary for .* and the confirmation has not been sent\. It was prepared but not sent\./.test(await pg.locator('#confirmBanner').innerText()) && !(await pg.locator('#confirmSent').count()), 'copying it leaves the job flagged: the customer still has to be told');
@@ -690,7 +706,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.click('#msgSendEmail'); await pg.waitForSelector('#msgOk', {timeout:8000});
     await pg.waitForFunction(() => !/Quentin Quote/.test((document.querySelector('#confirmSec') || {innerText:''}).innerText), null, {timeout:8000});
     const cf = q1m().filter(m => m.kind === 'confirm' && m.state === 'sent')[0], cmail = mailbox.state.got[mailbox.state.got.length - 1];
-    ok(mailbox.state.got.length === mailsBefore + 1 && cmail.text === cm && cmail.subject === 'Your fitting with Innovation Flooring Direct' && cmail.to.join() === 'quote@example.com' && cf.channel === 'email' && cf.to === 'quote@example.com' && cf.body === cm && cf.ref === cmail.id
+    ok(mailbox.state.got.length === mailsBefore + 1 && cmail.text === cm && cmail.subject === 'Your fitting is booked with Innovation Flooring Direct, ref M-QUOTE' && cf.revNo === 1 && cmail.to.join() === 'quote@example.com' && cf.channel === 'email' && cf.to === 'quote@example.com' && cf.body === cm && cf.ref === cmail.id
       && cf.snap.date === day(9) && cf.snap.fitter === 'Lennox' && cf.snap.due === 150 && cf.snap.total === 599.99 && cf.byName === 'Sam', 'the confirmation really goes to the customer, and the record keeps the day, the fitter and the fitting total they were told');
     await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone();
     await openJobPlain('Quentin Quote'); await pg.waitForSelector('#confirmSent');
@@ -699,6 +715,19 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.waitForSelector('#confirmBanner', {timeout:8000});
     ok(/Needs reconfirmation\. The fitter changed since the customer was told \(Emailed to quote@example\.com/.test(await pg.locator('#confirmBanner').innerText()), 'changing the fitter afterwards shows the booking as needing reconfirmation');
     await pg.selectOption('#jobFitter', 'Lennox'); await pg.waitForSelector('#confirmSent', {timeout:8000});
+    // a change to morning or afternoon: a revised confirmation is needed, it says what changed and that it replaces the earlier one, and the earlier one is kept
+    await pg.locator('#sheet .seg.sm').getByRole('button', {name:'PM', exact:true}).click();
+    await pg.waitForFunction(() => /Needs reconfirmation\. Morning or afternoon changed/.test((document.querySelector('#confirmBanner') || {innerText:''}).innerText), null, {timeout:8000});
+    await pg.locator('#confirmBanner').getByRole('button', {name:'Send the new details'}).click(); await pg.waitForSelector('#msgForm');
+    const cm2 = await pg.inputValue('#msgBody');
+    ok(/The details of your fitting have changed \(morning or afternoon\)\. This replaces our earlier confirmation\./.test(cm2) && /Arrival: in the afternoon\. We will ring you beforehand to agree the time\./.test(cm2) && /Reference: M-QUOTE/.test(cm2)
+      && (await pg.locator('#msgSubject').innerText()) === 'Email subject: Updated fitting details from Innovation Flooring Direct, ref M-QUOTE' && /Changed since they were told: morning or afternoon/.test(await pg.locator('#msgForm').innerText()),
+      'after the slot changes, the revised confirmation says what changed and that it replaces the earlier one');
+    await pg.click('#msgSendEmail'); await pg.waitForSelector('#msgOk', {timeout:8000}); await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone();
+    await pg.waitForSelector('#confirmSent', {timeout:8000});
+    const confs = q1m().filter(m => m.kind === 'confirm' && m.state === 'sent');
+    ok(confs.length === 2 && confs[0].revNo === 1 && confs[0].body === cm && confs[0].snap.slot === '' && confs[1].revNo === 2 && confs[1].body === cm2 && confs[1].snap.slot === 'PM' && confs[0].rev !== confs[1].rev
+      && /Booking revision 2/.test(await pg.locator('#msgsCard').innerText()) && /Booking revision 1/.test(await pg.locator('#msgsCard').innerText()), 'the revised confirmation is revision 2, and revision 1 is still on the job exactly as it was sent');
     // audit finding 4: money. A record of money already taken, checked by the server
     const paid1 = () => Object.entries(q1().pay || {}).map(([k, e]) => Object.assign({k:k}, e)).sort((x, y) => String(x.at).localeCompare(String(y.at)));
     await pg.locator('#moneyCard').getByRole('button', {name:'Record a payment'}).click(); await pg.waitForSelector('#payForm');
@@ -734,10 +763,11 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
       'a refund cannot be more than was paid, is its own entry with its reason, and brings the job back to paid');
     await pg.locator('#moneyCard').getByRole('button', {name:'Send a receipt'}).click(); await pg.waitForSelector('#msgForm');
     const rc = await pg.inputValue('#msgBody');
-    ok(/paid £120\.00 by card machine/.test(rc) && /paid £400\.00 by card machine/.test(rc) && /refunded £70\.01/.test(rc) && !/£100\.00/.test(rc) && /Paid to the shop so far: £449\.99\nNothing more to pay the shop\.\nFitting, paid to your fitter on completion: £150\.00/.test(rc),
+    ok(/Reference: M-QUOTE/.test(rc) && /paid £120\.00 by card machine/.test(rc) && /paid £400\.00 by card machine/.test(rc) && /refunded £70\.01/.test(rc) && !/£100\.00/.test(rc) && !/Sam/.test(rc)
+      && /Paid to Innovation Flooring Direct so far: £449\.99\nNothing more to pay Innovation Flooring Direct\.\nFitting, paid straight to your fitter on the day: £150\.00\. This is not paid to the shop\./.test(rc),
       'the receipt says what the ledger says: the entries that count, the refund as a refund, and the fitter’s money apart');
     await pg.click('#msgSendEmail'); await pg.waitForSelector('#msgOk', {timeout:8000});
-    ok(mailbox.state.got[mailbox.state.got.length - 1].text === rc && mailbox.state.got[mailbox.state.got.length - 1].subject === 'Your receipt from Innovation Flooring Direct' && q1m().some(m => m.kind === 'receipt' && m.state === 'sent'), 'and the receipt is really sent to the customer');
+    ok(mailbox.state.got[mailbox.state.got.length - 1].text === rc && mailbox.state.got[mailbox.state.got.length - 1].subject === 'Your receipt from Innovation Flooring Direct, ref M-QUOTE' && q1m().some(m => m.kind === 'receipt' && m.state === 'sent'), 'and the receipt is really sent to the customer');
     await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone();
     await closeSheet();
     // audit finding 2: a held job cannot be cut from the job sheet, the cutting list or any other route
@@ -775,6 +805,13 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.locator('#sheet .tick', {hasText:'Cut'}).locator('input').click(); await pg.waitForSelector('#cutHeldWhy');
     const hw2 = await pg.locator('#cutHeldWhy').innerText();
     ok(h1().review.on === false && /no longer covers the floor as measured/.test(hw2) && !/review a change/.test(hw2) && !/Size not verified/.test(hw2) && h1().lines.l1.picked === false, 'marking the review as done does not clear a real shortage: it still cannot be cut');
+    await pg.locator('#modal').getByRole('button', {name:'Close'}).last().click(); await modalGone(); await closeSheet();
+    // the third way in: the Cut done button on a job whose piece is still on the cutting list
+    app.store.setDoc(docPath('jobs/h2'), holdJob({ref:'M-HOLD2', customer:{name:'Hattie Held', phone:'07700 900445', address:'5 Test Street', postcode:'G81 6EE'}, lines:{l1:Object.assign({}, holdJob().lines.l1, {state:'todo', bay:''})},
+      rooms:{r1:Object.assign({n:1, name:'Lounge', len:5.2, wid:3.8, area:19.76, spec:cs('carpet')}, vr)}})); await poke('h2');
+    await openJobPlain('Hattie Held'); await pg.locator('#sheet .ln').getByRole('button', {name:'Cut done'}).click(); await pg.waitForSelector('#cutHeldWhy');
+    ok(/Not to be cut yet/.test(await pg.locator('#modal h2').innerText()) && /no longer covers the floor as measured/.test(await pg.locator('#cutHeldWhy').innerText()) && await pg.locator('#modal').getByRole('button', {name:/Cut it anyway|Save: it is cut/}).count() === 0
+      && app.store.getDoc('jobs/h2').data.lines.l1.picked === false, 'the Cut done button on the job is refused for the same reason: every way of marking a cut asks the same question');
     await pg.locator('#modal').getByRole('button', {name:'Close'}).last().click(); await modalGone(); await closeSheet();
     // only the owner, signed in as themselves, can have it cut anyway, and the reason goes on the job
     await b.pg.keyboard.press('Escape'); await b.pg.locator('#tabs .tab', {hasText:/Cutting/}).click(); await b.pg.waitForSelector('#cutHeld');
@@ -826,6 +863,11 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(logN() === logBefore && logBefore === 1 && Object.keys(x1().drafts).length === 1 && x1().shopifySeen.docs.length === 1 && shopify.state.drafts === draftsBefore && shopify.state.calls.slice(callsBefore).includes('OpsDraft') && !shopify.state.calls.slice(callsBefore).some(c => /Create|Adjust|OpsSet|Delete/.test(c)),
       'checking again and again leaves one record of what Shopify said, one line in the history, and changes nothing in Shopify');
     const payX = async (amount) => { await pg.locator('#moneyCard').getByRole('button', {name:'Record a payment'}).click(); await pg.waitForSelector('#payForm'); await pg.fill('#payAmount', String(amount)); await pg.locator('#modal').getByRole('button', {name:'Record payment'}).click(); await modalGone(); };
+    await pg.locator('#moneyCard').getByRole('button', {name:'Record a payment'}).click(); await pg.waitForSelector('#payForm'); await pg.fill('#payAmount', '300');
+    ok(/That is £72\.60 more than the £227\.40 still to pay the shop\. What happened to the extra\?/.test(await pg.locator('#payOver').innerText()), 'the audit’s case: £300 against £227.40 asks what happened to the £72.60');
+    await pg.locator('#modal').getByRole('button', {name:'Record payment'}).click();
+    ok(/Say what happened to the extra/.test(await pg.locator('#modal').innerText()) && Object.keys(x1().pay).length === 0, 'and nothing is recorded until change or credit is chosen');
+    await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await modalGone();
     await payX(100); await pg.waitForFunction(() => /A payment has changed since Shopify was last checked/.test(document.querySelector('#closeCard').innerText), null, {timeout:8000});
     await check(); await pg.waitForFunction(() => /Agrees with the job/.test(document.querySelector('#closeCard h3').innerText), null, {timeout:8000});
     ok(/£100\.00 of £227\.40\. £127\.40 still to pay the shop/.test(await pg.locator('#closePaid').innerText()) && x1().shopifySeen.paidHere === 100 && x1().shopifySeen.docs[0].paid === false, 'part paid: £127.40 is still owed here and the Shopify order stays unpaid');
@@ -915,6 +957,92 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     ok(n1.status === 'cancelled' && n1.lost.why === 'Went with a cheaper quote' && n1.lost.byName === 'Sam', 'it is closed with the reason kept');
     await pg.waitForFunction(() => /Quote not taken/.test(document.querySelector('#sheet .panel-head').innerText), null, {timeout:6000});
     await pg.locator('#sheet').getByRole('button', {name:'Close'}).first().click(); await pg.waitForFunction(() => document.querySelector('#sheet').hidden);
+    // ---- answers that get lost on the way: nothing is sent twice by guesswork ----
+    qJob('l1', 'M-LOST', 'Larry Lost', {quotes:sentQ}); qJob('l2', 'M-MAYBE', 'Mina Maybe', {quotes:sentQ}); await poke('l1');
+    const jm = id => Object.entries(app.store.getDoc('jobs/' + id).data.msgs || {}).map(([k, m]) => Object.assign({k:k}, m)).sort((x, y) => String(x.at).localeCompare(String(y.at)));
+    const openSend = async name => { await openJobPlain(name); await pg.waitForSelector('#quoteCard'); await pg.locator('#quoteCard').getByRole('button', {name:/^Send it/}).click(); await pg.waitForSelector('#msgForm'); };
+    // the send button pressed twice in a hurry
+    await openSend('Larry Lost'); let mailN = mailbox.state.got.length;
+    await pg.evaluate(() => { const b = document.querySelector('#msgSendEmail'); b.click(); b.click(); }); await pg.waitForSelector('#msgOk', {timeout:8000});
+    ok(mailbox.state.got.length === mailN + 1 && jm('l1').length === 1, 'the send button pressed twice sends one email');
+    // the server sent it, but its answer never reached this screen
+    await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone(); await openSend('Mina Maybe'); mailN = mailbox.state.got.length; let lostOnce = false;
+    await pg.route('**/api/cmd', async route => { if (!lostOnce && /msg\.send/.test(route.request().postData() || '')){ lostOnce = true; await route.fetch(); await route.abort(); } else await route.continue(); });
+    await pg.click('#msgSendEmail');
+    await pg.waitForFunction(() => /The answer did not come back, so this screen cannot tell yet whether it went\. Press the same Send button again/.test(document.querySelector('#msgForm').innerText), null, {timeout:8000});
+    ok(mailbox.state.got.length === mailN + 1 && !(await pg.locator('#msgOk').count()), 'when the answer is lost between the server and the screen, the screen does not claim it went, and says what to do');
+    await pg.click('#msgSendEmail'); await pg.waitForSelector('#msgOk', {timeout:8000}); await pg.unroute('**/api/cmd');
+    ok(mailbox.state.got.length === mailN + 1 && jm('l2').length === 1 && jm('l2')[0].state === 'sent', 'pressing Send again finds the message already gone: the customer gets it once');
+    // the text service took the text, then its answer was lost: not sent again blind, and settled by asking the text service
+    twilio.state.loseAnswer['+447700900321'] = 1; let textN = twilio.state.sent.length;
+    await pg.click('#msgSendText'); await pg.waitForSelector('#msgUnsure', {timeout:8000});
+    ok(/It is not known whether this went\./.test(await pg.locator('#msgUnsure').innerText()) && /It has not been sent again/.test(await pg.locator('#msgUnsure').innerText()) && twilio.state.sent.length === textN + 1 && jm('l2').filter(m => m.channel === 'sms')[0].state === 'unsure'
+      && await pg.locator('#msgList .unsure').count() === 1 && await pg.locator('#msgList').getByRole('button', {name:'Try again'}).count() === 0, 'a text whose answer was lost shows as not known to have gone, with a way to check and no Try again');
+    await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone(); await closeSheet(); await pg.locator('#tabs .tab', {hasText:'Today'}).click();
+    await pg.waitForFunction(() => { const x = document.querySelector('#failedSec'); return !!x && /Mina Maybe/.test(x.innerText) && /Not known if it went/.test(x.innerText); }, null, {timeout:8000});
+    ok(await pg.locator('#failedSec .row', {hasText:'Mina Maybe'}).getByRole('button', {name:'Sort it out'}).count() === 1 && await pg.locator('#failedSec .row', {hasText:'Mina Maybe'}).getByRole('button', {name:'Try again'}).count() === 0, 'the dashboard lists it to be sorted out, not retried');
+    await pg.locator('#failedSec .row', {hasText:'Mina Maybe'}).getByRole('button', {name:'Sort it out'}).click(); await pg.waitForSelector('#msgsCard .unsure');
+    ok(/Do not send this again until it has been checked/.test(await pg.locator('#msgsCard .unsure').innerText()) && /may not have gone: check before sending it again/.test(await pg.locator('#sheet').innerText()), 'the job itself says not to send it again until it has been checked');
+    await pg.locator('#quoteCard').getByRole('button', {name:/^Send it/}).click(); await pg.waitForSelector('#msgForm');
+    await pg.click('#msgSendText'); await pg.waitForSelector('#msgHanging', {timeout:8000});
+    ok(/An earlier send of this to \+447700900321 is not known to have gone\. Sort that one out first/.test(await pg.locator('#msgHanging').innerText()) && twilio.state.sent.length === textN + 1, 'pressing Send again is refused until the first one is sorted out');
+    await pg.locator('#msgList .unsure').getByRole('button', {name:'Check with the text service'}).click(); await pg.waitForSelector('#msgOk', {timeout:8000});
+    const lt = jm('l2').filter(m => m.channel === 'sms')[0];
+    ok(lt.state === 'sent' && lt.ref === twilio.state.sent[twilio.state.sent.length - 1].sid && twilio.state.sent.length === textN + 1 && jm('l2').length === 2 && Object.values(app.store.getDoc('jobs/l2').data.log).some(x => /checked with the text service by Sam\. It has it/.test(x.text)),
+      'asking the text service finds it went: the message is marked sent with its reference, nothing is sent twice, and the check is on the job’s history');
+    await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone();
+    // the mail server took an email, then its answer was lost: a person checks and says which, with how they know
+    qJob('l3', 'M-EMAIL', 'Edna Emailed', {quotes:sentQ}); await poke('l3'); await openSend('Edna Emailed'); mailN = mailbox.state.got.length; mailbox.state.loseAnswer = 1;
+    await pg.click('#msgSendEmail'); await pg.waitForSelector('#msgUnsure', {timeout:8000});
+    ok(jm('l3')[0].state === 'unsure' && mailbox.state.got.length === mailN + 1 && /Look in the Sent folder of help@innovationflooringdirect\.com for a message to quote@example\.com, or ask the customer/.test(await pg.locator('#msgList .unsure').innerText())
+      && await pg.locator('#msgList .unsure').getByRole('button', {name:'Check with the text service'}).count() === 0, 'an email whose answer was lost says where to look, since an email cannot be looked up');
+    await pg.locator('#msgList .unsure').getByRole('button', {name:'It did arrive'}).click();
+    await pg.waitForFunction(() => /Say how you know it arrived/.test(document.querySelector('#msgList .unsure').innerText), null, {timeout:8000});
+    await pg.fill('#msgList .unsHow', 'It is in the Sent folder'); await pg.locator('#msgList .unsure').getByRole('button', {name:'It did arrive'}).click(); await pg.waitForSelector('#msgOk', {timeout:8000});
+    ok(jm('l3').length === 1 && jm('l3')[0].state === 'sent' && jm('l3')[0].confirmed.note === 'It is in the Sent folder' && jm('l3')[0].confirmed.byName === 'Sam' && mailbox.state.got.length === mailN + 1, 'saying it did arrive needs how they know, marks it sent under their name, and sends nothing more');
+    await pg.locator('#modal').getByRole('button', {name:'Done'}).click(); await modalGone(); await closeSheet();
+    // ---- accessories that are real Shopify products: reserved with the sale, taken off stock once, put back once if the job is cancelled ----
+    qJob('f1', 'M-FLOOR', 'Fiona Flooring', {brief:{rooms:[{name:'Lounge', want:'c1'}], choices:[{k:'c1', title:'Royale Oak 12mm Herringbone Laminate', variantId:'gid://shopify/ProductVariant/701', unit:'packs'}], also:[]},
+      rooms:{r1:Object.assign({n:1, name:'Lounge', len:5, wid:4.6, area:23, spec:cs('flooring', {underlay:true, gripper:null, beading:true})}, vr)},
+      quotes:{qa:{n:1, at:nowQ, by:'', byName:'Sam', lines:[{label:'Flooring', price:500}, {label:'Underlay', price:90}, {label:'Beading', price:30}, {label:'Fitting', price:200}], total:820}}});
+    await poke('f1'); const fJob = () => app.store.getDoc('jobs/f1').data, silver = 'gid://shopify/ProductVariant/9101';
+    await openJobPlain('Fiona Flooring'); await pg.waitForSelector('#quoteCard'); await pg.locator('#quoteCard').getByRole('button', {name:'Customer said yes'}).click(); await pg.waitForSelector('#acceptForm');
+    await pg.waitForFunction(() => document.querySelectorAll('#accNeedSrc1 option').length === 4 && !/Looking in Shopify/.test(document.querySelector('#accNeeds').innerText), null, {timeout:8000});
+    const srcs = await pg.locator('#accNeedSrc1 option').allTextContents();
+    ok(srcs[0] === 'Choose the product, or say it is not a stock item' && /15 m2 Premium Quality Silver Underlay · 1 Roll · 242 free in Shopify/.test(srcs[1]) && /Thermo-X UFH Underlay · 1 Roll · 250 free/.test(srcs[2]) && srcs[3] === 'Not a Shopify stock item: picked only' && await pg.inputValue('#accNeedSrc1') === ''
+      && /Choose which product this is\. They are not matched automatically/.test(await pg.locator('#accNeedNote1').innerText()) && shopify.state.accSearches.some(q => /accessory_underlay AND NOT tag:for_carpet/.test(q)),
+      'for underlay under flooring the yes screen offers the Shopify underlay products with what is free, and matches nothing by itself');
+    ok(await pg.locator('#accNeedSrc2 option').count() === 3 && await pg.locator('#accNeedSrc2 option').nth(1).evaluate(o => o.disabled) && /Shopify is not counting stock for this/.test(await pg.locator('#accNeedSrc2 option').nth(1).textContent()), 'a product Shopify is not counting stock for cannot be chosen as stock');
+    await pg.click('#accCollection'); await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click();
+    ok(/Say where the underlay under flooring comes from: choose the product, or say it is not a stock item/.test(await pg.locator('#modal .banner.bad').last().innerText()) && !fJob().accepted, 'the sale cannot be saved until somebody has said where each accessory comes from');
+    await pg.selectOption('#accNeedSrc1', silver); await pg.selectOption('#accNeedSrc2', 'none');
+    ok(await pg.inputValue('#accNeedUnits1') === '2' && /2 rolls, each covering 15 m² according to Shopify\. Check that against the label/.test(await pg.locator('#accNeedPer1').innerText()) && /comes off Shopify stock once, when the order is fulfilled there/.test(await pg.locator('#accNeedNote1').innerText()),
+      'choosing the 15 m² roll for 23 m² of floor works out 2 rolls, and says when Shopify stock changes');
+    await pg.fill('#accNeedUnits1', '999');
+    ok(/Only 242 free in Shopify/.test(await pg.locator('#accNeedNote1').innerText()), 'more than Shopify has free is flagged'); await pg.fill('#accNeedUnits1', '2');
+    await pg.locator('#modal').getByRole('button', {name:'Save: the customer said yes'}).click(); await modalGone();
+    const fl = Object.values(fJob().lines).sort((x, y) => x.n - y.n), fd = shopify.state.lastDraft, ul = fl.find(l => l.variantId === silver), bd = fl.find(l => l.title === 'Beading');
+    ok(ul && ul.hold === 'draft' && /^#D/.test(ul.holdRef) && ul.unit === 'rolls' && ul.qty === 2 && ul.price === 90 && ul.acc.label === 'Underlay' && ul.acc.need === 23 && ul.acc.unit === 'm²' && ul.state === 'todo' && ul.picked === false && !ul.cov
+      && bd.hold === 'pick' && bd.unit === 'metres' && fl.find(l => l.title === 'Fitting').hold === 'none' && fl.find(l => l.title === 'Flooring').hold === 'none' && fJob().total === 820,
+      'the underlay goes on the job as 2 rolls reserved in Shopify, the beading as a pick-only item, and fitting as a service');
+    const vi = fd.lineItems.filter(i => i.variantId === silver);
+    ok(vi.length === 1 && vi[0].quantity === 2 && vi[0].appliedDiscount.value === 100 && fd.lineItems.some(i => i.title === 'Underlay (23 m²)' && i.originalUnitPriceWithCurrency.amount === '90.00') && !!fd.reserveInventoryUntil
+      && Object.values(shopify.state.docs).pop().total === 820 && shopify.state.acc[silver] === 240, 'Shopify reserves the 2 rolls on the same draft as the sale, once, and the sale keeps the quoted figures');
+    ok(/Reserved in Shopify #D\d+/.test(await pg.locator('#sheet .ln', {hasText:'Silver Underlay'}).innerText()) && /For underlay: 23 m² needed\. Reserved on the Shopify draft\. It comes off Shopify stock when the order is fulfilled in Shopify, not when it is ticked here/.test(await pg.locator('#sheet .ln', {hasText:'Silver Underlay'}).innerText()),
+      'the job says the rolls are reserved in Shopify and that ticking them here is not what changes the stock');
+    await closeSheet(); await pg.locator('#tabs .tab', {hasText:/Cutting/}).click(); await pg.waitForSelector('#pickList');
+    const frow = pg.locator('#pickList .row', {hasText:'Fiona Flooring'});
+    ok(await frow.count() === 2 && /2 rolls/.test(await frow.first().innerText()) && /Reserved in Shopify #D\d+/.test(await frow.first().innerText()) && /Not Shopify stock/.test(await frow.nth(1).innerText()), 'both are on the picking list, each marked as Shopify stock or not');
+    await frow.first().getByRole('button', {name:'Picked'}).click(); await pg.waitForSelector('#pickForm');
+    ok(/does not take it off Shopify stock\. That happens once, when the order is fulfilled in Shopify/.test(await pg.locator('#pickStockNote').innerText()), 'picking a Shopify item says the tick does not take it off stock');
+    await pg.selectOption('#pickBay', 'W4-01'); await pg.locator('#modal').getByRole('button', {name:'Save: it is picked'}).click(); await modalGone();
+    ok(shopify.state.acc[silver] === 240 && !shopify.state.calls.slice(-6).some(c => /Adjust|OpsSet/.test(c)), 'picking it changes nothing in Shopify: still 2 reserved, no stock adjustment made');
+    await openJobPlain('Fiona Flooring'); await pg.locator('#sheet').getByRole('button', {name:'Cancel this job'}).click();
+    await pg.waitForFunction(() => /Delete draft #D\d+ in Shopify and release its reserved stock/.test(document.querySelector('#modal').innerText), null, {timeout:6000});
+    const delsBefore = shopify.state.deletes || 0;
+    await pg.locator('#modal').getByRole('button', {name:'Cancel the job'}).click(); await modalGone();
+    ok(fJob().status === 'cancelled' && shopify.state.acc[silver] === 242 && (shopify.state.deletes || 0) === delsBefore + 1 && Object.values(fJob().drafts)[0].deleted === true, 'cancelling the job deletes the draft once and the 2 rolls go back on sale');
+    await closeSheet();
     // a screen left open brings itself up to date when the screens have been replaced, without losing work in hand
     await pg.locator('#tabs .tab', {hasText:'Today'}).click();
     await pg.evaluate(() => { window.__mark = 1; document.querySelector('meta[name="ifd-version"]').content = 'an-older-build'; });
@@ -963,6 +1091,13 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await b.pg.locator('#msgSetupSec').getByRole('button', {name:'Turn test mode off and message customers'}).click(); await b.pg.waitForSelector('#liveForm');
     ok(app.store.getDoc('settings/main').data.msgs.testOnly === true && app.store.getDoc('settings/main').data.msgs.allow.length === 3 && app.store.getDoc('settings/main').data.fitters.length >= 2, 'the owner adds a test number without disturbing the other settings, and going live is asked twice');
     await b.pg.locator('#modal').getByRole('button', {name:'Keep test mode on'}).click();
+    // the standard wording is the owner's to set, and the next message uses it
+    ok(/It is paid in the shop, by card over the phone, or by bank transfer, and is due before your fitting day\./.test(await b.pg.inputValue('#setTerms')) && /aged 18 or over/.test(await b.pg.inputValue('#setPrep')) && /never with a person’s name/.test(await b.pg.locator('#wordsSec').innerText()), 'Setup shows the standing wording for how the shop is paid and what to do before a fitting');
+    await b.pg.fill('#setTerms', 'Half is paid when you order and the rest before your fitting day.'); await b.pg.locator('#wordsSec').getByRole('button', {name:'Save the wording'}).click();
+    await b.pg.waitForFunction(() => true); for (let i = 0; i < 60 && !((app.store.getDoc('settings/main').data.words || {}).terms); i++) await b.pg.waitForTimeout(50);
+    ok(app.store.getDoc('settings/main').data.words.terms === 'Half is paid when you order and the rest before your fitting day.' && app.store.getDoc('settings/main').data.msgs.allow.length === 3
+      && await b.pg.evaluate(() => /is paid to Innovation Flooring Direct\. Half is paid when you order and the rest before your fitting day\./.test(window.IFDLogic.quoteMessage({ref:'M-X', customer:{name:'A'}}, {n:1, at:new Date().toISOString(), lines:[{label:'Carpet', price:5}]}, {name:'Innovation Flooring Direct', phone:'1', words:{terms:'Half is paid when you order and the rest before your fitting day.'}}))),
+      'the owner changes how the shop’s part is paid, without disturbing the other settings, and quotes use the new wording');
     // with no mail server or text service set up, as the live system is until their details are entered, nothing can be sent and nothing says it was
     const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'ifd-b2-'));
     const app2 = create({env:{DATA_DIR:dir2, INSECURE_COOKIES:'1', SESSION_PEPPER:'t', OWNER_NAME:'David', OWNER_MOBILE:'07700 900001', SHOP_MOBILE:'07700 900002', SHOPIFY_STORE:'innovationflooring', SHOPIFY_CLIENT_ID:'test-id', SHOPIFY_CLIENT_SECRET:'test-secret'},
@@ -990,7 +1125,7 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
       ok(/Quotes sent/.test(await up.locator('#quotedSec h2').innerText()), 'and only then does the quote count as sent and start its five days');
       await up.locator('#tabs .tab', {hasText:/Setup|More/}).first().click(); if (!(await up.locator('#msgSetupSec').count())) await up.locator('#view').getByRole('button', {name:'Setup'}).click();
       await up.waitForFunction(() => /^Not set up yet/.test((document.querySelector('#setEmail') || {innerText:''}).innerText), null, {timeout:8000});
-      ok(/^Not set up yet/.test(await up.locator('#setSms').innerText()) && /Only the owner can change these/.test(await up.locator('#msgSetupSec').innerText()) && await up.locator('#newMsgTo').count() === 0, 'Setup says plainly that email and texts are not set up, and the shop sign-in cannot change who messages go to');
+      ok(/^Not set up yet/.test(await up.locator('#setSms').innerText()) && /Only the owner can change these/.test(await up.locator('#msgSetupSec').innerText()) && await up.locator('#newMsgTo').count() === 0 && await up.locator('#setTerms').isDisabled(), 'Setup says plainly that email and texts are not set up, and the shop sign-in cannot change who messages go to');
     } finally { app2.close(); fs.rmSync(dir2, {recursive:true, force:true}); }
     console.log(errors.length ? 'CONSOLE ERRORS:\n' + errors.join('\n') : 'browser checks on the hosted server passed: ' + passed);
     if (errors.length) process.exitCode = 1;

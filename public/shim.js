@@ -7,7 +7,7 @@
     if (raw){ headers['content-type'] = raw.type; payload = raw.blob; } else if (body !== undefined){ headers['content-type'] = 'application/json'; payload = JSON.stringify(body); }
     let res;
     try { res = await fetch(url, {method:method, headers:headers, body:payload, credentials:'same-origin'}); }
-    catch (e){ throw {code:'upstream_error', message:'No connection to the shop system. Check the internet and try again.'}; }
+    catch (e){ throw {code:'upstream_error', lost:true, message:'No connection to the shop system. Check the internet and try again.'}; }   /* lost: no answer came back, so what happened is not known */
     if (res.status === 401){ location.href = '/login'; throw {code:'signed_out', message:'Signed out.'}; }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign({code:'upstream_error', message:'Something went wrong.'}, data.error || {});
