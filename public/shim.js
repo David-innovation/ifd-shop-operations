@@ -123,11 +123,12 @@
   const geo = { lookup: codes => call('GET', '/api/geo?codes=' + encodeURIComponent((codes || []).join(','))).then(r => r.codes || {}) };
   const caps = {db:db, mcp:mcp, user:user, downloads:downloads, assets:assets, geo:geo, cmd:cmd};
   window.claude = {use: async name => caps[name] || null};
-  /* a way out, since the shop's screen is shared */
-  window.addEventListener('DOMContentLoaded', () => {
-    const bar = document.querySelector('.top-in'); if (!bar) return;
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.textContent = 'Sign out';
+  /* a way out, since the shop's screen is shared. This file can arrive late, after the page is already drawn */
+  const wayOut = () => {
+    const bar = document.querySelector('.top-in'); if (!bar || bar.querySelector('#signOut')) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.id = 'signOut'; b.textContent = 'Sign out';
     b.addEventListener('click', () => call('POST', '/api/logout', {}).then(() => { location.href = '/login'; }, () => { location.href = '/login'; }));
     bar.append(b);
-  });
+  };
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', wayOut); else wayOut();
 })();

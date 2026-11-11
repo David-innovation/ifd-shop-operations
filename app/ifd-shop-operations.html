@@ -6300,6 +6300,13 @@ async function boot(){
   $('#store').addEventListener('click', () => { if (S.shop.state !== 'connecting') connectShop(); });
   window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v && v !== S.view && VIEWS[v]) go(v); });
   go((location.hash || '').slice(1) || 'today');
+  /* In the minute an update takes, the page can arrive while the helper script beside it is refused. Without the helper
+     nothing on the screen works, so it is fetched again every few seconds instead of leaving a dead screen. */
+  const helper = () => !!(window.claude && typeof window.claude.use === 'function');
+  for (let i = 0; i < 20 && !helper(); i++){
+    await new Promise(done => { const sc = document.createElement('script'); sc.src = '/shim.js?again=' + Date.now(); sc.onload = done; sc.onerror = done; document.head.append(sc); });
+    if (!helper()) await new Promise(done => setTimeout(done, 3000));
+  }
   const use = name => { try { return (window.claude && typeof window.claude.use === 'function') ? window.claude.use(name).catch(() => null) : Promise.resolve(null); } catch (e) { return Promise.resolve(null); } };
   use('assets').then(a => { S.cap.assets = a; if (a && S.openJob && !$('#sheet').hidden && !editingIn($('#sheet'))) drawSheet(); });
   const caps = await Promise.all([use('db'), use('mcp'), use('user'), use('downloads')]);

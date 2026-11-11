@@ -1115,6 +1115,13 @@ let passed = 0; const ok = (c, m) => { assert.ok(c, m); passed++; };
     await pg.waitForFunction(() => document.querySelectorAll('#accNeedSrc1 option').length === 5 && !/Looking in Shopify/.test(document.querySelector('#accNeeds').innerText), null, {timeout:8000});
     ok(await pg.inputValue('#accNeedSrc1') === silver && await pg.inputValue('#accNeedUnits1') === '2', 'and offers that product first when the customer says yes, still for a person to confirm');
     await pg.locator('#modal').getByRole('button', {name:'Cancel'}).click(); await modalGone(); await closeSheet(); shopify.state.gold = false;
+    // the helper script refused while the page itself arrives, as happens in the minute an update takes: the screen fetches it again by itself
+    const late = await a.ctx.newPage(); let refused = 0;
+    await late.route('**/shim.js', route => { if (refused++ < 1) return route.fulfill({status:502, contentType:'text/html', body:'Bad gateway'}); return route.continue(); });
+    await late.goto(base0 + '/');
+    await late.waitForFunction(() => document.querySelector('#storeText') && document.querySelector('#storeText').textContent === 'Shopify live' && document.querySelectorAll('#view .row').length > 0 && !!document.querySelector('#signOut'), null, {timeout:20000});
+    ok(refused >= 1 && !/cannot be reached/.test(await late.locator('#view').innerText()), 'a page that arrives without its helper script fetches it again and comes to life by itself, rather than sitting dead until someone reloads');
+    await late.close();
     // a screen left open brings itself up to date when the screens have been replaced, without losing work in hand
     await pg.locator('#tabs .tab', {hasText:'Today'}).click();
     await pg.evaluate(() => { window.__mark = 1; document.querySelector('meta[name="ifd-version"]').content = 'an-older-build'; });
