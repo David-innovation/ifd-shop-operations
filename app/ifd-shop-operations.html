@@ -154,13 +154,18 @@ textarea.in{min-height:84px;resize:vertical}
 .qline .in.price{text-align:right}
 .qtotal{display:flex;justify-content:space-between;align-items:baseline;border-top:2px solid var(--ink);padding-top:10px;font-size:18px}
 .qtotal b{font-family:var(--font-display);font-size:28px}
-.qmsg{min-height:260px;font-family:inherit;white-space:pre-wrap}
+textarea.in.qmsg{min-height:260px;flex:0 0 auto;font-family:inherit;white-space:pre-wrap}
 a.btn{text-decoration:none;color:inherit} a.btn.pri{color:var(--on-brand)} a.btn.off{opacity:.45;pointer-events:none}
 .pricenow h2{color:var(--info)} .pricenow .list{border:1.5px solid var(--info)}
 .row.price{background:var(--info-bg);align-items:flex-start}
 .row.price .sub{overflow-wrap:anywhere}
 .row.price .go{font-weight:700;text-decoration:underline;white-space:nowrap}
 .row .go{font-weight:700;text-decoration:underline;white-space:nowrap}
+.banner.ok{border-color:var(--ok);color:var(--ok)}
+.msgl{display:flex;flex-direction:column;gap:4px;padding:10px 0;border-top:1px solid var(--line)} .msgl:first-child{border-top:0}
+.msgl p{margin:0} .msgtext{white-space:pre-wrap;font:inherit;margin:6px 0 0;padding:10px;border:1px solid var(--line);border-radius:8px;overflow-wrap:anywhere}
+.payl{padding:8px 0;border-top:1px solid var(--line)} .payl p{margin:2px 0 0} .payl.void .ln-top{text-decoration:line-through;opacity:.6}
+ol.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .row.static.act:hover{background:var(--bad-bg)}
 .row.cut{align-items:flex-start}
 .cutlen{flex:0 0 auto;min-width:96px;text-align:center;padding:6px 8px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface)}
@@ -363,7 +368,7 @@ window.IFDLogic = (function(){
 
   function gidNum(g){ var m = /(\d+)\s*$/.exec(String(g == null ? '' : g)); return m ? m[1] : ''; }
   function variantGid(n){ var d = gidNum(n); return d ? 'gid://shopify/ProductVariant/' + d : ''; }
-  function round2(n){ return Math.round((Number(n) || 0) * 100) / 100; }
+  function round2(n){ return Math.round((Number(n) || 0) * 100) / 100 || 0; }      /* never minus nought */
   function money(n){ var v = round2(n); return (v < 0 ? '-' : '') + '£' + Math.abs(v).toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}); }
   function parseMoney(s){ if (typeof s === 'number') return s; var m = /-?[\d,]+(?:\.\d+)?/.exec(String(s == null ? '' : s)); return m ? Number(m[0].replace(/,/g, '')) : 0; }
 
@@ -454,6 +459,8 @@ window.IFDLogic = (function(){
     var q = Number(qty) || 0;
     if (unit === 'm') return (q / 10).toFixed(1) + ' m';
     if (unit === 'packs') return q + (q === 1 ? ' pack' : ' packs');
+    if (unit === 'm²') return round2(q) + ' m²';
+    if (unit === 'metres') return round2(q) + ' m';
     return String(q);
   }
   function ppmOf(product){ try { return Number(JSON.parse(product.ppm.value).amount) || 0; } catch (e) { return 0; } }
@@ -467,10 +474,27 @@ window.IFDLogic = (function(){
       .sort(function(a, b){ return (a.n || 0) - (b.n || 0); });
   }
   function stockLines(job){ return linesOf(job).filter(function(l){ return l.hold && l.hold !== 'none'; }); }
-  function paidOf(job){ var p = (job && job.pay) || {}; return round2(Object.keys(p).reduce(function(s, k){ return s + (Number(p[k].amount) || 0); }, 0)); }
+  function payList(job){ var p = (job && job.pay) || {}; return Object.keys(p).map(function(k){ return Object.assign({k:k}, p[k]); }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
+  function paidOf(job){ return round2(payList(job).reduce(function(s, e){ if (e.void) return s; var a = Number(e.amount) || 0; return s + (e.kind === 'refund' ? -a : a); }, 0)); }
   /* the fitting total is paid by the customer straight to the fitter when the job is finished, so the shop never collects it */
   function fitterDue(job){ var n = job && job.type === 'Fitting' ? num(job.fitterDue) : 0; return round2(Math.min(n, Number(job && job.total) || 0)); }
   function balanceOf(job){ return round2((Number(job && job.total) || 0) - fitterDue(job) - paidOf(job)); }
+  /* what the shop itself sells and collects: the job total less the fitting money that goes straight to the fitter */
+  function shopTotal(job){ return round2((Number(job && job.total) || 0) - fitterDue(job)); }
+  function creditOf(job){ var b = balanceOf(job); return b < -0.004 ? round2(-b) : 0; }
+  /* the fitter's money never goes through the shop's ledger. The shop only notes whether the customer has paid the fitter. */
+  function fitterPaid(job){ return !!(job && job.fitterPaid && job.fitterPaid.at); }
+  function fitterOwed(job){ var fd = fitterDue(job); return fd > 0 && !fitterPaid(job) ? fd : 0; }
+  function owedText(job){ var b = balanceOf(job); return b > 0.004 ? money(b) + ' still to pay the shop' : b < -0.004 ? 'The customer is ' + money(-b) + ' in credit' : 'Nothing more to pay the shop'; }
+  function receiptMessage(job, from, shop){
+    var first = firstName((job.customer || {}).name), live = payList(job).filter(function(e){ return !e.void; }), fd = fitterDue(job), bal = balanceOf(job);
+    var out = ['Hi ' + (first || 'there') + ',', '', 'Thank you. Here is your receipt from ' + shop.name + (job.ref ? ', reference ' + job.ref : '') + '.', ''];
+    live.forEach(function(e){ out.push(fmtDay(stampDay(e.at)) + ': ' + (e.kind === 'refund' ? 'refunded ' : 'paid ') + money(e.amount) + (e.method ? ' by ' + String(e.method).toLowerCase() : '')); });
+    out.push('', 'Paid to the shop so far: ' + money(paidOf(job)));
+    out.push(bal > 0.004 ? 'Still to pay the shop: ' + money(bal) : bal < -0.004 ? 'In credit with the shop: ' + money(-bal) : 'Nothing more to pay the shop.');
+    if (fd > 0) out.push('Fitting, paid to your fitter on completion: ' + money(fd));
+    return out.concat(['', 'Any questions, give us a ring on ' + shop.phone + '.', '', 'Thanks again,', from, shop.name]).join('\n');
+  }
   /* GOODS-IN means it has arrived but is not in its final place. It never makes a job ready. */
   function isFinalBay(code){ return !!code && code !== 'GOODS-IN'; }
   function lineAllocated(l){ return !!l && l.state === 'allocated' && isFinalBay(l.bay); }
@@ -655,7 +679,29 @@ window.IFDLogic = (function(){
     if (insp && oc === 'further') out.push('The subfloor needs further assessment.');
     else if (insp && !OUTCOMES[oc]) out.push('The subfloor inspection has no outcome recorded.');
     if (job.review && job.review.on) out.push('The shop has to review a change before this goes ahead.');
+    shortages(job).forEach(function(t){ out.push(t); });
+    goodsMissing(job).forEach(function(t){ out.push(t); });
     return out;
+  }
+  /* what is on the job no longer covers the floor as measured: a real shortage, whatever has been reviewed since */
+  function shortages(job){
+    if (!job || job.status !== 'open') return [];
+    return sizeEffect(job).floors.filter(function(e){ return e.verdict === 'short'; }).map(function(e){
+      return e.title + ': the ' + fmtQty(e.qty, e.unit) + ' on the job no longer covers the floor as measured (' + fmtM(e.area) + ' m²). Put the right quantity on the job first.'; });
+  }
+  /* an accepted quote with carpet or flooring rooms but nothing on the job to supply them */
+  function goodsMissing(job){
+    if (!job || job.status !== 'open' || !job.accepted) return [];
+    var ls = linesOf(job), out = [], rooms = roomsOf(job), names = function(rs){ return rs.map(function(r){ return r.name || 'Room'; }).join(', '); };
+    var carpet = rooms.filter(function(r){ var sp = specOf(r); return sp && sp.floor === 'carpet'; }), flooring = rooms.filter(function(r){ var sp = specOf(r); return sp && sp.floor === 'flooring'; });
+    if (carpet.length && !ls.some(function(l){ return l.unit === 'm'; })) out.push('The carpet for ' + names(carpet) + ' has not been put on this job yet. Add it with Add items.');
+    if (flooring.length && !ls.some(function(l){ return l.unit === 'packs'; })) out.push('The flooring for ' + names(flooring) + ' has not been put on this job yet. Add it with Add items.');
+    return out;
+  }
+  /* why a piece of carpet may not be cut yet. The cutting list, the job itself and the server all ask this one question. */
+  function cutBlocks(job, line){
+    if (!job || job.status !== 'open') return ['This job is not open.'];
+    return checksOutstanding(job);
   }
   /* what the measured floor means for each flooring line. A guide for a person to act on: nothing here changes an order. */
   function flooringKind(l){ return l.unit === 'm' && num(l.w) ? 'cut' : l.unit === 'packs' && num(l.cov) ? 'packs' : ''; }
@@ -954,6 +1000,53 @@ window.IFDLogic = (function(){
     return pre.length > 0 && pre.every(function(v){ return v.status === 'done'; }) && roomsOf(job).length > 0;
   }
   function quoted(job){ return !!job && job.status === 'open' && !linesOf(job).length && !!quoteOf(job); }
+  /* ---------- what a quote line is: goods off a roll or in packs, an accessory to pick, or a service ----------
+     Fitting, uplift and the like need no stock. Underlay, gripper, door bars and beading are real things that have to be
+     picked and checked before the job is ready, with a quantity taken from the measure. */
+  var SERVICE_RE = /fitting|\bfit\b|uplift|dispos|furniture|deliver|prep|labou?r|survey|measur|remov|levell|screed/i;
+  function isService(label){ return SERVICE_RE.test(String(label || '')); }
+  function quoteNeeds(job, q){
+    var p = pricingOf(job), barKinds = Object.keys(BAR_KINDS).filter(function(k){ return p.bars[k]; }), bars = barKinds.reduce(function(t, k){ return t + (Number(p.bars[k]) || 0); }, 0);
+    return quoteLines(q).map(function(l){
+      var t = String(l.label), o = {label:l.label, price:num(l.price), kind:'service', qty:1, unit:'items', sub:''};
+      if (isService(t)) o.kind = 'service';
+      else if (/carpet|flooring|laminate|vinyl|lvt|spc|engineered|\bwood\b|plank/i.test(t)) o.kind = 'goods';
+      else if (/underlay/i.test(t)){ o.kind = 'pick'; o.qty = round2(p.underlayCarpet + p.underlayFlooring) || 1; o.unit = 'm²'; }
+      else if (/gripper/i.test(t)){ o.kind = 'pick'; o.qty = Math.ceil(p.gripper - 1e-9) || 1; o.unit = 'metres'; }
+      else if (/beading|scotia/i.test(t)){ o.kind = 'pick'; o.qty = Math.ceil(p.beading - 1e-9) || 1; o.unit = 'metres'; }
+      else if (/door ?bar|threshold/i.test(t)){ o.kind = 'pick'; o.qty = bars || 1; o.sub = barKinds.map(function(k){ return p.bars[k] + ' ' + BAR_KINDS[k].toLowerCase(); }).join(', '); }
+      else if (/glue|adhesive|trim|nosing|primer/i.test(t)) o.kind = 'pick';
+      return o;
+    });
+  }
+  /* ---------- closing a finished job off in Shopify ----------
+     Finishing the job, the goods leaving, and the shop being paid are three separate things. The Shopify sale is the
+     shop's part only: fitting money that goes straight to the fitter is not a shop sale. Shopify can only show an order
+     as unpaid or paid in full on this plan, so it is marked paid there only when the shop has been paid in full here.
+     `seen` is what Shopify last said about this job's draft or order. */
+  function closeOff(job, seen){
+    var out = {need:false, steps:[], wrong:[], inStep:false, checked:!!(seen && seen.at)};
+    if (!job || !hasShopifyDocs(job) || job.status !== 'done') return out;
+    out.need = true;
+    var bal = balanceOf(job), paidUp = bal <= 0.004, shop = shopTotal(job), docs = (seen && seen.docs) || [];
+    if (!out.checked){
+      out.steps.push('Open this sale in Shopify. ' + (paidUp ? 'The shop has been paid in full, so it can be marked paid.' : 'The shop is still owed ' + money(bal) + ', so do not mark it paid: create the order with Payment due later.') + ' Mark it fulfilled, then press Check Shopify.');
+      return out;
+    }
+    docs.forEach(function(d){
+      if (d.gone) return;
+      if (!d.isOrder){ out.steps.push('Open draft ' + d.name + ' in Shopify. ' + (paidUp ? 'The shop has been paid in full: choose Mark as paid, then Create order.' : 'The shop is still owed ' + money(bal) + ', so do not mark it paid. Tick Payment due later, then Create order.')); return; }
+      if (d.cancelled) return;
+      if (!d.fulfilled) out.steps.push('Mark order ' + d.orderName + ' as fulfilled in Shopify: the goods have gone.');
+      if (paidUp && !d.paid) out.steps.push('The shop has been paid in full. Mark order ' + d.orderName + ' as paid in Shopify.');
+      if (!paidUp && d.paid) out.wrong.push('Shopify shows order ' + d.orderName + ' as paid in full, but ' + money(bal) + ' is still owed to the shop. Tell the owner: the two do not agree.');
+    });
+    var live = docs.filter(function(d){ return !d.gone && !d.cancelled; }), total = round2(live.reduce(function(t, d){ return t + (Number(d.total) || 0); }, 0));
+    if (live.length && Math.abs(total - shop) > 0.01) out.wrong.push('Shopify has this sale at ' + money(total) + ' but the shop’s part is ' + money(shop) + (fitterDue(job) ? ' (the fitting total of ' + money(fitterDue(job)) + ' goes to the fitter and is not a shop sale)' : '') + '. Edit it in Shopify so the two agree.');
+    if (round2(seen.paidHere) !== paidOf(job)) out.steps.push('A payment has changed since Shopify was last checked. Press Check Shopify.');
+    out.inStep = !out.steps.length && !out.wrong.length;
+    return out;
+  }
   /* what the quote charges for fitting: the amount the customer pays the fitter */
   function quoteFitting(q){ return round2(quoteLines(q).filter(function(l){ return /fitting/i.test(l.label); }).reduce(function(t, l){ return t + num(l.price); }, 0)); }
   /* ---------- telling the customer their fitting is booked ----------
@@ -961,12 +1054,32 @@ window.IFDLogic = (function(){
      the fitting total. If the day or the fitter changes afterwards, they have to be told again. */
   var DOWL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'], MONL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   function longDay(iso){ if (!validISO(iso)) return ''; var d = dateOf(iso); return DOWL[d.getDay()] + ' ' + d.getDate() + ' ' + MONL[d.getMonth()]; }
-  function confirmsOf(job){ var o = (job && job.confirms) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
+  /* ---------- messages to the customer ----------
+     Prepared (copied or opened in an app) is never sent. Only three things count as the customer having it: the email or
+     text service accepted it, the text service reports it delivered, or a member of staff records that they sent it themselves. */
+  var MSG_STATE = {prepared:'Prepared, not sent', queued:'Sending', sent:'Sent', delivered:'Delivered', failed:'Did not send', manual:'Sent by hand'};
+  var MSG_TONE = {prepared:'warn', queued:'info', sent:'ok', delivered:'ok', failed:'bad', manual:'ok'};
+  var MSG_KIND = {quote:'Quote', confirm:'Fitting confirmation', receipt:'Receipt', other:'Message'};
+  function msgsOf(job){ var o = (job && job.msgs) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
+  function msgWent(m){ return !!m && (m.state === 'sent' || m.state === 'delivered' || m.state === 'manual'); }
+  function msgWhen(m){ return String((m && (m.sentAt || m.at)) || ''); }
+  function msgsFor(job, kind, rev){ return msgsOf(job).filter(function(m){ return m.kind === kind && (rev === undefined || String(m.rev || '') === String(rev || '')); }); }
+  /* messages that did not send and have not since got to the customer some other way */
+  function msgFailed(job){
+    var all = msgsOf(job);
+    return all.filter(function(m){ return m.state === 'failed' && !all.some(function(x){ return x.kind === m.kind && String(x.rev || '') === String(m.rev || '') && msgWent(x) && String(x.at) > String(m.at); }); });
+  }
+  function msgText(m){ return (MSG_KIND[m.kind] || 'Message') + ': ' + (MSG_STATE[m.state] || m.state) + (m.channel === 'email' ? ' by email' : m.channel === 'sms' ? ' by text' : m.channel === 'phone' ? ' by phone' : m.channel === 'hand' ? ' in person' : m.channel === 'post' ? ' by post' : '') + (m.to ? ' to ' + m.to : ''); }
+  /* what the customer was told about a booking, kept with the message, so any later change shows up */
+  function bookingSnap(job){ var c = (job && job.customer) || {}; return {date:job.date || '', fitter:job.fitter || '', slot:job.slot || '', due:fitterDue(job), total:round2(job.total), addr:String(c.address || '') + '|' + String(c.postcode || '')}; }
+  var SNAP_WORD = {date:'the day', fitter:'the fitter', slot:'morning or afternoon', due:'the fitting total', total:'the price', addr:'the address'};
+  function snapChanges(a, b){ a = a || {}; b = b || {}; return Object.keys(SNAP_WORD).filter(function(k){ return String(a[k] == null ? '' : a[k]) !== String(b[k] == null ? '' : b[k]); }).map(function(k){ return SNAP_WORD[k]; }); }
+  function confirmLast(job){ var ms = msgsFor(job, 'confirm').filter(msgWent); return ms.length ? ms[ms.length - 1] : null; }
+  function confirmChanges(job){ var last = confirmLast(job); return last ? snapChanges(last.snap, bookingSnap(job)) : []; }
   function confirmState(job){
     if (!job || job.status !== 'open' || job.type !== 'Fitting' || !job.diary || !validISO(job.date)) return 'na';
-    var all = confirmsOf(job), last = all.length ? all[all.length - 1] : null;
-    if (!last) return 'todo';
-    return last.date === job.date && (last.fitter || '') === (job.fitter || '') ? 'sent' : 'changed';
+    if (!confirmLast(job)) return 'todo';
+    return confirmChanges(job).length ? 'changed' : 'sent';
   }
   function confirmMessage(job, from, shop){
     var first = firstName((job.customer || {}).name), due = fitterDue(job), slot = job.slot === 'AM' ? ', in the morning' : job.slot === 'PM' ? ', in the afternoon' : '';
@@ -981,12 +1094,15 @@ window.IFDLogic = (function(){
   var CHASE_DAYS = 5, RETRY_DAYS = 1;
   var CHASE_OUT = {yes:'They want to go ahead', deciding:'Still deciding', noanswer:'No answer', changes:'They want something changed', no:'Not going ahead'};
   function stampDay(at){ var d = new Date(at); return isNaN(d.getTime()) ? '' : isoOf(d); }
-  function quoteSent(q){ var st = (q && q.sent) || {}, at = ''; Object.keys(st).forEach(function(k){ if (st[k] && String(st[k].at || '') > at) at = String(st[k].at); }); return at; }
+  function quoteSent(job, q){ var ms = q ? msgsFor(job, 'quote', q.k).filter(msgWent) : []; return ms.length ? msgWhen(ms[ms.length - 1]) : ''; }
   function chasesOf(job){ var o = (job && job.chase) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
   function quoteWait(job, today){
     var q = quoteOf(job); if (!q) return null;
-    var sent = quoteSent(q);
-    if (!sent) return {state:'unsent', days:0, ringOn:'', last:null, sentAt:'', sentOn:'', calls:0};
+    var sent = quoteSent(job, q);
+    if (!sent){
+      var mine = msgsFor(job, 'quote', q.k), has = function(st){ return mine.some(function(m){ return m.state === st; }); };
+      return {state:'unsent', why:has('queued') ? 'sending' : has('failed') ? 'failed' : has('prepared') ? 'prepared' : 'none', days:0, ringOn:'', last:null, sentAt:'', sentOn:'', calls:0};
+    }
     var calls = chasesOf(job).filter(function(c){ return String(c.at) >= sent; }), last = calls.length ? calls[calls.length - 1] : null;
     var sentOn = stampDay(sent), ringOn = addDays(stampDay(last ? last.at : sent), last && last.outcome === 'noanswer' ? RETRY_DAYS : CHASE_DAYS);
     /* a call that ended in yes, or in a change to the quote, is not finished until somebody acts on it */
@@ -1001,7 +1117,7 @@ window.IFDLogic = (function(){
   function cutsOf(job){ return !job || job.status !== 'open' ? [] : stockLines(job).filter(function(l){ return l.unit === 'm' && l.hold !== 'supplier' && l.hold !== 'reserved' && !l.picked && !l.returned; }); }
   function toCut(jobs){
     var out = [];
-    (jobs || []).forEach(function(j){ var cs = cutsOf(j); if (!cs.length) return; var hold = checksOutstanding(j); cs.forEach(function(l){ out.push({job:j, line:l, hold:hold}); }); });
+    (jobs || []).forEach(function(j){ cutsOf(j).forEach(function(l){ out.push({job:j, line:l, hold:cutBlocks(j, l)}); }); });
     return out;
   }
   function lastFindings(job){ return preOf(job).filter(function(v){ return v.status === 'done'; }).sort(function(a, b){ return String(b.doneAt).localeCompare(String(a.doneAt)); })[0] || null; }
@@ -1104,6 +1220,8 @@ window.IFDLogic = (function(){
       if (hc) w.push({tone:'bad', text:'Second hall, stairs and landing for ' + job.fitter + ' on ' + fmtDay(job.date)});
       if (fc) w.push({tone:'warn', text:Math.round(fc.miles) + ' miles from ' + job.fitter + '’s other work that day (' + fc.from.name + ', ' + fc.from.out + ')'});
       offClashes(job, off).forEach(function(c){ w.push({tone:'bad', text:c.who + ' cannot work on ' + fmtDay(c.date) + ': move the ' + c.what.toLowerCase()}); });
+      if (msgFailed(job).length) w.push({tone:'bad', text:'A message to the customer did not send'});
+      if (creditOf(job) > 0) w.push({tone:'warn', text:'The customer is ' + money(creditOf(job)) + ' in credit'});
       if (!linesOf(job).length){ /* an enquiry with a measure booked: there is no installation to date yet */
         var qw = quoted(job) ? quoteWait(job, today) : null;
         if (qw && qw.state === 'unsent') w.push({tone:'bad', text:'Quote not sent to the customer yet'});
@@ -1120,7 +1238,7 @@ window.IFDLogic = (function(){
       if (job.diary && !allAllocated(job)) w.push({tone:'bad', text:'In the diary but stock is not allocated'});
       var cst = confirmState(job);
       if (cst === 'todo') w.push({tone:'bad', text:'Fitting confirmation not sent to the customer'});
-      else if (cst === 'changed') w.push({tone:'bad', text:'The day or the fitter has changed since the customer was told'});
+      else if (cst === 'changed') w.push({tone:'bad', text:'Needs reconfirmation: ' + confirmChanges(job).join(', ') + ' changed since the customer was told'});
       stockLines(job).forEach(function(l){ if (l.state === 'ordered' && validISO(l.due) && l.due < today) w.push({tone:'warn', text:'Supplier delivery overdue: ' + l.title}); });
       if (validISO(job.date)) onOrder(job).forEach(function(l){ if (l.due > job.date) w.push({tone:'bad', text:l.title + ' is not due in until ' + fmtDay(l.due) + ', after the job date'}); });
       var as = arrivalState(job, today), tries = triesOf(job).length;
@@ -1149,7 +1267,10 @@ window.IFDLogic = (function(){
     }
     if (job.status === 'done'){
       if (balanceOf(job) > 0) w.push({tone:'bad', text:money(balanceOf(job)) + ' still owed'});
-      if (hasShopifyDocs(job) && !job.shopifyClosed) w.push({tone:'warn', text:'Close off in Shopify'});
+      if (fitterOwed(job) > 0) w.push({tone:'warn', text:'Fitting total of ' + money(fitterOwed(job)) + ' not recorded as paid to the fitter'});
+      var co = closeOff(job, job.shopifySeen);
+      if (co.need && co.wrong.length) w.push({tone:'bad', text:'Shopify does not agree with this job'});
+      else if (co.need && !co.inStep) w.push({tone:'warn', text:'Close off in Shopify'});
     }
     return w;
   }
@@ -1277,7 +1398,9 @@ window.IFDLogic = (function(){
     todayISO:todayISO, validISO:validISO, addDays:addDays, daysBetween:daysBetween, mondayOf:mondayOf, weekDays:weekDays, fmtDay:fmtDay, dayParts:dayParts, parseLongDate:parseLongDate,
     extractGraphQL:extractGraphQL, parseEmbeddedJson:parseEmbeddedJson, userErrorsOf:userErrorsOf,
     levelFigures:levelFigures, isRoll:isRoll, unitFor:unitFor, fmtQty:fmtQty, ppmOf:ppmOf, rollPrice:rollPrice,
-    linesOf:linesOf, stockLines:stockLines, paidOf:paidOf, balanceOf:balanceOf, fitterDue:fitterDue, quoteFitting:quoteFitting, longDay:longDay, confirmsOf:confirmsOf, confirmState:confirmState, confirmMessage:confirmMessage, allAllocated:allAllocated, stageOf:stageOf,
+    linesOf:linesOf, stockLines:stockLines, payList:payList, paidOf:paidOf, balanceOf:balanceOf, shopTotal:shopTotal, creditOf:creditOf, fitterPaid:fitterPaid, fitterOwed:fitterOwed, owedText:owedText, receiptMessage:receiptMessage, fitterDue:fitterDue, quoteFitting:quoteFitting, longDay:longDay,
+    MSG_STATE:MSG_STATE, MSG_TONE:MSG_TONE, MSG_KIND:MSG_KIND, msgsOf:msgsOf, msgWent:msgWent, msgWhen:msgWhen, msgsFor:msgsFor, msgFailed:msgFailed, msgText:msgText, bookingSnap:bookingSnap, confirmLast:confirmLast, confirmChanges:confirmChanges, confirmState:confirmState, confirmMessage:confirmMessage,
+    shortages:shortages, goodsMissing:goodsMissing, cutBlocks:cutBlocks, isService:isService, quoteNeeds:quoteNeeds, closeOff:closeOff, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
     BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, toPrice:toPrice, quoted:quoted, CHASE_DAYS:CHASE_DAYS, CHASE_OUT:CHASE_OUT, quoteSent:quoteSent, chasesOf:chasesOf, quoteWait:quoteWait, orderNeeded:orderNeeded, onOrder:onOrder, cutsOf:cutsOf, toCut:toCut, quotesOf:quotesOf, quoteOf:quoteOf, quoteLines:quoteLines, quoteTotal:quoteTotal, quoteMessage:quoteMessage, quoteRows:quoteRows, hasSize:hasSize, firstName:firstName, lastFindings:lastFindings, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
@@ -1314,8 +1437,9 @@ const Q_SEARCH = 'query OpsSearch($q:String!){ shop{myshopifyDomain} products(fi
 const Q_VARIANTS = 'query OpsVariants($ids:[ID!]!){ shop{myshopifyDomain} nodes(ids:$ids){ ... on ProductVariant{ ' + VARIANT_FIELDS + ' product{ ' + PRODUCT_FIELDS + ' } } } }';
 const Q_CUSTOMERS = 'query OpsCustomers($q:String!){ shop{myshopifyDomain} customers(first:8, query:$q){ nodes{ id displayName numberOfOrders defaultEmailAddress{emailAddress} defaultPhoneNumber{phoneNumber} defaultAddress{address1 address2 city zip phone} } } }';
 const Q_PRODUCT = 'query OpsProduct($id:ID!){ shop{myshopifyDomain} product(id:$id){ ' + PRODUCT_FIELDS + ' variants(first:50){ nodes{ ' + VARIANT_FIELDS + ' } } } }';
-const Q_DRAFT = 'query OpsDraft($id:ID!){ shop{myshopifyDomain} draftOrder(id:$id){ id name status order{ id name displayFulfillmentStatus cancelledAt } } }';
-const Q_ORDER = 'query OpsOrder($id:ID!){ shop{myshopifyDomain} order(id:$id){ id name displayFulfillmentStatus cancelledAt } }';
+const ORDER_SEEN = 'id name displayFulfillmentStatus displayFinancialStatus cancelledAt currentTotalPriceSet{ shopMoney{ amount } } totalReceivedSet{ shopMoney{ amount } } totalOutstandingSet{ shopMoney{ amount } }';
+const Q_DRAFT = 'query OpsDraft($id:ID!){ shop{myshopifyDomain} draftOrder(id:$id){ id name status totalPriceSet{ shopMoney{ amount } } order{ ' + ORDER_SEEN + ' } } }';
+const Q_ORDER = 'query OpsOrder($id:ID!){ shop{myshopifyDomain} order(id:$id){ ' + ORDER_SEEN + ' } }';
 const Q_DRAFT_TAG = 'query OpsDraftByTag($q:String!){ shop{myshopifyDomain} draftOrders(first:2, query:$q){ nodes{ id name status } } }';
 const M_DRAFT_CREATE = 'mutation OpsDraftCreate($input:DraftOrderInput!){ draftOrderCreate(input:$input){ draftOrder{ id name status } userErrors{ field message } } }';
 const M_DRAFT_DELETE = 'mutation OpsDraftDelete($input:DraftOrderDeleteInput!){ draftOrderDelete(input:$input){ deletedId userErrors{ field message } } }';
@@ -1498,6 +1622,12 @@ function inboxList(){
 /* ---------- saved records (jobs, tasks, bays) ---------- */
 const chains = new Map();
 function queue(path, fn){ const prev = chains.get(path) || Promise.resolve(); const next = prev.catch(() => {}).then(fn); chains.set(path, next); return next; }
+/* cutting, money and messages are checked and made by the server, with the same rules these screens use */
+S.setup = {known:false, email:false, sms:false, testOnly:true, allow:0}; S.msgCfg = {};
+function needCmd(){ if (S.cap.cmd) return true; toast('This screen is not connected to the shop system’s server, so that cannot be done from here.', true); return false; }
+function runCmd(name, body){ return S.cap.cmd.run(name, body); }
+function cmdSay(e){ return (e && e.message) || 'Something went wrong. Nothing was changed.'; }
+async function loadSetup(){ if (!S.cap.cmd) return; try { S.setup = Object.assign({known:true}, await S.cap.cmd.status()); onData(); } catch (e) {} }
 function logEntry(text){ const o = {}; o['g' + uid()] = {at:nowISO(), by:S.me.id || '', text:text}; return o; }
 function needDb(){ if (S.cap.db && S.db.state !== 'off') return true; toast('Saved jobs are not available in this view, so nothing can be saved.', true); return false; }
 function patchJob(id, patch, text){
@@ -1525,7 +1655,8 @@ function saveSettings(patch){
       estimators: patch.estimators || (Array.isArray(cur.estimators) ? cur.estimators.slice() : []),
       areas: patch.areas || (Array.isArray(cur.areas) ? cur.areas.slice() : []),
       bays: patch.bays || (Array.isArray(cur.bays) ? cur.bays.slice() : []),
-      limits: patch.limits || (cur.limits && typeof cur.limits === 'object' ? cur.limits : {})
+      limits: patch.limits || (cur.limits && typeof cur.limits === 'object' ? cur.limits : {}),
+      msgs: patch.msgs || (cur.msgs && typeof cur.msgs === 'object' ? cur.msgs : {})
     });
   });
 }
@@ -1556,6 +1687,7 @@ function startDb(){
     S.estimators = Array.isArray(d.estimators) ? d.estimators.slice() : [];
     S.areas = Array.isArray(d.areas) ? d.areas.filter(a => a && a.name && Array.isArray(a.codes)) : [];
     S.limits = d.limits && typeof d.limits === 'object' ? d.limits : {};
+    S.msgCfg = d.msgs && typeof d.msgs === 'object' ? d.msgs : {};
     onData();
   }, quiet);
   db.collection('bays').onSnapshot(snap => { S.homeBays = new Map(snap.docs.map(d => [d.id, d.data()])); onData(); }, quiet);
@@ -1665,16 +1797,43 @@ function quotedJobs(){
   const t = L.todayISO(), rank = j => { const w = L.quoteWait(j, t); return w.state === 'waiting' ? '1' + w.ringOn : '0' + (w.ringOn || ''); };
   return openJobs().filter(L.quoted).sort((a, b) => rank(a).localeCompare(rank(b)));
 }
-function sentHow(q){ const st = (q && q.sent) || {}; return st.email ? 'Emailed' : st.text ? 'Texted' : st.copy ? 'Sent' : ''; }
+function wentHow(m){ return !m ? '' : m.state === 'manual' ? 'Sent by hand' : m.channel === 'email' ? 'Emailed' : m.channel === 'sms' ? 'Texted' : 'Sent'; }
 /* one plain line on where a quoted job stands */
 function quoteStatus(job){
   const q = L.quoteOf(job), w = L.quoteWait(job, L.todayISO());
-  if (w.state === 'unsent') return {text:'Not sent to the customer yet', tone:'bad', sent:''};
-  const sent = sentHow(q) + ' ' + L.fmtDay(w.sentOn);
+  if (w.state === 'unsent') return {text:w.why === 'failed' ? 'The quote did not send: try again or send it another way' : w.why === 'prepared' ? 'Prepared but not sent to the customer yet' : w.why === 'sending' ? 'Being sent now' : 'Not sent to the customer yet', tone:'bad', sent:''};
+  const went = L.msgsFor(job, 'quote', q.k).filter(L.msgWent), lm = went[went.length - 1], sent = wentHow(lm) + ' ' + L.fmtDay(w.sentOn) + (lm && lm.state === 'delivered' ? ', delivered' : '');
   if (w.state === 'yes') return {text:'They said yes: enter it as a fitting, delivery or collection', tone:'bad', sent:sent};
   if (w.state === 'change') return {text:'They want something changed: change the quote and send it again', tone:'bad', sent:sent};
   if (w.state === 'ring') return {text:w.last && w.last.outcome === 'noanswer' ? 'No answer last time: ring them again' : w.last ? 'Time to ring them again' : 'No reply in ' + w.days + ' days: ring them', tone:'bad', sent:sent};
   return {text:'Ring them on ' + L.fmtDay(w.ringOn) + ' if they have not been back', tone:'', sent:sent};
+}
+/* one message as a line: what it was, how far it got, and the exact words if asked for */
+function msgLine(job, m, withText, onRetry){
+  const how = m.channel === 'email' ? 'by email' : m.channel === 'sms' ? 'by text' : m.channel === 'phone' ? 'by phone' : m.channel === 'hand' ? 'in person' : m.channel === 'post' ? 'by post' : '';
+  return h('div', {class:'msgl'},
+    h('div', {class:'meta'}, chip(L.MSG_KIND[m.kind] || 'Message'), chip(L.MSG_STATE[m.state] || m.state, L.MSG_TONE[m.state] || ''),
+      h('span', {class:'small', text:[how, m.to ? 'to ' + m.to : '', whenText(m.deliveredAt || m.sentAt || m.failedAt || m.at), m.byName ? 'by ' + m.byName : ''].filter(Boolean).join(' · ')})),
+    m.state === 'failed' ? h('p', {class:'why', text:m.err || 'It could not be sent.'}) : null,
+    m.state === 'prepared' ? h('p', {class:'small muted', text:(m.how === 'opened' ? 'Opened in an app.' : 'Copied.') + ' Nothing was sent from here.'}) : null,
+    m.state === 'manual' && m.note ? h('p', {class:'small muted', text:m.note}) : null,
+    m.ref && (m.state === 'sent' || m.state === 'delivered') ? h('p', {class:'small muted', text:'Reference ' + m.ref}) : null,
+    m.state === 'failed' ? h('div', {class:'bar'}, btn('Try again', () => (onRetry ? onRetry(m) : retryMsg(job, m)), 'sm pri')) : null,
+    withText ? h('details', {}, h('summary', {class:'small', text:'What it said'}), h('pre', {class:'msgtext', text:(m.subject ? 'Subject: ' + m.subject + '\n\n' : '') + (m.body || '')})) : null);
+}
+async function retryMsg(job, m){
+  if (!needCmd()) return;
+  toast('Trying again');
+  try { const r = await runCmd('msg.retry', {jobId:job.id, mk:m.k, byName:myName()}); toast(r.ok ? 'It went this time' : 'It still did not send. ' + ((r.msg && r.msg.err) || ''), !r.ok); }
+  catch (e){ toast(cmdSay(e), true); }
+}
+/* messages that did not send and have not reached the customer another way since */
+function failedMsgs(){ const out = []; jobsArr().filter(j => j.status !== 'cancelled').forEach(j => L.msgFailed(j).forEach(m => out.push({job:j, m:m}))); return out.sort((a, b) => String(b.m.at).localeCompare(String(a.m.at))); }
+function failedRow(x){
+  const c = x.job.customer || {};
+  return h('div', {class:'row static act'},
+    h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (x.job.ref || '')}), h('div', {class:'sub', text:L.msgText(x.m) + ' · ' + whenText(x.m.failedAt || x.m.at)}), h('p', {class:'why', text:x.m.err || 'It could not be sent.'})),
+    h('div', {class:'bar'}, btn('Try again', () => retryMsg(x.job, x.m), 'sm pri'), btn('Open', () => openSheet(x.job.id), 'sm')));
 }
 function openQuoted(id){
   openSheet(id); const j = S.jobs.get(id), w = j ? L.quoteWait(j, L.todayISO()) : null; if (!w) return;
@@ -1695,7 +1854,7 @@ function confirmRow(job){
   return h('div', {class:'row static act'}, dateBlock(job),
     h('div', {class:'grow'}, h('div', {class:'who', text:(c.name || 'No name') + '  ' + (job.ref || '')}),
       h('div', {class:'sub', text:'Fitting ' + L.fmtDay(job.date) + (job.slot ? ' ' + job.slot : '') + (job.fitter ? ' with ' + job.fitter : '') + (L.fitterDue(job) ? ' · ' + L.money(L.fitterDue(job)) + ' to the fitter on completion' : '')}),
-      h('div', {class:'meta'}, c.phone ? chip(c.phone) : null, chip(st === 'changed' ? 'The day or the fitter has changed since they were told' : 'In the diary, customer not told yet', 'bad'))),
+      h('div', {class:'meta'}, c.phone ? chip(c.phone) : null, chip(st === 'changed' ? 'Needs reconfirmation: ' + L.confirmChanges(job).join(', ') + ' changed' : 'In the diary, customer not told yet', 'bad'))),
     h('div', {class:'bar'}, btn(st === 'changed' ? 'Send the new details' : 'Send the confirmation', () => confirmDialog(job), 'sm pri'), btn('Open', () => openSheet(job.id), 'sm')));
 }
 /* the customer has said yes and something has to be ordered in: nothing more happens to the job until the order details are in */
@@ -1733,9 +1892,9 @@ function cutRow(x, brief){
     h('div', {class:'grow'}, h('div', {class:'who', text:l.title}),
       h('div', {class:'sub', text:'For ' + (c.name || 'No name') + '  ' + (j.ref || '') + ' · ' + (j.type || 'No type') + (j.fitter ? ' with ' + j.fitter : '') + ' · ' + (L.validISO(j.date) ? L.fmtDay(j.date) : j.type === 'Collection' ? 'collects when ready' : 'no date yet')}),
       l.rooms ? h('div', {class:'sub', text:'Rooms: ' + l.rooms}) : null,
-      held ? h('p', {class:'why', text:'Do not cut yet. ' + x.hold[0]}) : null,
+      held ? h('p', {class:'why', text:'Do not cut yet. ' + x.hold.join(' ')}) : null,
       h('div', {class:'meta'}, l.holdRef ? chip('Reserved in Shopify ' + l.holdRef) : null, l.state === 'allocated' && l.bay ? bayTag(l.bay) : null)),
-    brief ? null : h('div', {class:'bar'}, held ? null : btn('Cut done', () => cutDialog(j, l), 'sm pri'), btn('Open job', () => openSheet(j.id), 'sm')));
+    brief ? null : h('div', {class:'bar'}, held ? (S.me.role === 'owner' ? btn('Override', () => cutDialog(j, l), 'sm') : null) : btn('Cut done', () => cutDialog(j, l), 'sm pri'), btn('Open job', () => openSheet(j.id), 'sm')));
 }
 function priceRow(job){
   const c = job.customer || {}, v = L.lastFindings(job) || {}, rooms = L.roomsOf(job), b = L.briefOf(job), p = L.pricingOf(job), cg = L.carpetGroups(job, rooms);
@@ -1769,7 +1928,7 @@ function actRow(job){
 }
 function paintTabs(){
   const box = $('#tabs'); box.replaceChildren();
-  const badge = {today:inboxList().length + actNowJobs().length + toPriceJobs().length + quotedJobs().filter(j => L.quoteWait(j, L.todayISO()).state !== 'waiting').length + toOrderJobs().length + confirmJobs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length, cut:cutReady().length};
+  const badge = {today:inboxList().length + actNowJobs().length + toPriceJobs().length + quotedJobs().filter(j => L.quoteWait(j, L.todayISO()).state !== 'waiting').length + toOrderJobs().length + confirmJobs().length + failedMsgs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length, cut:cutReady().length + pickAll().length};
   TABS.forEach(t => {
     const on = S.view === t.id || (t.id === 'more' && ['tasks','activity','setup','deliveries','stocktake','measures','cut'].indexOf(S.view) !== -1 && window.matchMedia('(max-width: 760px)').matches);
     box.append(h('button', {type:'button', class:'tab' + (t.cls ? ' ' + t.cls : '') + (on ? ' on' : ''), onclick:() => { if (t.id === 'sale') saleDialog(); else go(t.id); }},
@@ -1894,7 +2053,7 @@ VIEWS.today = function(){
     const todayJobs = open.filter(j => j.date === t || j.date === L.addDays(t, 1)).sort(sortOpen);
     const dueTasks = S.tasks.filter(x => !x.done && (!x.due || x.due <= t));
     const held = open.filter(j => L.checksOutstanding(j).length).sort(sortOpen);
-    const price = toPriceJobs(), quotedNow = quotedJobs(), ringN = quotedNow.filter(j => L.quoteWait(j, t).state !== 'waiting').length, toOrd = toOrderJobs(), onOrd = onOrderJobs(), cuts = cutReady(), conf = confirmJobs(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j) && !L.quoted(j)).sort(sortOpen);
+    const price = toPriceJobs(), quotedNow = quotedJobs(), ringN = quotedNow.filter(j => L.quoteWait(j, t).state !== 'waiting').length, toOrd = toOrderJobs(), onOrd = onOrderJobs(), cuts = cutReady(), conf = confirmJobs(), failed = failedMsgs(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j) && !L.quoted(j)).sort(sortOpen);
     const heldHot = held.some(j => (j.review && j.review.on) || j.diary || (L.validISO(j.date) && L.daysBetween(t, j.date) <= 7));
     body.replaceChildren();
     add(body, [
@@ -1905,8 +2064,9 @@ VIEWS.today = function(){
       S.estimators.length ? h('div', {class:'estrip', id:'estStrip'}, S.estimators.map(e => { const ld = estimatorLoad(e);
         return h('button', {type:'button', class:'estrow' + (ld.urgent.length || ld.late.length ? ' hot' : ''), onclick:() => openPersonPage(e)}, h('b', {text:e}), h('span', {class:'what', text:estimatorLine(ld)}), h('span', {class:'open', text:'Open dashboard'})); })) : null,
       price.length ? h('section', {class:'sec pricenow', id:'priceSec'}, h('h2', {}, 'To price', h('span', {text:'measured and waiting on the shop: price it, then ring the customer'})), h('div', {class:'list'}, price.map(priceRow))) : null,
-      quotedNow.length ? h('section', {class:'sec' + (ringN ? ' actnow' : ''), id:'quotedSec'}, h('h2', {}, 'Quotes sent', h('span', {text:ringN ? ringN + (ringN === 1 ? ' to deal with now' : ' to deal with now') + ', the rest waiting on the customer' : 'waiting on the customer: ring them after ' + L.CHASE_DAYS + ' days with no reply'})), h('div', {class:'list'}, quotedNow.map(quotedRow))) : null,
+      quotedNow.length ? h('section', {class:'sec' + (ringN ? ' actnow' : ''), id:'quotedSec'}, h('h2', {}, quotedNow.some(j => L.quoteWait(j, t).state === 'unsent') ? 'Quotes' : 'Quotes sent', h('span', {text:ringN ? ringN + (ringN === 1 ? ' to deal with now' : ' to deal with now') + ', the rest waiting on the customer' : 'waiting on the customer: ring them after ' + L.CHASE_DAYS + ' days with no reply'})), h('div', {class:'list'}, quotedNow.map(quotedRow))) : null,
       toOrd.length ? h('section', {class:'sec actnow', id:'orderSec'}, h('h2', {}, 'To order', h('span', {text:'the customer said yes: put the order in, then enter its details and arrival date'})), h('div', {class:'list'}, toOrd.map(orderRow))) : null,
+      failed.length ? h('section', {class:'sec actnow', id:'failedSec'}, h('h2', {}, 'Messages that did not send', h('span', {text:'the customer has not had these'})), h('div', {class:'list'}, failed.map(failedRow))) : null,
       conf.length ? h('section', {class:'sec actnow', id:'confirmSec'}, h('h2', {}, 'Confirmations to send', h('span', {text:'in the diary: tell the customer the day, the fitter and the fitting total'})), h('div', {class:'list'}, conf.map(confirmRow))) : null,
       cuts.length ? h('section', {class:'sec', id:'cutSec'}, h('h2', {}, 'To cut', h('span', {text:'in stock and waiting in the warehouse'}), h('span', {class:'grow'}), btn('Open the cutting list', () => go('cut'), 'sm pri')), h('div', {class:'list'}, cuts.map(x => cutRow(x, true)))) : null,
       onOrd.length ? h('section', {class:'sec', id:'onOrderSec'}, h('h2', {}, 'On order', h('span', {text:'waiting on the supplier'})), h('div', {class:'list'}, onOrd.map(onOrderRow))) : null,
@@ -2288,9 +2448,30 @@ VIEWS.setup = function(){
     try { await S.cap.downloads.save({filename:'ifd-jobs-' + L.todayISO() + '.json', data:JSON.stringify({exported:nowISO(), jobs:jobsArr(), tasks:S.tasks}, null, 1)}); toast('Backup saved'); }
     catch (e){ if (!e || e.code !== 'declined') toast('The backup could not be saved.', true); }
   }
+  function msgSection(){
+    const st = S.setup || {}, cfg = S.msgCfg || {}, owner = S.me.role === 'owner', testOnly = cfg.testOnly !== false, allow = Array.isArray(cfg.allow) ? cfg.allow : [];
+    const toIn = h('input', {class:'in', id:'newMsgTo', type:'text', placeholder:'A mobile number or an email address'});
+    const save = async (m, text) => { try { await saveSettings({msgs:m}); logDay(text); await loadSetup(); } catch (e){ toast(cmdSay(e), true); } };
+    return h('section', {class:'sec', id:'msgSetupSec'}, h('h2', {}, 'Messages to customers'),
+      h('div', {class:'card'},
+        h('dl', {class:'kv'}, h('dt', {text:'Email'}), h('dd', {id:'setEmail', text:!st.known ? 'Checking' : st.email ? 'Ready. Sent from ' + st.emailFrom : 'Not set up yet. The mailbox details go into the hosting settings.'}),
+          h('dt', {text:'Texts'}), h('dd', {id:'setSms', text:!st.known ? 'Checking' : st.sms ? 'Ready' : 'Not set up yet. The text service details go into the hosting settings.'}),
+          h('dt', {text:'Test mode'}), h('dd', {id:'setTest', text:testOnly ? 'On. Messages only go to the test details listed here.' : 'Off. Messages go to customers.'})),
+        allow.length ? h('div', {class:'meta'}, allow.map(x => h('span', {class:'bar'}, chip(x), owner ? btn('Remove', () => save({testOnly:testOnly, allow:allow.filter(y => y !== x)}, 'Removed ' + x + ' from the test details for messages'), 'sm') : null)))
+          : h('p', {class:'muted', text:'No test details yet, so while test mode is on nothing can be sent.'}),
+        owner ? h('div', {class:'bar'}, h('div', {class:'grow'}, toIn), btn('Add test details', () => { const v = toIn.value.trim(); if (!v || allow.indexOf(v) !== -1) return; toIn.value = ''; save({testOnly:testOnly, allow:allow.concat([v])}, 'Added ' + v + ' to the test details for messages'); })) : null,
+        owner ? h('div', {class:'bar'}, btn(testOnly ? 'Turn test mode off and message customers' : 'Turn test mode back on', () => {
+            if (!testOnly){ save({testOnly:true, allow:allow}, 'Message test mode turned on'); return; }
+            /* going live is asked twice: from then on every send goes to the customer's own email or phone */
+            openModal(dlg('Message real customers', h('div', {class:'sec', id:'liveForm'}, h('p', {text:'From now on quotes, confirmations and receipts sent from this system go to the customer’s own email address or mobile. Only do this once the test messages have arrived properly.'})),
+              [btn('Keep test mode on', closeModal, 'pri'), btn('Yes, message customers', () => { closeModal(); save({testOnly:false, allow:allow}, 'Message test mode turned OFF: messages now go to customers'); }, 'danger')], true));
+          }, 'sm'))
+          : h('p', {class:'small muted', text:'Only the owner can change these.'})));
+  }
   function draw(){
     if (editingIn(body)) return;
     body.replaceChildren(
+      msgSection(),
       h('section', {class:'sec'}, h('h2', {}, 'Shopify'),
         h('div', {class:'card'}, h('dl', {class:'kv'},
           h('dt', {text:'Store'}), h('dd', {text:S.shop.name ? S.shop.name + ' (' + S.shop.domain + ')' : 'Not connected'}),
@@ -2311,14 +2492,16 @@ VIEWS.setup = function(){
 VIEWS.cut = function(){
   const body = h('div', {style:'display:contents'});
   function draw(){
-    const all = cutAll(), ready = all.filter(x => !x.hold.length), held = all.filter(x => x.hold.length);
+    const all = cutAll(), ready = all.filter(x => !x.hold.length), held = all.filter(x => x.hold.length), picks = pickAll();
     body.replaceChildren();
     add(body, [
       h('section', {class:'sec', id:'cutList'}, h('h2', {}, 'To cut', h('span', {text:String(ready.length)})),
         listOf(ready.map(x => cutRow(x)), 'Nothing to cut', 'Carpet sold from our own rolls shows here the moment the customer says yes.')),
-      held.length ? h('section', {class:'sec', id:'cutHeld'}, h('h2', {}, 'Not to be cut yet', h('span', {text:'a size check or a review is outstanding'})), listOf(held.map(x => cutRow(x)), '', '')) : null]);
+      held.length ? h('section', {class:'sec', id:'cutHeld'}, h('h2', {}, 'Not to be cut yet', h('span', {text:'a check, a review or a shortage is outstanding'})), listOf(held.map(x => cutRow(x)), '', '')) : null,
+      h('section', {class:'sec', id:'pickList'}, h('h2', {}, 'To pick', h('span', {text:String(picks.length)})),
+        listOf(picks.map(pickRow), 'Nothing to pick', 'Underlay, gripper, door bars and anything else a job needs show here until they are picked and put with it.'))]);
   }
-  return {nodes:[h('div', {class:'head'}, h('div', {}, h('h1', {text:'Cutting list'}), h('p', {text:'Carpet sold from our own rolls. Cut it, label it with the customer’s name and job number, then say where you put it.'}))), body], refresh:draw};
+  return {nodes:[h('div', {class:'head'}, h('div', {}, h('h1', {text:'Cutting and picking'}), h('p', {text:'Carpet to cut from our own rolls, and everything else a job needs picked. Label it with the customer’s name and job number, then say where you put it.'}))), body], refresh:draw};
 };
 VIEWS.more = function(){
   return {nodes:[h('div', {class:'head'}, h('h1', {text:'More'})),
@@ -2338,7 +2521,7 @@ function openSheet(id){
   if (od.length) arrivalPopup(od);
 }
 function closeSheet(){ S.fitterSheet = null; S.openJob = null; S.openDelivery = null; const s = $('#sheet'); s.hidden = true; s.replaceChildren(); }
-const HOLD_TEXT = {web:'Taken off Shopify stock by the website deposit', order:'On the Shopify order', draft:'Reserved in Shopify', supplier:'Ordered in for this customer', reserved:'Ordered in and held in Shopify for this job', none:'No stock needed'};
+const HOLD_TEXT = {pick:'To be picked for this job', web:'Taken off Shopify stock by the website deposit', order:'On the Shopify order', draft:'Reserved in Shopify', supplier:'Ordered in for this customer', reserved:'Ordered in and held in Shopify for this job', none:'No stock needed'};
 function tickLine(job, l, fieldName, value){
   const p = {lines:{}}; p.lines[l.k] = {}; p.lines[l.k][fieldName] = value;
   const word = fieldName === 'picked' ? (l.unit === 'm' ? 'cut' : 'picked') : 'checked';
@@ -2357,6 +2540,7 @@ function lineBlock(job, l){
     else if (l.state === 'ordered'){ state.append(chip('On order' + (l.supplier ? ' from ' + l.supplier : '') + (l.orderRef ? ', order ' + l.orderRef : '') + (l.due ? ', due ' + L.fmtDay(l.due) : ''), L.validISO(l.due) && l.due < L.todayISO() ? 'bad' : 'info')); }
     else if (l.hold === 'supplier') state.append(chip('Order details needed', 'bad'));
     else if (toCutLine) state.append(chip('On the cutting list', 'warn'));
+    else if (l.hold === 'pick') state.append(chip('Not picked yet', 'warn'));
     else state.append(chip('No bay yet', 'warn'));
     if (l.cutBy) state.append(chip('Cut by ' + l.cutBy));
     if (l.returned) state.append(chip('Put back into stock'));
@@ -2373,7 +2557,7 @@ function lineBlock(job, l){
       (!viaDelivery && !(toCutLine && l.state !== 'allocated')) || (l.state === 'allocated' && !l.rx) ? btn(l.state === 'allocated' ? 'Move' : 'Put in a bay', () => allocDialog(job, l, 'bay'), 'sm' + (l.state === 'allocated' ? '' : ' pri')) : null,
       !viaDelivery && l.state !== 'allocated' ? btn('It needs ordering', () => allocDialog(job, l, 'order'), 'sm') : null,
       l.state === 'allocated' ? h('span', {class:'ticks'},
-        h('label', {class:'tick'}, h('input', {type:'checkbox', checked:!!l.picked, onchange:e => tickLine(job, l, 'picked', e.target.checked)}), l.unit === 'm' ? 'Cut' : 'Picked'),
+        h('label', {class:'tick'}, h('input', {type:'checkbox', checked:!!l.picked, onchange:e => { if (l.unit === 'm' && e.target.checked){ e.target.checked = false; cutDialog(job, l); } else tickLine(job, l, 'picked', e.target.checked); }}), l.unit === 'm' ? 'Cut' : 'Picked'),
         h('label', {class:'tick'}, h('input', {type:'checkbox', checked:!!l.checked, disabled:!l.picked, onchange:e => tickLine(job, l, 'checked', e.target.checked)}), 'Checked')) : null) : null);
 }
 async function checkLive(job){
@@ -2429,12 +2613,14 @@ function drawSheet(){
   const fitSel = h('select', {class:'in sm', id:'jobFitter', disabled:!open, onchange:e => { const v = e.target.value; e.target.blur(); const om = offMsg(v, job.date) || (v ? hslMsg(job, v, job.date) : ''); if (om){ toast(om, true); drawSheet(); return; } set({fitter:v}, v ? 'Given to ' + v : 'Fitter cleared'); }}, h('option', {value:'', text:'Nobody yet'}));
   const fitters = S.fitters.slice(); if (job.fitter && fitters.indexOf(job.fitter) === -1) fitters.unshift(job.fitter);
   fitters.forEach(f => fitSel.append(h('option', {value:f, text:f, selected:f === job.fitter})));
-  const cst = L.confirmState(job), confs = L.confirmsOf(job), lastConf = confs.length ? confs[confs.length - 1] : null;
-  const told = x => (x.how === 'email' ? 'Emailed' : x.how === 'text' ? 'Texted' : 'Sent') + (x.to ? ' to ' + x.to : '') + ' ' + whenText(x.at) + (x.byName ? ' by ' + x.byName : '');
+  const cst = L.confirmState(job), lastConf = L.confirmLast(job), cChanges = L.confirmChanges(job), cTry = L.msgsFor(job, 'confirm').filter(m => !L.msgWent(m)).pop();
+  const told = x => wentHow(x) + (x.to ? ' to ' + x.to : '') + ' ' + whenText(L.msgWhen(x)) + (x.byName ? ' by ' + x.byName : '') + (x.state === 'delivered' ? ', delivered' : '');
+  const capFirst = t => t.charAt(0).toUpperCase() + t.slice(1);
   const confirmBanner = cst === 'todo' ? h('div', {class:'banner bad', id:'confirmBanner'}, h('div', {class:'grow'}, h('b', {text:'Tell the customer. '}),
-        'The fitting is in the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + ' and the confirmation has not been sent.'), btn('Send the confirmation', () => confirmDialog(job), 'pri sm'))
-    : cst === 'changed' ? h('div', {class:'banner bad', id:'confirmBanner'}, h('div', {class:'grow'}, h('b', {text:'Tell the customer again. '}),
-        'They were told ' + L.fmtDay(lastConf.date) + (lastConf.fitter ? ' with ' + lastConf.fitter : '') + '. It is now ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + '.'), btn('Send the new details', () => confirmDialog(job), 'pri sm'))
+        'The fitting is in the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + ' and the confirmation has not been sent.' + (cTry ? (cTry.state === 'failed' ? ' The last try did not send.' : cTry.state === 'prepared' ? ' It was prepared but not sent.' : '') : '')),
+        btn('Send the confirmation', () => confirmDialog(job), 'pri sm'))
+    : cst === 'changed' ? h('div', {class:'banner bad', id:'confirmBanner'}, h('div', {class:'grow'}, h('b', {text:'Needs reconfirmation. '}),
+        capFirst(cChanges.join(', ')) + ' changed since the customer was told (' + told(lastConf) + ').'), btn('Send the new details', () => confirmDialog(job), 'pri sm'))
     : null;
   const confirmLine = cst === 'sent' ? h('p', {class:'small', id:'confirmSent'}, 'Confirmation: ' + told(lastConf) + '.  ', btn('Send it again', () => confirmDialog(job), 'sm')) : null;
   const held = open && L.checksOutstanding(job).length > 0;
@@ -2454,14 +2640,28 @@ function drawSheet(){
     diaryAct, confirmLine);
 
   const pays = Object.keys(job.pay || {}).map(k => job.pay[k]).sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  const fd = L.fitterDue(job), mq = !lines.length ? L.quoteOf(job) : null;
-  const moneyCard = h('div', {class:'card', id:'moneyCard'}, h('h3', {}, 'Money', !lines.length ? chip('Nothing sold yet') : bal > 0 ? chip(L.money(bal) + (fd ? ' to pay the shop' : ' to pay'), job.status === 'done' ? 'bad' : 'warn') : chip(fd ? 'Shop paid' : 'Paid', 'ok')),
+  const fd = L.fitterDue(job), mq = !lines.length ? L.quoteOf(job) : null, ledger = L.payList(job), credit = L.creditOf(job), paidNow = L.paidOf(job), canPay = job.status !== 'cancelled';
+  const payRow = e => h('div', {class:'payl' + (e.void ? ' void' : '')},
+    h('div', {class:'ln-top'}, h('span', {text:whenText(e.at) + '  ' + (e.kind === 'refund' ? 'Refund' : 'Paid') + (e.method ? ' by ' + String(e.method).toLowerCase() : '') + (e.byName ? ', entered by ' + e.byName : '')}), h('b', {class:'num', text:(e.kind === 'refund' ? '-' : '') + L.money(e.amount)})),
+    e.tendered ? h('p', {class:'small muted', text:L.money(e.tendered) + ' handed over, ' + L.money(e.change) + ' change given.'}) : null,
+    e.credit ? h('p', {class:'small muted', text:'This left the customer ' + L.money(e.credit) + ' in credit.'}) : null,
+    e.reason ? h('p', {class:'small muted', text:'Reason: ' + e.reason}) : null, e.note ? h('p', {class:'small muted', text:e.note}) : null,
+    e.void ? h('p', {class:'small', text:'Struck out ' + whenText(e.void.at) + ' by ' + (e.void.byName || 'someone') + ': ' + e.void.reason}) : null,
+    !e.void ? h('div', {class:'bar'}, e.kind === 'refund' || !canPay ? null : btn('Correct', () => payFixDialog(job, e, 'correction'), 'sm'), btn('Strike out', () => payFixDialog(job, e, 'void'), 'sm')) : null);
+  const moneyCard = h('div', {class:'card', id:'moneyCard'}, h('h3', {}, 'Money', !lines.length && !ledger.length ? chip('Nothing sold yet') : credit ? chip(L.money(credit) + ' in credit', 'info')
+      : bal > 0 ? chip(L.money(bal) + (fd ? ' to pay the shop' : ' to pay'), job.status === 'done' ? 'bad' : 'warn') : chip(fd ? 'Shop paid' : 'Paid', 'ok')),
     h('dl', {class:'kv'}, h('dt', {text:'Total'}), h('dd', {class:'num', text:L.money(job.total)}),
-      fd ? [h('dt', {text:'Fitting total, paid to the fitter on completion'}), h('dd', {class:'num', id:'fitDue', text:L.money(fd)}), h('dt', {text:'To pay the shop'}), h('dd', {class:'num', id:'shopDue', text:L.money(L.round2((Number(job.total) || 0) - fd))})] : null,
-      pays.map(p => [h('dt', {text:whenText(p.at)}), h('dd', {class:'num', text:L.money(p.amount) + ' ' + (p.method || '')})])),
+      fd ? [h('dt', {text:'Fitting total, paid to the fitter on completion'}), h('dd', {class:'num', id:'fitDue', text:L.money(fd)}),
+        h('dt', {text:'Has the customer paid the fitter'}), h('dd', {id:'fitPaid', text:L.fitterPaid(job) ? 'Yes. Recorded ' + whenText(job.fitterPaid.at) + ' by ' + (job.fitterPaid.byName || 'someone') + (job.fitterPaid.note ? ': ' + job.fitterPaid.note : '') : job.status === 'done' ? 'Not recorded yet' : 'Not yet: it is due when the job is finished'}),
+        h('dt', {text:'To pay the shop'}), h('dd', {class:'num', id:'shopDue', text:L.money(L.shopTotal(job))})] : null,
+      ledger.length ? [h('dt', {text:'Paid to the shop so far'}), h('dd', {class:'num', id:'shopPaid', text:L.money(paidNow)})] : null),
+    ledger.length ? h('div', {id:'ledger'}, ledger.map(payRow)) : null,
     mq ? h('p', {class:'small muted', text:'Quoted ' + L.money(L.quoteTotal(mq)) + (L.quoteFitting(mq) > 0 ? ', of which ' + L.money(L.quoteFitting(mq)) + ' is fitting' : '') + '. Nothing is owed until the customer says yes.'}) : null,
-    job.status !== 'cancelled' ? h('div', {class:'bar'}, btn('Take a payment', () => payDialog(job), 'sm' + (bal > 0 ? ' pri' : '')), btn('Change the total', () => totalDialog(job), 'sm'),
-      open && job.type === 'Fitting' && lines.length ? btn(fd ? 'Change the fitting total' : 'Set the fitting total', () => fitPayDialog(job), 'sm') : null) : null);
+    h('div', {class:'bar'}, canPay ? btn('Record a payment', () => payDialog(job), 'sm' + (bal > 0 ? ' pri' : '')) : null, paidNow > 0 ? btn('Record a refund', () => refundDialog(job), 'sm' + (credit ? ' pri' : '')) : null,
+      ledger.length ? btn('Send a receipt', () => receiptDialog(job), 'sm') : null, canPay ? btn('Change the total', () => totalDialog(job), 'sm') : null,
+      open && job.type === 'Fitting' && lines.length ? btn(fd ? 'Change the fitting total' : 'Set the fitting total', () => fitPayDialog(job), 'sm') : null,
+      fd && job.status !== 'cancelled' ? btn(L.fitterPaid(job) ? 'The fitter was not paid after all' : 'The fitter has been paid', () => fitterPaidDialog(job), 'sm') : null),
+    h('p', {class:'small muted', text:'This is a record of money already taken on the card machine, in cash or by bank transfer. Nothing here charges a card.'}));
 
   const arr = L.arrivalState(job, L.todayISO()), tries = L.triesOf(job), visits = L.visitsOf(job);
   const arrivalCard = arr === 'na' ? null : h('div', {class:'card'},
@@ -2489,10 +2689,8 @@ function drawSheet(){
     finishCard = h('div', {class:'card'}, h('h3', {}, 'Held stock to release', chip('To do', 'warn')),
       h('p', {class:'muted', text:'The goods held for this job have gone, but Shopify still shows them as held. ' + (lines.find(l => l.releaseMsg) || {releaseMsg:''}).releaseMsg}),
       h('div', {class:'bar'}, btn('Release in Shopify', () => releaseHeld(job.id, true), 'pri sm')));
-  } else if (job.status === 'done' && L.hasShopifyDocs(job) && !job.shopifyClosed){
-    finishCard = h('div', {class:'card'}, h('h3', {}, 'Close off in Shopify', chip('To do', 'warn')),
-      h('p', {class:'muted', text:'The goods have gone, so Shopify needs to know. ' + (drafts.length ? 'Open the draft, press Create order, mark it paid, then fulfil it. ' : '') + (job.orderId ? 'Open the order and mark it fulfilled. ' : '') + 'Then press Check.'}),
-      h('div', {class:'bar'}, btn('Check Shopify', () => checkClosed(job), 'pri sm')));
+  } else if (job.status === 'done' && L.hasShopifyDocs(job)){
+    finishCard = closeCard(job);
   }
   const logs = Object.keys(job.log || {}).map(k => job.log[k]).sort((a, b) => String(b.at).localeCompare(String(a.at)));
   learnNames(Array.from(new Set(logs.map(x => x.by))));
@@ -2505,19 +2703,23 @@ function drawSheet(){
   const toPriceBanner = lf ? h('div', {class:'banner info', id:'toPriceBanner'}, h('div', {class:'grow'}, h('b', {text:'Measured and ready to price. '}),
       'The sizes came in from ' + (lf.doneBy || 'the measure') + ' ' + whenText(lf.doneAt) + '. Check the summary below, press Price it to build the quote, then ring ' + (c.name || 'the customer') + (c.phone ? ' on ' + c.phone : '') + '.'),
     btn('Price it', () => quoteDialog(job), 'pri sm')) : null;
-  const pq = L.quoteOf(job), sentBits = pq ? ['email', 'text', 'copy'].filter(k => pq.sent && pq.sent[k]).map(k => (k === 'email' ? 'Email opened to ' + pq.sent[k].to : k === 'text' ? 'Text opened to ' + pq.sent[k].to : 'Copied to send') + ' ' + whenText(pq.sent[k].at) + ' by ' + (pq.sent[k].byName || 'someone')) : [];
+  const pq = L.quoteOf(job), qmsgs = pq ? L.msgsFor(job, 'quote', pq.k) : [];
   const qw = pq && L.quoted(job) ? L.quoteWait(job, L.todayISO()) : null, qs = qw ? quoteStatus(job) : null, acc = job.accepted || null, calls = L.chasesOf(job);
-  const priceQuoteCard = pq ? h('div', {class:'card', id:'quoteCard'}, h('h3', {}, 'Quote', chip(L.money(L.quoteTotal(pq)), 'info'),
-      acc ? chip('Accepted', 'ok') : job.lost ? chip('Not taken') : qw ? chip(qw.state === 'unsent' ? 'Not sent yet' : qw.state === 'ring' ? 'Ring them' : qw.state === 'yes' ? 'Said yes' : qw.state === 'change' ? 'Wants it changed' : 'Waiting on the customer', qw.state === 'waiting' ? 'warn' : 'bad') : null),
+  const qChip = !qw ? null : qw.state === 'unsent' ? chip(qw.why === 'failed' ? 'Did not send' : qw.why === 'prepared' ? 'Prepared, not sent' : qw.why === 'sending' ? 'Sending' : 'Not sent yet', 'bad')
+    : chip(qw.state === 'ring' ? 'Ring them' : qw.state === 'yes' ? 'Said yes' : qw.state === 'change' ? 'Wants it changed' : 'Waiting on the customer', qw.state === 'waiting' ? 'warn' : 'bad');
+  const priceQuoteCard = pq ? h('div', {class:'card', id:'quoteCard'}, h('h3', {}, 'Quote', chip(L.money(L.quoteTotal(pq)), 'info'), acc ? chip('Accepted', 'ok') : job.lost ? chip('Not taken') : qChip),
     L.quoteLines(pq).map(l => h('div', {class:'ln-top'}, h('span', {text:l.label}), h('b', {class:'num', text:L.money(l.price)}))),
     h('div', {class:'qtotal'}, h('span', {text:'Total'}), h('b', {class:'num', text:L.money(L.quoteTotal(pq))})),
-    h('p', {class:'small muted', text:'Saved by ' + (pq.byName || 'someone') + ' ' + whenText(pq.at) + '. ' + (sentBits.length ? sentBits.join('. ') + '.' : 'Not sent to the customer yet.')}),
-    qs && qw.state !== 'unsent' ? h('p', {id:'quoteNext', style:qw.state !== 'waiting' ? 'font-weight:700;color:var(--bad)' : 'font-weight:600', text:qs.text + '.'}) : null,
+    h('p', {class:'small muted', text:'Saved by ' + (pq.byName || 'someone') + ' ' + whenText(pq.at) + '.' + (qmsgs.some(L.msgWent) ? ' ' + qs0(qmsgs) : ' The customer has not been sent it.')}),
+    qs ? h('p', {id:'quoteNext', style:qw.state !== 'waiting' ? 'font-weight:700;color:var(--bad)' : 'font-weight:600', text:qs.text + '.'}) : null,
     calls.length ? h('div', {class:'log', id:'quoteCalls'}, calls.map(x => h('div', {text:whenText(x.at) + '  ' + (x.byName || 'Someone') + ' rang. ' + (L.CHASE_OUT[x.outcome] || x.outcome) + (x.note ? ': ' + x.note : '')}))) : null,
     acc ? h('p', {class:'small', id:'quoteAccepted', text:'The customer said yes ' + whenText(acc.at) + '. Taken by ' + (acc.byName || 'someone') + '.'}) : null,
     job.lost ? h('p', {class:'small', text:'Not going ahead: ' + (job.lost.why || 'no reason given') + '.'}) : null,
     open && qw ? h('div', {class:'bar'}, btn('Customer said yes', () => acceptDialog(job), 'pri'), btn('Rang them', () => chaseDialog(job), 'sm'),
       btn(qw.state === 'unsent' ? 'Send it' : 'Send it again', () => sendQuoteDialog(job, pq), 'sm' + (qw.state === 'unsent' ? ' pri' : '')), btn('Change it', () => quoteDialog(job), 'sm')) : null) : null;
+  function qs0(ms){ const w = ms.filter(L.msgWent), m = w[w.length - 1]; return wentHow(m) + (m.to ? ' to ' + m.to : '') + ' ' + whenText(L.msgWhen(m)) + (m.byName ? ' by ' + m.byName : '') + (m.state === 'delivered' ? ', delivered' : '') + '.'; }
+  const allMsgs = L.msgsOf(job);
+  const msgsCard = allMsgs.length ? h('div', {class:'card', id:'msgsCard'}, h('h3', {}, 'Messages to the customer', chip(String(allMsgs.length))), allMsgs.slice().reverse().map(m => msgLine(job, m, true))) : null;
   const needOrd = open ? L.orderNeeded(job) : [], cutsNow = open ? L.cutsOf(job) : [];
   const orderBanner = needOrd.length ? h('div', {class:'banner bad', id:'orderBanner'}, h('div', {class:'grow'}, h('b', {text:'To order. '}),
       needOrd.map(l => L.fmtQty(l.qty, l.unit) + ' of ' + l.title).join('; ') + '. This job is held here until the order details and the arrival date are in.'), btn('Enter order details', () => orderDetailsFor(job), 'pri sm')) : null;
@@ -2535,8 +2737,8 @@ function drawSheet(){
           job.status === 'done' ? chip((job.doneAs || 'Done') + ' ' + whenText(job.doneAt) + (job.signoff && job.signoff.fitter ? ', signed off by ' + job.signoff.fitter : '')) : null)),
       btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'},
-      backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0) && !(confirmBanner && /^(Fitting confirmation not sent|The day or the fitter has changed)/.test(w.text))).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
-      toPriceBanner, orderBanner, cutBanner, confirmBanner, priceQuoteCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
+      backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0) && !(confirmBanner && /^(Fitting confirmation not sent|Needs reconfirmation)/.test(w.text))).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
+      toPriceBanner, orderBanner, cutBanner, confirmBanner, priceQuoteCard, msgsCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
       h('div', {class:'card'}, h('h3', {}, 'History'), h('div', {class:'log'}, logs.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': ' + x.text}))))));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -3006,41 +3208,110 @@ function quoteDialog(job){
       h('div', {class:'qtotal'}, h('span', {text:'Total'}), total)),
     field('Your name, shown on the quote', who), s.box), [btn('Cancel', closeModal), save]));
 }
-function sendQuoteDialog(job, q){
-  if (!needDb()) return;
-  const s = sayer(), c = job.customer || {}, name = q.byName || myName();
-  const msg = h('textarea', {class:'in qmsg', id:'quoteMsg'}); msg.value = L.quoteMessage(job, q, name, SHOP);
-  const email = h('input', {class:'in', id:'quoteEmail', type:'email', value:c.email || '', placeholder:'Customer’s email'}), phone = h('input', {class:'in', id:'quotePhone', type:'tel', value:c.phone || '', placeholder:'Customer’s mobile'});
-  const warn = h('p', {class:'small', id:'quoteWarn', style:'color:var(--bad);font-weight:700', hidden:true, text:'There is a size in the message. Take it out: customers are only given the figures.'});
-  const mail = h('a', {class:'btn pri', id:'quoteEmailBtn', text:'Email it'}), text = h('a', {class:'btn pri', id:'quoteTextBtn', text:'Text it'});
-  const sent = async (how, to) => {
-    const pt = {quotes:{}}, rec = {}; rec[how] = {at:nowISO(), to:to, byName:name}; pt.quotes[q.k] = {sent:rec};
-    if (how === 'email' && to && to !== (c.email || '')) pt.customer = {email:to};
-    try { await patchJob(job.id, pt, 'Quote of ' + L.money(L.quoteTotal(q)) + (how === 'email' ? ' opened in email to ' + to : how === 'text' ? ' opened as a text to ' + to : ' copied to send') + ' by ' + name); s.say(''); } catch (e){ dbFail(e); }
-  };
-  function links(){
-    const bad = L.hasSize(msg.value), em = email.value.trim(), ph = phone.value.replace(/[^\d+]/g, '');
-    warn.hidden = !bad;
-    const okMail = !bad && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em), okText = !bad && ph.length >= 10;
-    mail.className = 'btn pri' + (okMail ? '' : ' off'); text.className = 'btn pri' + (okText ? '' : ' off');
-    if (okMail) mail.href = 'mailto:' + encodeURIComponent(em) + '?subject=' + encodeURIComponent('Your quote from ' + SHOP.name) + '&body=' + encodeURIComponent(msg.value); else mail.removeAttribute('href');
-    if (okText) text.href = 'sms:' + ph + '?&body=' + encodeURIComponent(msg.value); else text.removeAttribute('href');
+/* ---------- sending a message to the customer ----------
+   The system sends it and says whether it went. Copying it, or opening it in an app, only prepares it and is never
+   counted as sent. If staff really did send it themselves they say so, and it is recorded as sent by hand under their name.
+   The exact words are kept with the message, and are what is shown again if this is reopened. */
+function messageDialog(job, o){
+  if (!needDb() || !needCmd()) return;
+  const s = sayer(), c = job.customer || {}, prior = L.msgsFor(job, o.kind, o.rev), last = prior.length ? prior[prior.length - 1] : null, mine = prior.slice();
+  const who = h('input', {class:'in', id:'msgBy', type:'text', placeholder:'Your first name', value:o.name || myName(), autocomplete:'off'});
+  const msg = h('textarea', {class:'in qmsg', id:'msgBody'}); let edited = !!last, busy = false; const token = {email:uid(), sms:uid()};
+  msg.value = last ? last.body : o.build(who.value.trim() || 'The team');
+  const email = h('input', {class:'in', id:'msgEmail', type:'email', value:c.email || '', placeholder:'Customer’s email'}), phone = h('input', {class:'in', id:'msgPhone', type:'tel', value:c.phone || '', placeholder:'Customer’s mobile'});
+  const warn = h('p', {class:'small', id:'msgWarn', style:'color:var(--bad);font-weight:700', hidden:true}), setup = h('p', {class:'small', id:'msgSetup', style:'font-weight:600'});
+  const result = h('div', {id:'msgResult'}), list = h('div', {id:'msgList'});
+  const bMail = btn('Send by email', () => send('email'), 'pri'), bText = btn('Send by text', () => send('sms'), 'pri'); bMail.id = 'msgSendEmail'; bText.id = 'msgSendText';
+  const okMail = () => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim()), okText = () => phone.value.replace(/[^\d+]/g, '').length >= 10;
+  function ok(){
+    const errs = [];
+    if (!who.value.trim()) errs.push('Type your name, so the customer knows who it is from.');
+    if (!msg.value.trim()) errs.push('There is no message.');
+    if (o.noSizes && L.hasSize(msg.value)) errs.push('There is a size in the message. Take it out: customers are only given the figures.');
+    warn.hidden = !errs.length; warn.textContent = errs.join(' ');
+    if (!errs.length) myName(who.value.trim());
+    return !errs.length;
   }
-  [msg, email, phone].forEach(el => el.addEventListener('input', links)); links();
-  mail.addEventListener('click', () => { if (mail.href) sent('email', email.value.trim()); });
-  text.addEventListener('click', () => { if (text.href) sent('text', phone.value.trim()); });
+  function paint(){
+    const st = S.setup || {}, bits = [];
+    bMail.disabled = busy || !okMail() || (st.known && !st.email); bText.disabled = busy || !okText() || (st.known && !st.sms);
+    if (st.known && !st.email) bits.push('Email sending is not set up yet.');
+    if (st.known && !st.sms) bits.push('Texting is not set up yet.');
+    if (st.known && (!st.email || !st.sms)) bits.push('Until it is, send it another way below and record that you did.');
+    if (st.known && st.testOnly && (st.email || st.sms)) bits.push('Test mode is on: messages only go to the owner’s test details.');
+    setup.textContent = bits.join(' '); setup.hidden = !bits.length;
+    list.replaceChildren(); if (mine.length) add(list, [h('p', {class:'small', style:'font-weight:700;margin:0', text:'What has happened with this so far'}), mine.map(m => msgLine(job, m, false, x => retry(x.k)))]);
+  }
+  function took(r){ if (!r || !r.mk || !r.msg) return; const i = mine.findIndex(m => m.k === r.mk), rec = Object.assign({k:r.mk}, r.msg); if (i === -1) mine.push(rec); else mine[i] = rec; }
+  function show(r){
+    const m = r.msg || {}; result.replaceChildren();
+    add(result, r.ok ? h('div', {class:'banner ok', id:'msgOk'}, h('p', {text:(m.channel === 'email' ? 'Sent. The mail server accepted it for ' : 'Sent. The text service accepted it for ') + m.to + '.' + (m.channel === 'sms' ? ' It shows as delivered once the handset has it.' : '')}))
+      : h('div', {class:'banner bad', id:'msgFail'}, h('p', {class:'grow', text:'It did not send. ' + (m.err || '')}), btn('Try again', () => retry(r.mk), 'sm pri')));
+  }
+  async function send(channel, again){
+    if (busy || !ok()) return;
+    const to = channel === 'email' ? email.value.trim() : phone.value.trim();
+    busy = true; paint(); s.say(channel === 'email' ? 'Sending the email' : 'Sending the text');
+    try {
+      const r = await runCmd('msg.send', {jobId:job.id, kind:o.kind, channel:channel, to:to, subject:o.subject, body:msg.value, rev:o.rev, snap:o.snap || null, byName:who.value.trim(), key:token[channel], again:!!again});
+      token[channel] = uid();                                    /* answered: the next send is a new one. Unanswered, the same reference goes again and cannot double up. */
+      if (channel === 'email' && to.toLowerCase() !== String(c.email || '').toLowerCase()) patchJob(job.id, {customer:{email:to}}, null).catch(() => {});
+      took(r); s.say(''); show(r);
+    } catch (e){
+      if (e && e.code === 'already_sent'){ s.say(''); result.replaceChildren(); add(result, h('div', {class:'banner warn', id:'msgTwice'}, h('p', {class:'grow', text:e.message}), btn('Send it again', () => send(channel, true), 'sm'))); }
+      else s.say(cmdSay(e), true);
+    }
+    busy = false; paint();
+  }
+  async function retry(mk){
+    if (busy) return; busy = true; paint(); s.say('Trying again');
+    try { const r = await runCmd('msg.retry', {jobId:job.id, mk:mk, byName:who.value.trim() || myName()}); took(r); s.say(''); show(r); } catch (e){ s.say(cmdSay(e), true); }
+    busy = false; paint();
+  }
+  async function note(cmd, extra){
+    try { const r = await runCmd(cmd, Object.assign({jobId:job.id, kind:o.kind, body:msg.value, rev:o.rev, snap:o.snap || null, byName:who.value.trim(), subject:o.subject, key:uid()}, extra)); took(r); paint(); return true; }
+    catch (e){ s.say(cmdSay(e), true); return false; }
+  }
   const copy = btn('Copy the message', async () => {
-    if (L.hasSize(msg.value)){ links(); return; }
-    try { await navigator.clipboard.writeText(msg.value); toast('Copied'); } catch (e){ try { msg.focus(); msg.select(); } catch (x) {} toast('Select the message and copy it'); }
-    sent('copy', '');
+    if (!ok()) return;
+    try { await navigator.clipboard.writeText(msg.value); } catch (e){ try { msg.focus(); msg.select(); } catch (x) {} }
+    if (await note('msg.prepared', {channel:'copy', to:'', how:'copied'})) toast('Copied. It is not sent until you send it yourself');
+  }, 'sm'); copy.id = 'msgCopy';
+  const app = h('a', {class:'btn sm', id:'msgOpenMail', text:'Open in my email app'});
+  app.addEventListener('click', e => {
+    if (!ok() || !okMail()){ e.preventDefault(); if (!okMail()) s.say('Type the customer’s email first.', true); return; }
+    app.href = 'mailto:' + encodeURIComponent(email.value.trim()) + '?subject=' + encodeURIComponent(o.subject) + '&body=' + encodeURIComponent(msg.value);
+    note('msg.prepared', {channel:'email', to:email.value.trim(), how:'opened'});
   });
-  openModal(dlg('Send the quote', h('div', {class:'sec', id:'quoteSend'},
-    h('p', {}, h('b', {text:'Quote saved: ' + L.money(L.quoteTotal(q)) + '. '}), 'This is what the customer gets. It has the figures and no sizes. Change the wording if you want to.'),
-    msg, warn,
+  const handHow = h('select', {class:'in', id:'msgHandHow'}, [['email', 'From my own email'], ['sms', 'By text from my own phone'], ['phone', 'I told them by phone'], ['hand', 'I handed it to them'], ['post', 'By post']].map(x => h('option', {value:x[0], text:x[1]})));
+  const handTo = h('input', {class:'in', id:'msgHandTo', type:'text', placeholder:'The address or number it went to'}), handNote = h('input', {class:'in', id:'msgHandNote', type:'text', placeholder:'Anything to add'});
+  const handBox = h('div', {class:'card tight', id:'msgHandBox', hidden:true}, h('p', {class:'small muted', text:'Only use this once you really have sent it yourself. It goes on the job under your name.'}),
+    field('How it was sent', handHow), field('Sent to', handTo), field('Note', handNote),
+    btn('Record it as sent by hand', async () => {
+      if (!ok()) return;
+      const ch = handHow.value, to = handTo.value.trim() || (ch === 'email' ? email.value.trim() : ch === 'sms' ? phone.value.trim() : '');
+      if (await note('msg.manual', {channel:ch, to:to, note:handNote.value.trim()})){ handBox.hidden = true; result.replaceChildren(); add(result, h('div', {class:'banner info', id:'msgHandDone'}, h('p', {text:'Recorded as sent by hand by ' + who.value.trim() + '.'}))); }
+    }, 'sm pri'));
+  const hand = btn('I sent it myself', () => { handBox.hidden = !handBox.hidden; }, 'sm'); hand.id = 'msgHand';
+  msg.addEventListener('input', () => { edited = true; ok(); });
+  who.addEventListener('input', () => { if (!edited) msg.value = o.build(who.value.trim() || 'The team'); paint(); });
+  [email, phone].forEach(el => el.addEventListener('input', paint));
+  openModal(dlg(o.title, h('div', {class:'sec', id:'msgForm'},
+    h('p', {}, o.head ? h('b', {text:o.head + ' '}) : null, 'This is what the customer gets. Change the wording if you want to.'),
+    field('Your name, shown on the message', who), msg, warn,
     h('div', {class:'grid2'}, field('Email', email), field('Mobile', phone)),
-    h('div', {class:'bar'}, mail, text, copy),
-    h('p', {class:'small muted', text:'Email it opens your email with the quote ready to send. Text it opens the messages app, so use it on a phone. Nothing goes to the customer until you press send there.'}),
-    s.box), [btn('Done', closeModal, 'pri')]));
+    h('div', {class:'bar'}, bMail, bText), setup, result,
+    h('p', {class:'small muted', text:'The system sends it and tells you whether it went. It is only marked as sent once the email or text service has accepted it.'}),
+    h('div', {class:'bar'}, h('span', {class:'small muted', text:'Other ways:'}), copy, app, hand), handBox, list, s.box), [btn('Done', closeModal, 'pri')]));
+  paint();
+}
+function sendQuoteDialog(job, q){
+  messageDialog(job, {kind:'quote', rev:q.k, title:'Send the quote', head:'Quote of ' + L.money(L.quoteTotal(q)) + '. It has the figures and no sizes.', noSizes:true, name:q.byName || myName(),
+    subject:'Your quote from ' + SHOP.name, build:name => L.quoteMessage(job, q, name, SHOP)});
+}
+function receiptDialog(job){
+  messageDialog(job, {kind:'receipt', rev:L.payList(job).length + ':' + L.paidOf(job), title:'Send a receipt', head:L.money(L.paidOf(job)) + ' paid to the shop so far.',
+    subject:'Your receipt from ' + SHOP.name, build:name => L.receiptMessage(job, name, SHOP)});
 }
 /* ---------- ringing a customer about their quote ---------- */
 function chaseDialog(job){
@@ -3177,6 +3448,17 @@ function acceptDialog(job){
   const when = whenPicker(job, 'acc', () => F.type, {fitter:job.fitter || '', date:L.validISO(job.date) && job.date >= L.todayISO() ? job.date : ''}),   /* a fitter or a day already pencilled on the job carries over */ whenNote = h('p', {class:'small', id:'accWhenNote', style:'font-weight:600'});
   const anyOrder = () => items.some(it => it.how === 'order');
   const qFit = L.quoteFitting(q), qTotal = L.quoteTotal(q);
+  /* each line of the quote is goods, something to pick, or a service */
+  const needs = L.quoteNeeds(job, q), needBox = h('div', {id:'accNeeds'});
+  needs.forEach((n, i) => {
+    if (n.kind === 'goods'){ needBox.append(h('div', {class:'accitem'}, h('b', {text:n.label}), h('p', {class:'small muted', text:/carpet/i.test(n.label) ? 'Supplied by the carpet above.' : 'Supplied by what is put on the job.'}))); return; }
+    const kind = h('select', {class:'in', id:'accNeedKind' + i, 'aria-label':'What ' + n.label + ' is'}, h('option', {value:'pick', text:'To be picked and checked', selected:n.kind === 'pick'}), h('option', {value:'service', text:'A service: no stock needed', selected:n.kind === 'service'}));
+    const qty = h('input', {class:'in', id:'accNeedQty' + i, type:'number', min:'0', step:'0.1', inputmode:'decimal', value:String(n.qty), 'aria-label':'How much ' + n.label});
+    const unit = h('select', {class:'in', id:'accNeedUnit' + i, 'aria-label':'Unit for ' + n.label}, [['m²', 'm²'], ['metres', 'metres'], ['items', 'items']].map(u => h('option', {value:u[0], text:u[1], selected:n.unit === u[0]})));
+    const row = h('div', {class:'lenrow'}, qty, unit), sync = () => { n.kind = kind.value; n.qty = Number(qty.value) || 0; n.unit = unit.value; row.hidden = n.kind !== 'pick'; };
+    [kind, qty, unit].forEach(el => el.addEventListener('input', sync));
+    needBox.append(h('div', {class:'accitem'}, h('b', {text:n.label}), n.sub ? h('p', {class:'small', text:n.sub}) : null, kind, row)); sync();
+  });
   const fitPay = h('input', {class:'in', id:'accFitPay', type:'number', min:'0', step:'0.01', inputmode:'decimal', value:qFit > 0 ? qFit.toFixed(2) : '', oninput:() => drawSplit()});
   const fitRow = h('div', {class:'sec', id:'accFitRow', hidden:true}, field('Fitting total, paid to the fitter on completion', fitPay),
     h('p', {class:'small muted', text:qFit > 0 ? 'Pulled through from the Fitting line on the quote. The customer pays it straight to the fitter when the job is finished, so the shop does not collect it.' : 'There is no Fitting line on the quote. Type what the customer pays the fitter, or leave it empty.'}));
@@ -3223,6 +3505,7 @@ function acceptDialog(job){
       if (!F.type) errs.push('Choose fitting, delivery or collection.');
       else if (F.type !== 'Collection') when.problems(!anyOrder()).forEach(e => errs.push(e));
       if (F.type === 'Fitting' && (Number(fitPay.value) < 0 || fitAmount() > qTotal)) errs.push('The fitting total cannot be more than the quote.');
+      needs.forEach(n => { if (n.kind === 'pick' && !(n.qty > 0)) errs.push('Say how much ' + n.label.toLowerCase() + ' the job needs.'); });
       items.forEach(it => {
         const u = unitsOf10(it);
         if (!(u > 0)) errs.push('Type the length to cut for ' + label(it) + '.');
@@ -3237,9 +3520,9 @@ function acceptDialog(job){
     const lines = items.map(it => { const stock = it.how === 'stock', pv = it.pv;
       return {key:it.key, kind:'stock', onQuote:true, variantId:stock ? pv.v.id : '', title:stock ? variantTitle(pv.p, pv.v) : (pv ? pv.p.title : it.ch.title) + ' · ' + it.w + 'm wide', sub:'', unit:'m', roll:true, widthM:it.w, cov:0, ppm:0,
         unitPrice:stock ? Number(pv.v.price) || 0 : 0, price:0, qty:String(Number(it.len)), available:it.free, tracked:it.tracked, source:stock ? 'stock' : 'supplier', supplier:'', due:'', rooms:it.names.concat(it.stairs.length ? ['the stairs'] : []).join(', ')}; })
-      .concat(L.quoteLines(q).map(l => ({key:uid(), kind:'other', title:l.label, price:l.price, qty:1})));
+      .concat(needs.map(n => n.kind === 'pick' ? {key:uid(), kind:'pick', title:n.label, sub:n.sub || '', qty:n.qty, unit:n.unit, price:n.price} : {key:uid(), kind:'other', title:n.label, price:n.price, qty:1}));
     const day = F.type === 'Collection' || anyOrder() ? '' : when.date(), fitter = F.type === 'Collection' || (F.type === 'Delivery' && anyOrder()) ? '' : when.fitter();
-    const ctx = {customer:c, lines:lines, note:'Quote accepted. Job ' + (job.ref || '') + ' in IFD Shop Operations. The prices are the quote the customer agreed.', type:F.type, date:day};
+    const ctx = {customer:c, lines:lines, note:'Quote accepted. Job ' + (job.ref || '') + ' in IFD Shop Operations. The prices are the quote the customer agreed.' + (fitAmount() > 0 ? ' Fitting of ' + L.money(fitAmount()) + ' is paid by the customer direct to the fitter and is not part of this sale.' : ''), type:F.type, date:day, fitterDue:fitAmount()};
     try {
       if (!F.saved){ F.saved = await reserveInShopify(ctx, s.say, true); dialog.querySelectorAll('input,select,textarea,button').forEach(el => { if (el !== save) el.disabled = true; }); }
       s.say('Saving the job');
@@ -3265,6 +3548,8 @@ function acceptDialog(job){
       items.length ? itemsBox : h('p', {class:'muted', id:'accNone', text:carpetRooms.length ? 'No carpet was picked for this job when the measure was booked, so there is nothing to allocate here. Add it on the job with Add items once this is saved.' : 'There is no carpet on this job.'}),
       items.length && loose.length ? h('p', {class:'small', style:'font-weight:700', text:'No carpet was picked for ' + loose.join(', ') + '. Add it on the job with Add items once this is saved.'}) : null,
       flooring.length ? h('p', {class:'small', id:'accFlooring', text:'The flooring for ' + flooring.join(', ') + ' is not allocated from here yet. Add it on the job with Add items once this is saved.'}) : null),
+    h('div', {class:'card'}, h('h3', {}, 'What else has to be got ready'),
+      h('p', {class:'small muted', text:'Underlay, gripper, door bars and the like have to be picked and checked before the job is ready. Fitting and other services need no stock.'}), needBox),
     h('div', {class:'card'}, h('h3', {}, 'What they are paying'), L.quoteLines(q).map(l => h('div', {class:'ln-top'}, h('span', {text:l.label}), h('b', {class:'num', text:L.money(l.price)}))),
       h('div', {class:'qtotal'}, h('span', {text:'Total'}), h('b', {class:'num', id:'accTotal', text:L.money(L.quoteTotal(q))})), split),
     field('Your name', who), s.box), [btn('Cancel', closeModal), save]);
@@ -3305,27 +3590,64 @@ function orderDetailsDialog(job, l){
     h('p', {class:'muted', text:'Put the order in with the supplier, then fill this in. The job is held where it is until you do.'}),
     field('Ordered from', sup), field('Order number', ref), field('Arriving on', due), quick, eta, field('Your name', who), s.box), [btn('Cancel', closeModal), save], true));
 }
-/* ---------- a cut is done ---------- */
+/* ---------- a cut is done ----------
+   The server decides whether it may be cut, with the same rules as the cutting list. A hold can only be overridden by
+   the owner, with a reason that is written on the job. */
 function cutDialog(job, l){
-  if (!needDb()) return;
-  const s = sayer(), len = (Number(l.qty) / 10).toFixed(1);
+  if (!needDb() || !needCmd()) return;
+  const s = sayer(), len = (Number(l.qty) / 10).toFixed(1), why = L.cutBlocks(job, l), held = why.length > 0, owner = S.me.role === 'owner';
   const pick = bayPicker('cutBay', l.bay || '', 'Choose where it is'), who = h('input', {class:'in', id:'cutBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
-  const save = btn('Save: it is cut', async () => {
+  const reason = h('textarea', {class:'in', id:'cutWhy', placeholder:'Why it is being cut anyway'});
+  const save = btn(held ? 'Cut it anyway' : 'Save: it is cut', async () => {
     const bay = String(pick.value || '').trim().toUpperCase(), name = who.value.trim(), errs = [];
     if (!bay) errs.push('Say where the cut piece is now.');
     else if (!L.isFinalBay(bay)) errs.push('GOODS-IN is not a final place. Choose where the cut piece has been put.');
     if (!name) errs.push('Type your name.');
+    if (held && reason.value.trim().length < 10) errs.push('Say why it is being cut anyway.');
     if (errs.length){ s.say(errs.join(' '), true); return; }
-    myName(name);
-    const p = {lines:{}}; p.lines[l.k] = {state:'allocated', bay:bay, picked:true, cutAt:nowISO(), cutBy:name};
-    save.disabled = true;
-    try { await patchJob(job.id, p, len + ' m of ' + l.title + ' cut by ' + name + ' and put in ' + bay); closeModal(); toast('Cut saved'); }
-    catch (e){ save.disabled = false; dbFail(e); }
+    myName(name); save.disabled = true;
+    try { await runCmd('cut', {jobId:job.id, lineK:l.k, bay:bay, byName:name, override:held ? {reason:reason.value.trim()} : null}); closeModal(); toast(held ? 'Cut saved, with the override on the job' : 'Cut saved'); }
+    catch (e){ save.disabled = false; s.say(cmdSay(e), true); }
+  }, held ? 'danger' : 'pri');
+  const head = h('p', {}, h('b', {text:len + ' m' + (l.w ? ' off the ' + l.w + ' m roll' : '')}), ' of ' + l.title + ', for ' + ((job.customer || {}).name || 'this job') + ' ' + (job.ref || '') + '.');
+  const holdBox = held ? h('div', {class:'banner bad', id:'cutHeldWhy'}, h('div', {}, h('b', {text:'Do not cut this yet. '}), why.join(' '))) : null;
+  if (held && !owner){
+    openModal(dlg('Not to be cut yet', h('div', {class:'sec', id:'cutForm'}, head, holdBox, h('p', {class:'muted', text:'Sort out what is holding it first. Only the owner can have it cut anyway, signed in as themselves.'}), s.box), [btn('Close', closeModal, 'pri')], true));
+    return;
+  }
+  openModal(dlg(held ? 'Cut it despite the hold' : 'Cut done', h('div', {class:'sec', id:'cutForm'}, head, holdBox,
+    held ? h('p', {class:'muted', text:'As the owner you can have it cut anyway. Your reason is written on the job with your name.'}) : h('p', {class:'muted', text:'Roll it up, label it with the customer’s name and job number, then say where you have put it.'}),
+    held ? field('Reason', reason) : null, field('Where is it now', pick), field('Cut by', who), s.box), [btn('Cancel', closeModal), save], true));
+}
+/* ---------- something other than carpet has been picked for a job ---------- */
+function pickAll(){
+  const key = x => (L.validISO(x.job.date) ? x.job.date : '9999') + String((x.job.accepted || {}).at || x.job.createdAt || ''), out = [];
+  openJobs().forEach(j => L.stockLines(j).forEach(l => { if (l.unit !== 'm' && !l.picked && l.state !== 'ordered' && l.state !== 'part' && !(l.hold === 'supplier' && l.state !== 'allocated')) out.push({job:j, line:l}); }));
+  return out.sort((a, b) => key(a).localeCompare(key(b)));
+}
+function pickRow(x){
+  const j = x.job, l = x.line, c = j.customer || {};
+  return h('div', {class:'row static cut'},
+    h('div', {class:'cutlen'}, h('b', {class:'num', text:L.fmtQty(l.qty, l.unit)}), h('small', {text:'to pick'})),
+    h('div', {class:'grow'}, h('div', {class:'who', text:l.title + (l.sub ? ' · ' + l.sub : '')}),
+      h('div', {class:'sub', text:'For ' + (c.name || 'No name') + '  ' + (j.ref || '') + ' · ' + (j.type || 'No type') + (j.fitter ? ' with ' + j.fitter : '') + ' · ' + (L.validISO(j.date) ? L.fmtDay(j.date) : j.type === 'Collection' ? 'collects when ready' : 'no date yet')}),
+      h('div', {class:'meta'}, l.state === 'allocated' && l.bay ? bayTag(l.bay) : null)),
+    h('div', {class:'bar'}, btn('Picked', () => pickDialog(j, l), 'sm pri'), btn('Open job', () => openSheet(j.id), 'sm')));
+}
+function pickDialog(job, l){
+  if (!needDb()) return;
+  const s = sayer(), pick = bayPicker('pickBay', l.bay || '', 'Choose where it is'), who = h('input', {class:'in', id:'pickBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const save = btn('Save: it is picked', async () => {
+    const bay = String(pick.value || '').trim().toUpperCase(), name = who.value.trim(), errs = [];
+    if (!bay) errs.push('Say where you have put it.'); else if (!L.isFinalBay(bay)) errs.push('GOODS-IN is not a final place. Choose where it has been put.');
+    if (!name) errs.push('Type your name.');
+    if (errs.length){ s.say(errs.join(' '), true); return; }
+    myName(name); save.disabled = true;
+    const p = {lines:{}}; p.lines[l.k] = {state:'allocated', bay:bay, picked:true, pickedAt:nowISO(), pickedBy:name};
+    try { await patchJob(job.id, p, L.fmtQty(l.qty, l.unit) + ' of ' + l.title + ' picked by ' + name + ' and put in ' + bay); closeModal(); toast('Picked'); } catch (e){ save.disabled = false; dbFail(e); }
   }, 'pri');
-  openModal(dlg('Cut done', h('div', {class:'sec', id:'cutForm'},
-    h('p', {}, h('b', {text:len + ' m' + (l.w ? ' off the ' + l.w + ' m roll' : '')}), ' of ' + l.title + ', for ' + ((job.customer || {}).name || 'this job') + ' ' + (job.ref || '') + '.'),
-    h('p', {class:'muted', text:'Roll it up, label it with the customer’s name and job number, then say where you have put it.'}),
-    field('Where is it now', pick), field('Cut by', who), s.box), [btn('Cancel', closeModal), save], true));
+  openModal(dlg('Picked', h('div', {class:'sec', id:'pickForm'}, h('p', {}, h('b', {text:L.fmtQty(l.qty, l.unit)}), ' of ' + l.title + (l.sub ? ' (' + l.sub + ')' : '') + ', for ' + ((job.customer || {}).name || 'this job') + ' ' + (job.ref || '') + '.'),
+    h('p', {class:'muted', text:'Put it with the job, label it with the customer’s name, then say where it is.'}), field('Where is it now', pick), field('Picked by', who), s.box), [btn('Cancel', closeModal), save], true));
 }
 /* ---------- what a measure is for: rooms, what the customer picked, extras to price ---------- */
 function briefBox(init, P){
@@ -4208,20 +4530,99 @@ function allocDialog(job, l, mode){
       }, 'pri')], true));
   }
 }
+/* ---------- recording money ----------
+   This is a record of money already taken on the card machine, in cash or by transfer. It never charges a card.
+   The server checks it: more than is owed is refused unless it is change or credit, and the same entry sent twice is one entry. */
+const PAY_METHODS = ['Card machine', 'Cash', 'Bank transfer', 'Other'];
 function payDialog(job){
-  if (!needDb()) return;
-  const bal = L.balanceOf(job), s = sayer();
+  if (!needDb() || !needCmd()) return;
+  const bal = L.balanceOf(job), fd = L.fitterDue(job), s = sayer(), key = uid(); let over = '';
   const amt = h('input', {class:'in', id:'payAmount', type:'number', step:'0.01', min:'0', inputmode:'decimal', value:bal > 0 ? bal.toFixed(2) : ''});
-  const how = h('select', {class:'in', id:'payMethod'}, ['Card machine', 'Cash', 'Bank transfer', 'Other'].map(m => h('option', {value:m, text:m})));
-  openModal(dlg('Take a payment', h('div', {class:'sec'}, h('p', {class:'muted', text:L.money(bal) + ' is still to pay on this job.' + (L.fitterDue(job) ? ' The fitting total of ' + L.money(L.fitterDue(job)) + ' is paid to the fitter and is not part of this.' : '')}),
-    h('div', {class:'grid2'}, field('Amount', amt), field('How', how)), s.box),
-    [btn('Cancel', closeModal), btn('Record payment', async () => {
-      const n = L.round2(amt.value); if (!(n > 0)){ s.say('Enter the amount taken.', true); return; }
-      const p = {pay:{}}; p.pay['p' + uid()] = {at:nowISO(), amount:n, method:how.value, by:S.me.id || ''};
-      try { await patchJob(job.id, p, 'Took ' + L.money(n) + ' by ' + how.value.toLowerCase()); closeModal(); toast('Payment recorded'); } catch (e){ dbFail(e); }
-    }, 'pri')], true));
+  const how = h('select', {class:'in', id:'payMethod'}, PAY_METHODS.map(m => h('option', {value:m, text:m})));
+  const who = h('input', {class:'in', id:'payBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'}), note = h('input', {class:'in', id:'payNote', type:'text', placeholder:'Anything to add'});
+  const overText = h('p', {style:'font-weight:700;margin:0'}), overBox = h('div', {class:'card tight', id:'payOver', hidden:true}, overText,
+    h('div', {class:'radios', role:'radiogroup', 'aria-label':'What to do with the extra'},
+      bal > 0 ? h('label', {class:'radio'}, h('input', {type:'radio', name:'payOver', value:'change', id:'payOverChange', onchange:() => { over = 'change'; }}), h('span', {text:'Change was given. Record ' + L.money(bal) + ' as paid.'})) : null,
+      h('label', {class:'radio'}, h('input', {type:'radio', name:'payOver', value:'credit', id:'payOverCredit', onchange:() => { over = 'credit'; }}), h('span', {text:bal > 0 ? 'Keep the extra on the job as credit for the customer.' : 'Keep it on the job as credit for the customer.'}))));
+  const look = () => { const n = L.round2(amt.value), extra = L.round2(n - Math.max(0, bal)); overBox.hidden = !(n > bal + 0.004);
+    overText.textContent = bal > 0 ? 'That is ' + L.money(extra) + ' more than the ' + L.money(bal) + ' still to pay the shop. What happened to the extra?' : 'Nothing is owed to the shop on this job. What is this money?';
+    if (overBox.hidden) over = ''; };
+  amt.addEventListener('input', look);
+  const save = btn('Record payment', async () => {
+    const n = L.round2(amt.value), name = who.value.trim(), errs = [];
+    if (!(n > 0)) errs.push('Enter the amount taken.');
+    if (!name) errs.push('Type your name.');
+    if (n > bal + 0.004 && !over) errs.push('Say what happened to the extra.');
+    if (errs.length){ look(); s.say(errs.join(' '), true); return; }
+    myName(name); save.disabled = true;
+    try { const r = await runCmd('pay', {jobId:job.id, kind:'payment', amount:n, method:how.value, byName:name, note:note.value.trim(), key:key, excess:over || undefined}); closeModal(); toast(r.duplicate ? 'That payment was already recorded' : 'Payment recorded'); }
+    catch (e){ save.disabled = false; if (e && e.code === 'overpayment') look(); s.say(cmdSay(e), true); }
+  }, 'pri');
+  openModal(dlg('Record a payment', h('div', {class:'sec', id:'payForm'},
+    h('p', {style:'font-weight:700', id:'payOwed', text:L.owedText(job) + '.' + (fd ? ' The fitting total of ' + L.money(fd) + ' is paid to the fitter and is not part of this.' : '')}),
+    h('p', {class:'muted', text:'This records money you have already taken on the card machine, in cash or by bank transfer. It does not charge a card.'}),
+    h('div', {class:'grid2'}, field('Amount taken', amt), field('How', how)), overBox, field('Your name', who), field('Note', note), s.box), [btn('Cancel', closeModal), save], true));
+  look();
+}
+function refundDialog(job){
+  if (!needDb() || !needCmd()) return;
+  const s = sayer(), key = uid(), credit = L.creditOf(job), paid = L.paidOf(job);
+  const amt = h('input', {class:'in', id:'refAmount', type:'number', step:'0.01', min:'0', inputmode:'decimal', value:credit ? credit.toFixed(2) : ''});
+  const how = h('select', {class:'in', id:'refMethod'}, PAY_METHODS.map(m => h('option', {value:m, text:m})));
+  const why = h('input', {class:'in', id:'refWhy', type:'text', placeholder:'Why the money is going back'}), who = h('input', {class:'in', id:'refBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const save = btn('Record refund', async () => {
+    const n = L.round2(amt.value), name = who.value.trim(), errs = [];
+    if (!(n > 0)) errs.push('Enter the amount given back.'); if (why.value.trim().length < 5) errs.push('Say why the money is going back.'); if (!name) errs.push('Type your name.');
+    if (errs.length){ s.say(errs.join(' '), true); return; }
+    myName(name); save.disabled = true;
+    try { await runCmd('pay', {jobId:job.id, kind:'refund', amount:n, method:how.value, reason:why.value.trim(), byName:name, key:key}); closeModal(); toast('Refund recorded'); }
+    catch (e){ save.disabled = false; s.say(cmdSay(e), true); }
+  }, 'pri');
+  openModal(dlg('Record a refund', h('div', {class:'sec', id:'refForm'},
+    h('p', {style:'font-weight:700', text:L.money(paid) + ' has been paid to the shop on this job. ' + L.owedText(job) + '.'}),
+    h('p', {class:'muted', text:'This records money you have already given back. It does not send money anywhere. The payment it relates to stays on the record.'}),
+    h('div', {class:'grid2'}, field('Amount given back', amt), field('How', how)), field('Reason', why), field('Your name', who), s.box), [btn('Cancel', closeModal), save], true));
+}
+/* an entry that is wrong is struck out with a reason, or struck out and replaced. It is never deleted or edited. */
+function payFixDialog(job, e, kind){
+  if (!needDb() || !needCmd()) return;
+  const s = sayer(), key = uid(), fix = kind === 'correction';
+  const amt = h('input', {class:'in', id:'fixAmount', type:'number', step:'0.01', min:'0', inputmode:'decimal', value:Number(e.amount || 0).toFixed(2)});
+  const how = h('select', {class:'in', id:'fixMethod'}, PAY_METHODS.map(m => h('option', {value:m, text:m, selected:m === e.method})));
+  const why = h('input', {class:'in', id:'fixWhy', type:'text', placeholder:fix ? 'What was wrong with it' : 'Why it is being struck out'}), who = h('input', {class:'in', id:'fixBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const save = btn(fix ? 'Save the correction' : 'Strike it out', async () => {
+    const name = who.value.trim(), errs = [];
+    if (fix && !(L.round2(amt.value) > 0)) errs.push('Enter the right amount.'); if (why.value.trim().length < 5) errs.push(fix ? 'Say what was wrong with it.' : 'Say why it is being struck out.'); if (!name) errs.push('Type your name.');
+    if (errs.length){ s.say(errs.join(' '), true); return; }
+    myName(name); save.disabled = true;
+    try { await runCmd('pay', fix ? {jobId:job.id, kind:'correction', payK:e.k, amount:L.round2(amt.value), method:how.value, reason:why.value.trim(), byName:name, key:key} : {jobId:job.id, kind:'void', payK:e.k, reason:why.value.trim(), byName:name}); closeModal(); toast(fix ? 'Corrected' : 'Struck out'); }
+    catch (x){ save.disabled = false; s.say(cmdSay(x), true); }
+  }, fix ? 'pri' : 'danger');
+  openModal(dlg(fix ? 'Correct an entry' : 'Strike out an entry', h('div', {class:'sec', id:'fixForm'},
+    h('p', {}, h('b', {text:(e.kind === 'refund' ? 'Refund' : 'Payment') + ' of ' + L.money(e.amount) + (e.method ? ' by ' + String(e.method).toLowerCase() : '') + ', ' + whenText(e.at) + '.'})),
+    h('p', {class:'muted', text:fix ? 'The entry stays on the record, struck out, and the right one is added beside it.' : 'The entry stays on the record, struck out, and stops counting.'}),
+    fix ? h('div', {class:'grid2'}, field('The right amount', amt), field('How', how)) : null, field('Reason', why), field('Your name', who), s.box), [btn('Cancel', closeModal), save], true));
 }
 /* what the customer pays the fitter on completion: it comes off what the shop collects */
+/* whether the customer has paid the fitter. It is a note for the shop, not shop money, so it is not in the ledger. */
+function fitterPaidDialog(job){
+  if (!needDb()) return;
+  const s = sayer(), fd = L.fitterDue(job), undo = L.fitterPaid(job), who = h('input', {class:'in', id:'fpBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'}), note = h('input', {class:'in', id:'fpNote', type:'text', placeholder:undo ? 'What happened' : 'Anything to add, for example cash on the day'});
+  openModal(dlg(undo ? 'The fitter was not paid after all' : 'The fitter has been paid', h('div', {class:'sec', id:'fpForm'},
+    h('p', {text:undo ? 'This takes off the record that the customer paid ' + (job.fitter || 'the fitter') + ' the fitting total of ' + L.money(fd) + '.' : 'This records that the customer has paid ' + (job.fitter || 'the fitter') + ' the fitting total of ' + L.money(fd) + ' direct. It is not money the shop has taken.'}),
+    field('Your name', who), field(undo ? 'Reason' : 'Note', note), s.box),
+    [btn('Cancel', closeModal), btn(undo ? 'Take the record off' : 'Record it', async () => {
+      const name = who.value.trim(), n = note.value.trim();
+      if (!name){ s.say('Type your name.', true); return; }
+      if (undo && n.length < 5){ s.say('Say what happened.', true); return; }
+      myName(name);
+      try {
+        await patchJob(job.id, {fitterPaid:undo ? {at:'', undoneAt:nowISO(), undoneBy:name, undoneWhy:n} : {at:nowISO(), by:S.me.id || '', byName:name, amount:fd, fitter:job.fitter || '', note:n}},
+          undo ? 'Record that the fitter was paid taken off by ' + name + ': ' + n : 'The customer has paid ' + (job.fitter || 'the fitter') + ' the fitting total of ' + L.money(fd) + ' direct. Recorded by ' + name + (n ? ': ' + n : ''));
+        closeModal(); toast(undo ? 'Taken off' : 'Recorded');
+      } catch (e){ dbFail(e); }
+    }, 'pri')], true));
+}
 function fitPayDialog(job){
   if (!needDb()) return;
   const s = sayer(), cur = L.fitterDue(job), amt = h('input', {class:'in', id:'fitPay', type:'number', step:'0.01', min:'0', inputmode:'decimal', value:cur ? cur.toFixed(2) : ''});
@@ -4233,49 +4634,12 @@ function fitPayDialog(job){
     }, 'pri')], true));
 }
 /* ---------- telling the customer their fitting is booked ----------
-   The message is opened in the email or messages app for staff to send, the same way a quote is. */
+   What they are told (the day, the fitter, morning or afternoon, the fitting total, the address) is kept with the
+   message, so any later change to one of them shows the booking as needing reconfirmation. */
 function confirmDialog(job){
-  if (!needDb()) return;
-  const s = sayer(), c = job.customer || {}, due = L.fitterDue(job);
-  const who = h('input', {class:'in', id:'confBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
-  const msg = h('textarea', {class:'in qmsg', id:'confMsg'}); let edited = false;
-  const build = () => { if (!edited) msg.value = L.confirmMessage(job, who.value.trim() || 'The team', SHOP); };
-  const email = h('input', {class:'in', id:'confEmail', type:'email', value:c.email || '', placeholder:'Customer’s email'}), phone = h('input', {class:'in', id:'confPhone', type:'tel', value:c.phone || '', placeholder:'Customer’s mobile'});
-  const mail = h('a', {class:'btn pri', id:'confEmailBtn', text:'Email it'}), text = h('a', {class:'btn pri', id:'confTextBtn', text:'Text it'});
-  const need = h('p', {class:'small', id:'confNeed', style:'color:var(--bad);font-weight:700', hidden:true, text:'Type your name first, so the customer knows who it is from.'});
-  const sent = async (how, to) => {
-    const name = who.value.trim(); myName(name);
-    const pt = {confirms:{}}; pt.confirms['f' + uid()] = {at:nowISO(), how:how, to:to, by:S.me.id || '', byName:name, date:job.date, fitter:job.fitter || '', due:due};
-    if (how === 'email' && to && to !== (c.email || '')) pt.customer = {email:to};
-    try { await patchJob(job.id, pt, 'Fitting confirmation ' + (how === 'email' ? 'opened in email to ' + to : how === 'text' ? 'opened as a text to ' + to : 'copied to send') + ' by ' + name + ': ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '')
-      + (due > 0 ? ', ' + L.money(due) + ' to the fitter on completion' : '')); } catch (e){ dbFail(e); }
-  };
-  function links(){
-    const named = !!who.value.trim(), em = email.value.trim(), ph = phone.value.replace(/[^\d+]/g, '');
-    need.hidden = named;
-    const okMail = named && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em), okText = named && ph.length >= 10;
-    mail.className = 'btn pri' + (okMail ? '' : ' off'); text.className = 'btn pri' + (okText ? '' : ' off');
-    if (okMail) mail.href = 'mailto:' + encodeURIComponent(em) + '?subject=' + encodeURIComponent('Your fitting with ' + SHOP.name) + '&body=' + encodeURIComponent(msg.value); else mail.removeAttribute('href');
-    if (okText) text.href = 'sms:' + ph + '?&body=' + encodeURIComponent(msg.value); else text.removeAttribute('href');
-  }
-  build();
-  msg.addEventListener('input', () => { edited = true; links(); });
-  who.addEventListener('input', () => { build(); links(); });
-  [email, phone].forEach(el => el.addEventListener('input', links)); links();
-  mail.addEventListener('click', () => { if (mail.href) sent('email', email.value.trim()); });
-  text.addEventListener('click', () => { if (text.href) sent('text', phone.value.trim()); });
-  const copy = btn('Copy the message', async () => {
-    if (!who.value.trim()){ links(); return; }
-    try { await navigator.clipboard.writeText(msg.value); toast('Copied'); } catch (e){ try { msg.focus(); msg.select(); } catch (x) {} toast('Select the message and copy it'); }
-    sent('copy', '');
-  });
-  openModal(dlg('Tell the customer their fitting is booked', h('div', {class:'sec', id:'confForm'},
-    h('p', {}, h('b', {text:'In the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + '. '}), 'This is what the customer gets. Change the wording if you want to.'),
-    field('Your name, shown on the message', who), need, msg,
-    h('div', {class:'grid2'}, field('Email', email), field('Mobile', phone)),
-    h('div', {class:'bar'}, mail, text, copy),
-    h('p', {class:'small muted', text:'Email it opens your email with the message ready to send. Text it opens the messages app, so use it on a phone. Nothing goes to the customer until you press send there.'}),
-    s.box), [btn('Done', closeModal, 'pri')]));
+  const snap = L.bookingSnap(job);
+  messageDialog(job, {kind:'confirm', rev:[snap.date, snap.fitter, snap.slot, snap.due, snap.total].join('|'), snap:snap, title:'Tell the customer their fitting is booked',
+    head:'In the diary for ' + L.fmtDay(job.date) + (job.fitter ? ' with ' + job.fitter : '') + '.', subject:'Your fitting with ' + SHOP.name, build:name => L.confirmMessage(job, name, SHOP)});
 }
 function totalDialog(job){
   if (!needDb()) return;
@@ -4297,7 +4661,7 @@ function completeDialog(job){
   openModal(dlg('Mark as ' + word.toLowerCase(), h('div', {class:'sec'},
     h('p', {text:((job.customer || {}).name || 'This job') + ', ' + (job.ref || '') + '.'}),
     bal > 0 && !S.fitterMode ? h('div', {class:'banner warn'}, h('p', {text:L.money(bal) + ' is still to pay. Take the payment first, or carry on and it will stay flagged as owed.'})) : null),
-    [btn('Cancel', closeModal), bal > 0 && !S.fitterMode ? btn('Take payment first', () => payDialog(job)) : null, btn('Yes, ' + word.toLowerCase(), async () => {
+    [btn('Cancel', closeModal), bal > 0 && !S.fitterMode ? btn('Record the payment first', () => payDialog(job)) : null, btn('Yes, ' + word.toLowerCase(), async () => {
       try { await patchJob(job.id, {status:'done', doneAt:nowISO(), doneAs:word}, 'Marked as ' + word.toLowerCase()); closeModal(); toast(word); releaseHeld(job.id); } catch (e){ dbFail(e); }
     }, 'pri')], true));
 }
@@ -4588,26 +4952,46 @@ function signOffDialog(job){
     h('p', {text:(c.name || 'This job') + ', ' + (job.ref || '') + '.'}), h('h3', {text:'Is this job fully completed?'}), seg, field('Signed off by', who), part, s.box),
     [btn('Cancel', closeModal), go]));
 }
+/* Finishing the job, the goods leaving and the shop being paid are three separate things. This reads back what Shopify
+   shows and sets it beside the job's own payments, so nobody is told to mark a sale paid when the shop is still owed. */
+function closeCard(job){
+  const co = L.closeOff(job, job.shopifySeen); if (!co.need) return null;
+  const seen = job.shopifySeen || null, docs = (seen && seen.docs) || [], live = docs.filter(d => !d.gone && !d.cancelled), fd = L.fitterDue(job);
+  const goods = !seen ? 'Not checked yet' : live.length && live.every(d => d.isOrder && d.fulfilled) ? 'Marked fulfilled in Shopify' : 'Not marked fulfilled in Shopify yet';
+  const shows = !seen ? 'Not checked yet' : (live.map(d => (d.isOrder ? 'Order ' + d.orderName : 'Draft ' + d.name) + ': ' + L.money(d.total) + ', ' + (d.isOrder ? (d.paid ? 'paid' : 'not paid') : 'not an order yet')).join('; ') || 'Nothing found') + ' (checked ' + whenText(seen.at) + ')';
+  return h('div', {class:'card', id:'closeCard'}, h('h3', {}, 'Shopify', co.inStep ? chip('Agrees with the job', 'ok') : co.wrong.length ? chip('Does not agree', 'bad') : chip('To do', 'warn')),
+    h('dl', {class:'kv'}, h('dt', {text:'Job'}), h('dd', {text:'Finished' + (job.doneAt ? ' ' + whenText(job.doneAt) : '')}),
+      h('dt', {text:'Goods'}), h('dd', {id:'closeGoods', text:goods}),
+      h('dt', {text:'Paid to the shop'}), h('dd', {id:'closePaid', text:L.money(L.paidOf(job)) + ' of ' + L.money(L.shopTotal(job)) + '. ' + L.owedText(job) + '.'}),
+      fd ? [h('dt', {text:'The fitter’s money'}), h('dd', {id:'closeFitter', text:L.money(fd) + (L.fitterPaid(job) ? ', recorded as paid by the customer direct to the fitter.' : ', still to be recorded as paid by the customer direct to the fitter.') + ' It is not a shop sale and does not belong in Shopify.'})] : null,
+      h('dt', {text:'Shopify shows'}), h('dd', {id:'closeShows', text:shows})),
+    co.wrong.map(t => h('div', {class:'banner bad'}, h('p', {text:t}))),
+    co.steps.length ? h('ol', {class:'steps', id:'closeSteps'}, co.steps.map(t => h('li', {text:t}))) : null,
+    h('div', {class:'bar'}, btn('Check Shopify', () => checkClosed(job), (co.inStep ? '' : 'pri ') + 'sm')));
+}
 async function checkClosed(job){
   if (!needShop()) return;
-  const left = [], patch = {drafts:{}};
+  const patch = {drafts:{}}, docs = [], amt = x => L.round2(x && x.shopMoney ? x.shopMoney.amount : 0);
+  const seenOrder = o => ({name:o.name, orderName:o.name, isOrder:true, cancelled:!!o.cancelledAt, fulfilled:o.displayFulfillmentStatus === 'FULFILLED', paid:o.displayFinancialStatus === 'PAID', financial:o.displayFinancialStatus || '',
+    total:amt(o.currentTotalPriceSet), received:amt(o.totalReceivedSet), outstanding:amt(o.totalOutstandingSet)});
   try {
-    if (job.orderId){
-      const d = await sq(Q_ORDER, {id:job.orderId}), o = d.order;
-      if (o && o.displayFulfillmentStatus !== 'FULFILLED' && !o.cancelledAt) left.push('Order ' + job.orderName + ' is not marked fulfilled.');
-    }
+    if (job.orderId){ const d = await sq(Q_ORDER, {id:job.orderId}), o = d.order; docs.push(o ? seenOrder(o) : {name:job.orderName || '', orderName:job.orderName || '', isOrder:true, gone:true}); }
     for (const k of Object.keys(job.drafts || {})){
-      const dr = job.drafts[k]; if (dr.deleted || dr.closed) continue;
+      const dr = job.drafts[k]; if (dr.deleted) continue;
       const d = await sq(Q_DRAFT, {id:dr.id}), x = d.draftOrder;
       if (!x){ patch.drafts[k] = {deleted:true}; continue; }
-      if (x.status !== 'COMPLETED' || !x.order){ left.push('Draft ' + dr.name + ' has not been turned into an order.'); continue; }
-      if (x.order.displayFulfillmentStatus !== 'FULFILLED' && !x.order.cancelledAt){ left.push('Order ' + x.order.name + ' is not marked fulfilled.'); patch.drafts[k] = {orderId:x.order.id, orderName:x.order.name}; continue; }
-      patch.drafts[k] = {closed:true, orderId:x.order.id, orderName:x.order.name};
+      if (x.status !== 'COMPLETED' || !x.order){ docs.push({name:x.name, isOrder:false, total:amt(x.totalPriceSet)}); continue; }
+      const so = seenOrder(x.order); docs.push(so); patch.drafts[k] = {orderId:x.order.id, orderName:x.order.name, closed:so.fulfilled || so.cancelled};
     }
   } catch (e){ toast(explain(e), true); return; }
-  if (!left.length) patch.shopifyClosed = true;
-  try { await patchJob(job.id, patch, left.length ? null : 'Closed off in Shopify'); } catch (e){ dbFail(e); return; }
-  toast(left.length ? left.join(' ') : 'All closed off in Shopify', left.length > 0);
+  /* one record of what Shopify said, replaced each time it is checked: checking twice leaves nothing behind twice */
+  const seen = {at:nowISO(), by:S.me.id || '', paidHere:L.paidOf(job), docs:docs};
+  patch.shopifySeen = seen; patch.shopifyClosed = docs.length > 0 && docs.every(d => d.gone || d.cancelled || (d.isOrder && d.fulfilled));
+  const co = L.closeOff(Object.assign({}, job, {shopifySeen:seen}), seen), now = co.inStep ? 'agrees' : co.wrong.length ? 'wrong' : 'todo';
+  patch.shopifyReco = now;
+  const text = now === (job.shopifyReco || '') ? null : now === 'agrees' ? 'Shopify checked: it agrees with the job' : now === 'wrong' ? 'Shopify checked and it does not agree: ' + co.wrong.join(' ') : null;
+  try { await patchJob(job.id, patch, text); } catch (e){ dbFail(e); return; }
+  toast(co.inStep ? 'Shopify agrees with the job' : co.wrong.length ? co.wrong[0] : co.steps[0] || 'Still to do in Shopify', !co.inStep);
 }
 function cancelDialog(job){
   if (!needDb()) return;
@@ -4663,9 +5047,14 @@ function lineTotal(l){
   return l.roll ? L.round2(l.price) : L.round2((Number(l.price) || 0) * unitsOf(l));
 }
 function draftInput(ctx, tag){
-  const items = [];
+  const items = []; let fitLeft = L.round2(ctx.fitterDue);        /* fitting money that goes straight to the fitter is not a shop sale */
   ctx.lines.forEach(l => {
-    if (l.kind === 'other'){ items.push({title:l.title, quantity:Math.max(1, parseInt(l.qty, 10) || 1), originalUnitPriceWithCurrency:gbp(l.price), requiresShipping:false}); return; }
+    if (l.kind === 'pick'){ items.push({title:l.title + ' (' + L.fmtQty(l.qty, l.unit) + ')', quantity:1, originalUnitPriceWithCurrency:gbp(l.price), requiresShipping:false}); return; }
+    if (l.kind === 'other'){
+      let price = L.round2(l.price);
+      if (fitLeft > 0 && /fitting/i.test(l.title)){ const take = Math.min(price, fitLeft); price = L.round2(price - take); fitLeft = L.round2(fitLeft - take); if (!(price > 0)) return; }
+      items.push({title:l.title, quantity:Math.max(1, parseInt(l.qty, 10) || 1), originalUnitPriceWithCurrency:gbp(price), requiresShipping:false}); return;
+    }
     const units = unitsOf(l), size = l.roll ? ' ' + l.widthM + 'm x ' + Number(l.qty).toFixed(1) + 'm' : '';
     if (l.source === 'stock'){
       if (l.onQuote){ const it = {variantId:l.variantId, quantity:units}; if (Number(l.unitPrice) > 0) it.appliedDiscount = {valueType:'PERCENTAGE', value:100, title:'Priced on the quote'}; items.push(it); }
@@ -4677,6 +5066,8 @@ function draftInput(ctx, tag){
   });
   const input = {lineItems:items, tags:['ifd-ops', 'shop-sale', tag]};
   const attrs = []; if (ctx.type) attrs.push({key:'Job type', value:ctx.type}); if (ctx.date) attrs.push({key:'Job date', value:ctx.date});
+  if (L.round2(ctx.fitterDue) > 0) attrs.push({key:'Fitting paid direct to the fitter', value:L.money(ctx.fitterDue)});
+  if (fitLeft > 0) input.appliedDiscount = {valueType:'FIXED_AMOUNT', value:fitLeft, title:'Paid direct to the fitter'};
   if (attrs.length) input.customAttributes = attrs;
   if (ctx.note) input.note = ctx.note;
   if (ctx.lines.some(l => l.kind === 'stock' && l.source === 'stock')) input.reserveInventoryUntil = new Date(Date.now() + 365 * 86400000).toISOString();
@@ -4737,6 +5128,7 @@ function toJobLines(lines, startN, draftName){
   const out = {}; let n = startN;
   lines.forEach(l => {
     n++; const k = 'l' + n + 'x' + uid().slice(-4);
+    if (l.kind === 'pick'){ out[k] = {n:n, title:l.title, sub:l.sub || '', unit:l.unit || 'items', qty:L.round2(l.qty) || 1, price:L.round2(l.price), hold:'pick', state:'todo', picked:false, checked:false}; return; }
     if (l.kind === 'other'){ out[k] = {n:n, title:l.title, sub:'', unit:'items', qty:Math.max(1, parseInt(l.qty, 10) || 1), hold:'none', price:lineTotal(l)}; return; }
     const base = {n:n, variantId:l.variantId, title:l.title, sub:l.sub || '', unit:l.unit, qty:unitsOf(l), price:lineTotal(l), state:'todo', picked:false, checked:false};
     if (l.roll && l.widthM > 0) base.w = l.widthM; else if (l.cov > 0) base.cov = l.cov;
@@ -4934,6 +5326,8 @@ function saleDialog(job){
       if (F.hsl && F.type === 'Fitting' && hslMsg({id:'', status:'open', hsl:true}, fitSel.value, date.value)) out.push(hslMsg({id:'', status:'open', hsl:true}, fitSel.value, date.value));
     }
     if (!F.lines.length) out.push('Add at least one item.');
+    /* a payment taken with the sale cannot be more than the sale: anything over is change, and is not recorded as paid */
+    if (!adding && L.round2(paid.value) > L.round2(F.lines.reduce((t, l) => t + lineTotal(l), 0)) + 0.004) out.push('The payment is more than the sale comes to. Enter what the shop is keeping; any change given back is not part of it.');
     F.lines.forEach(l => {
       if (l.kind === 'other'){ if (!String(l.title).trim()) out.push('Say what the other charge is for.'); return; }
       const u = unitsOf(l);
@@ -4964,7 +5358,7 @@ function saleDialog(job){
       } else {
         const id = 'd' + L.gidNum(draft.id), pay = {}, n = L.round2(paid.value), drafts = {}, me = F.sizeCheck === 'estimator' ? estNow() : {est:'', plan:null}, pre = {};
         if (me.est) pre['v' + uid()] = estVisit(me.est, me.plan, 1);
-        if (n > 0) pay['p' + uid()] = {at:nowISO(), amount:n, method:how.value, by:S.me.id || ''};
+        if (n > 0) pay['p' + uid()] = {at:nowISO(), amount:n, method:how.value, by:S.me.id || '', kind:'payment', note:'Taken with the sale'};
         drafts[L.gidNum(draft.id)] = {id:draft.id, name:draft.name, closed:false};
         await createJob(id, {v:1, ref:draft.name, source:'shop', orderId:'', orderName:'', quoteRef:'', createdAt:nowISO(), madeAt:nowISO(), customer:customer,
           type:F.type, date:date.value, slot:F.slot, fitter:fitSel.value, diary:false, status:'open', shopifyClosed:false,
@@ -5478,9 +5872,10 @@ async function boot(){
   use('assets').then(a => { S.cap.assets = a; if (a && S.openJob && !$('#sheet').hidden && !editingIn($('#sheet'))) drawSheet(); });
   const caps = await Promise.all([use('db'), use('mcp'), use('user'), use('downloads')]);
   S.cap.db = caps[0]; S.cap.mcp = caps[1]; S.cap.user = caps[2]; S.cap.downloads = caps[3];
+  use('cmd').then(c => { S.cap.cmd = c; loadSetup(); });
   use('geo').then(g => { S.cap.geo = g; if (g) wantGeo(openJobs().map(j => (j.customer || {}).postcode)); });
   /* who is signed in, and the line to Shopify: each is tried again by itself if the server was still starting */
-  const who = async left => { try { const me = await S.cap.user.me(); S.me = {id:me.id || '', name:me.name || ''}; } catch (e) { if (left > 0) setTimeout(() => who(left - 1), 3000); } };
+  const who = async left => { try { const me = await S.cap.user.me(); S.me = {id:me.id || '', name:me.name || '', role:me.role || ''}; } catch (e) { if (left > 0) setTimeout(() => who(left - 1), 3000); } };
   if (S.cap.user) await who(10);
   startDb();
   let shopTries = 0; const shopAgain = () => { if (S.shop.state === 'down' && shopTries++ < 6) setTimeout(() => connectShop().then(shopAgain), 5000); };

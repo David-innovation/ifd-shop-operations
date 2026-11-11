@@ -1,12 +1,16 @@
 'use strict';
 const test = require('node:test'), assert = require('node:assert'), fs = require('node:fs'), os = require('node:os'), path = require('node:path');
-const { create } = require('../server'), fake = require('../testkit/fake-shopify'), { merge } = require('../lib/store'), { normaliseMobile } = require('../lib/sms'), sh = require('../lib/shopify');
+const { create } = require('../server'), fake = require('../testkit/fake-shopify'), { merge, docPath } = require('../lib/store'), { normaliseMobile } = require('../lib/sms'), sh = require('../lib/shopify');
+const fakeMail = require('../testkit/fake-mail'), fakeTwilio = require('../testkit/fake-twilio');
 
 const OWNER = '+447700900001', SHOPM = '+447700900002', FITTER = '+447700900003';
-async function boot(extra){
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ifd-')), shopify = fake.make(), texts = [], clock = {t:Date.parse('2026-11-10T09:00:00Z')};
-  const env = Object.assign({DATA_DIR:dir, INSECURE_COOKIES:'1', SESSION_PEPPER:'test', OWNER_NAME:'David', OWNER_MOBILE:'07700 900001', SHOP_MOBILE:'07700 900002', SHOPIFY_STORE:'innovationflooring', SHOPIFY_CLIENT_ID:'test-id', SHOPIFY_CLIENT_SECRET:'test-secret'}, extra || {});
-  const app = create({env, fetch:shopify.fetchImpl, sendText:async (to, body) => { texts.push({to, body}); }, now:() => clock.t, log:() => {}});
+async function boot(extra, o){
+  const dir = (o && o.dir) || fs.mkdtempSync(path.join(os.tmpdir(), 'ifd-')), shopify = fake.make(), texts = [], clock = {t:Date.parse('2026-11-10T09:00:00Z')};
+  /* with {messaging:true} the system is given a mail server and a text service to send through: stand-ins that keep what they are handed */
+  const mailbox = o && o.messaging ? fakeMail.make() : null, twilio = o && o.messaging ? fakeTwilio.make() : null, mailPort = mailbox ? await mailbox.listen() : 0;
+  const sending = mailbox ? Object.assign({SMTP_HOST:'127.0.0.1', SMTP_PORT:String(mailPort), SMTP_SECURE:'off', SMTP_USER:'shop@example.test', SMTP_PASS:'mail-test-pass', EMAIL_FROM:'Innovation Flooring Direct <shop@example.test>'}, twilio.env) : {};
+  const env = Object.assign({DATA_DIR:dir, INSECURE_COOKIES:'1', SESSION_PEPPER:'test', OWNER_NAME:'David', OWNER_MOBILE:'07700 900001', SHOP_MOBILE:'07700 900002', SHOPIFY_STORE:'innovationflooring', SHOPIFY_CLIENT_ID:'test-id', SHOPIFY_CLIENT_SECRET:'test-secret'}, sending, extra || {});
+  const app = create({env, fetch:(url, init) => twilio && twilio.handles(url) ? twilio.fetchImpl(url, init) : shopify.fetchImpl(url, init), sendText:async (to, body) => { texts.push({to, body}); }, now:() => clock.t, log:() => {}, pollMs:3600000});
   await new Promise(r => app.server.listen(0, '127.0.0.1', r));
   const base = 'http://127.0.0.1:' + app.server.address().port;
   const req = async (method, url, body, cookie, headers) => {
@@ -17,8 +21,16 @@ async function boot(extra){
   };
   const codeFor = m => { const t = texts.filter(x => x.to === m).pop(); return t ? /code: (\d{6})/.exec(t.body)[1] : ''; };
   const signIn = async mobile => { await req('POST', '/api/login/code', {mobile}); const r = await req('POST', '/api/login/verify', {mobile, code:codeFor(normaliseMobile(mobile))}); assert.strictEqual(r.status, 200); return r.headers.get('set-cookie').split(';')[0]; };
-  return {app, base, req, texts, clock, shopify, codeFor, signIn, dir, stop:() => { app.close(); fs.rmSync(dir, {recursive:true, force:true}); }};
+  const cmd = (name, body, cookie) => req('POST', '/api/cmd', Object.assign({cmd:name}, body), cookie);
+  const job = id => app.store.getDoc('jobs/' + id).data;
+  return {app, base, req, cmd, job, texts, clock, shopify, mailbox, twilio, codeFor, signIn, dir, stop:() => { app.close(); if (mailbox) mailbox.close(); fs.rmSync(dir, {recursive:true, force:true}); }};
 }
+/* a made-up fitting: one carpet room measured 3.00 x 3.80 m, 3.1 m sold off a 4 m roll, £377.40 in all of which £150 is the fitter's */
+const testJob = extra => Object.assign({v:1, ref:'#T9', source:'shop', status:'open', type:'Fitting', date:'', slot:'', fitter:'Lennox', diary:false, shopifyClosed:false, createdAt:'2026-11-10T09:00:00.000Z',
+  customer:{name:'Zed Tester', phone:'07700 900555', email:'zed@example.test', address:'1 Test Street', postcode:'G81 1XP'},
+  lines:{l1:{n:1, title:'Test carpet', sub:'', unit:'m', qty:31, w:4, hold:'draft', holdRef:'#D1', state:'todo', bay:'', picked:false, checked:false, price:0}},
+  total:377.4, fitterDue:150, pay:{}, notes:'', quote:[], drafts:{}, sizeCheck:'verified', pre:{}, log:{},
+  rooms:{r1:{n:1, name:'Lounge', len:3, wid:3.8, area:11.4, source:'shop', status:'verified', verBy:'Shop', verRole:'shop', verOn:'2026-11-10'}}}, extra || {});
 
 test('records merge the way the screens expect', () => {
   assert.deepStrictEqual(merge({a:{b:1, c:[1, 2]}, x:1}, {a:{c:[3], d:{e:1}}, y:2}), {a:{b:1, c:[3], d:{e:1}}, x:1, y:2});
@@ -103,8 +115,8 @@ test('records: set, merge, add, list, delete, and live updates', async () => {
     await new Promise(r => setTimeout(r, 80)); ac.abort();
     assert.ok(events.includes('jobs') && events.includes('tasks') && events.includes('activity'), 'open screens are told about each change: ' + events.join(','));
     // two saves at once to the same job both land
-    await Promise.all([s.req('POST', '/api/db/update', {path:'jobs/o1', data:{pay:{p1:{amount:50}}}}, cookie), s.req('POST', '/api/db/update', {path:'jobs/o1', data:{pay:{p2:{amount:25}}}}, cookie)]);
-    assert.deepStrictEqual(Object.keys((await s.req('GET', '/api/db/doc?path=jobs/o1', undefined, cookie)).json.data.pay).sort(), ['p1', 'p2']);
+    await Promise.all([s.req('POST', '/api/db/update', {path:'jobs/o1', data:{visits:{v1:{note:'one'}}}}, cookie), s.req('POST', '/api/db/update', {path:'jobs/o1', data:{visits:{v2:{note:'two'}}}}, cookie)]);
+    assert.deepStrictEqual(Object.keys((await s.req('GET', '/api/db/doc?path=jobs/o1', undefined, cookie)).json.data.visits).sort(), ['v1', 'v2']);
     // and they are still there after the system restarts
     const dir = s.dir; s.app.close();
     const again = create({env:{DATA_DIR:dir, INSECURE_COOKIES:'1', SESSION_PEPPER:'test'}, fetch:s.shopify.fetchImpl, sendText:async () => {}, log:() => {}});
@@ -197,4 +209,254 @@ test('where a postcode district is: looked up once, kept, and only for the shop'
     s.app.ensureUser('Sonnie', '07700 900003', 'fitter');
     assert.strictEqual((await s.req('GET', '/api/geo?codes=G84', undefined, await s.signIn('07700 900003'))).status, 403);
   } finally { s.stop(); }
+});
+
+/* ---------- audit stage 1: the rules the server itself enforces ---------- */
+test('the server uses the same rules as the screens', async () => {
+  const s = await boot();
+  try {
+    const L = s.app.rules, j = testJob();
+    assert.strictEqual(typeof L.checksOutstanding, 'function'); assert.strictEqual(L.shopTotal(j), 227.4); assert.strictEqual(L.balanceOf(j), 227.4); assert.strictEqual(L.cutBlocks(j, j.lines.l1).length, 0);
+    assert.match(L.owedText(j), /^£227\.40 still to pay the shop$/);
+  } finally { s.stop(); }
+});
+
+test('cutting: a held job cannot be marked cut by any route, and an override is the owner’s, with a reason, on the record', async () => {
+  const s = await boot();
+  try {
+    const shop = await s.signIn(SHOPM), owner = await s.signIn(OWNER), put = (id, extra) => s.app.store.setDoc(docPath('jobs/' + id), testJob(extra));
+    put('c1'); put('c2'); put('c3');
+    // the plain record route cannot tick a roll line as cut, held or not
+    let r = await s.req('POST', '/api/db/update', {path:'jobs/c1', data:{lines:{l1:{picked:true, state:'allocated', bay:'W4-01'}}}}, shop);
+    assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'use_command'); assert.strictEqual(s.job('c1').lines.l1.picked, false);
+    r = await s.req('POST', '/api/db/set', {path:'jobs/c1', data:testJob({lines:{l1:Object.assign({}, testJob().lines.l1, {picked:true})}})}, shop);
+    assert.strictEqual(r.status, 409, 'nor can replacing the whole record'); assert.strictEqual(s.job('c1').lines.l1.picked, false);
+    assert.strictEqual((await s.req('POST', '/api/db/update', {path:'jobs/c1', data:{lines:{l1:{bay:'W4-01'}}, notes:'ordinary changes still save'}}, shop)).status, 200);
+    // the audit's case: accepted at 3.00 x 3.80, then corrected to 5.20 x 3.80. Verification is cleared, the shop has to review it, and 3.1 m no longer covers the floor
+    s.app.store.updateDoc(docPath('jobs/c1'), {rooms:{r1:{len:5.2, wid:3.8, area:19.76, status:'unverified'}}, review:{on:true, why:'Sizes changed after the sale'}});
+    r = await s.cmd('cut', {jobId:'c1', lineK:'l1', bay:'W4-01', byName:'Sam'}, shop);
+    assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'held');
+    assert.ok(r.json.error.why.some(t => /Size not verified: Lounge/.test(t)) && r.json.error.why.some(t => /review a change/.test(t)) && r.json.error.why.some(t => /3\.1 m on the job no longer covers the floor as measured \(19\.76 m²\)/.test(t)), r.json.error.why.join(' | '));
+    assert.strictEqual(s.job('c1').lines.l1.picked, false);
+    // acknowledging the review and verifying the new size does not make 3.1 m of carpet cover a 5.2 m room
+    s.app.store.updateDoc(docPath('jobs/c1'), {rooms:{r1:{status:'verified'}}, review:{on:false}});
+    r = await s.cmd('cut', {jobId:'c1', lineK:'l1', bay:'W4-01', byName:'Sam'}, shop);
+    assert.strictEqual(r.status, 409); assert.deepStrictEqual(r.json.error.why.length, 1); assert.match(r.json.error.why[0], /no longer covers the floor/);
+    // an override: not the shop's sign-in, not without a real reason, and it is written on the job
+    r = await s.cmd('cut', {jobId:'c1', lineK:'l1', bay:'W4-01', byName:'Sam', override:{reason:'Customer agreed a join on the phone'}}, shop);
+    assert.strictEqual(r.status, 403); assert.strictEqual(r.json.error.code, 'forbidden');
+    assert.strictEqual((await s.cmd('cut', {jobId:'c1', lineK:'l1', bay:'W4-01', byName:'David', override:{reason:'ok'}}, owner)).status, 400);
+    r = await s.cmd('cut', {jobId:'c1', lineK:'l1', bay:'W4-01', byName:'David', override:{reason:'Customer agreed a join on the phone'}}, owner);
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.override, true);
+    const l = s.job('c1').lines.l1, logged = Object.values(s.job('c1').log).map(x => x.text).join('\n');
+    assert.ok(l.picked === true && l.bay === 'W4-01' && l.cutBy === 'David' && l.cutOverride.reason === 'Customer agreed a join on the phone' && l.cutOverride.byName === 'David' && /no longer covers/.test(l.cutOverride.holds[0]));
+    assert.match(logged, /HOLD OVERRIDDEN by David: Customer agreed a join on the phone\. Held at the time for: .*no longer covers/);
+    // a job with nothing holding it: where the piece is has to be said, it is cut once, and asking twice changes nothing
+    assert.strictEqual((await s.cmd('cut', {jobId:'c2', lineK:'l1', bay:'', byName:'Sam'}, shop)).status, 400);
+    assert.strictEqual((await s.cmd('cut', {jobId:'c2', lineK:'l1', bay:'GOODS-IN', byName:'Sam'}, shop)).status, 400);
+    assert.strictEqual((await s.cmd('cut', {jobId:'c2', lineK:'l1', bay:'W4-02'}, shop)).status, 400, 'and by whom');
+    const both = await Promise.all([s.cmd('cut', {jobId:'c2', lineK:'l1', bay:'W4-02', byName:'Sam'}, shop), s.cmd('cut', {jobId:'c2', lineK:'l1', bay:'W4-02', byName:'Sam'}, shop)]);
+    assert.deepStrictEqual(both.map(x => x.status), [200, 200]); assert.strictEqual(both.filter(x => x.json.duplicate).length, 1, 'the second of two identical requests is recognised');
+    assert.strictEqual(Object.values(s.job('c2').log).filter(x => /cut by Sam/.test(x.text)).length, 1); assert.strictEqual(s.job('c2').lines.l1.cutBy, 'Sam');
+    // a job that is not open cannot be cut
+    s.app.store.updateDoc(docPath('jobs/c3'), {status:'cancelled'});
+    assert.strictEqual((await s.cmd('cut', {jobId:'c3', lineK:'l1', bay:'W4-02', byName:'Sam'}, shop)).json.error.code, 'held');
+    // and a fitter's sign-in cannot reach any of this
+    s.app.ensureUser('Sonnie', FITTER, 'fitter');
+    assert.strictEqual((await s.cmd('cut', {jobId:'c3', lineK:'l1', bay:'W4-02', byName:'Sonnie'}, await s.signIn(FITTER))).status, 403);
+    assert.strictEqual((await s.cmd('nonsense', {}, shop)).status, 404);
+  } finally { s.stop(); }
+});
+
+test('money: overpayments, change and credit, the same entry twice, corrections, strike-outs and refunds', async () => {
+  const s = await boot();
+  try {
+    const shop = await s.signIn(SHOPM), L = s.app.rules, put = (id, extra) => s.app.store.setDoc(docPath('jobs/' + id), testJob(extra)), k = n => 'key' + String(n).padStart(6, '0');
+    put('m1'); put('m2'); put('m3');
+    // payments only go in through the checked route
+    let r = await s.req('POST', '/api/db/update', {path:'jobs/m1', data:{pay:{p1:{amount:300, method:'Cash'}}}}, shop);
+    assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'use_command'); assert.deepStrictEqual(s.job('m1').pay, {});
+    // the audit's case: £300 against £227.40 owed to the shop (the other £150 is the fitter's)
+    r = await s.cmd('pay', {jobId:'m1', kind:'payment', amount:300, method:'Cash', byName:'Sam', key:k(1)}, shop);
+    assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'overpayment'); assert.strictEqual(r.json.error.over, 72.6); assert.strictEqual(r.json.error.balance, 227.4); assert.deepStrictEqual(s.job('m1').pay, {});
+    assert.match(r.json.error.message, /£72\.60 more than the £227\.40 still to pay the shop/);
+    // change given: the shop is paid what was owed and the record says what was handed over
+    r = await s.cmd('pay', {jobId:'m1', kind:'payment', amount:300, method:'Cash', byName:'Sam', key:k(1), excess:'change'}, shop);
+    assert.strictEqual(r.status, 200); let e = Object.values(s.job('m1').pay)[0];
+    assert.ok(e.amount === 227.4 && e.tendered === 300 && e.change === 72.6 && e.byName === 'Sam' && e.method === 'Cash'); assert.strictEqual(L.balanceOf(s.job('m1')), 0); assert.strictEqual(L.owedText(s.job('m1')), 'Nothing more to pay the shop');
+    r = await s.cmd('pay', {jobId:'m1', kind:'payment', amount:10, method:'Cash', byName:'Sam', key:k(2), excess:'change'}, shop);
+    assert.strictEqual(r.json.error.code, 'nothing_owed', 'change cannot be given against nothing owed');
+    // kept as credit: the whole amount is recorded and the job says the customer is in credit, never "-£72.60 still to pay"
+    r = await s.cmd('pay', {jobId:'m2', kind:'payment', amount:300, method:'Card machine', byName:'Sam', key:k(3), excess:'credit'}, shop);
+    assert.strictEqual(r.status, 200); e = Object.values(s.job('m2').pay)[0];
+    assert.ok(e.amount === 300 && e.credit === 72.6); assert.strictEqual(L.creditOf(s.job('m2')), 72.6); assert.strictEqual(L.owedText(s.job('m2')), 'The customer is £72.60 in credit');
+    assert.ok(L.warningsOf(s.job('m2'), '2026-11-10', {}).some(w => /£72\.60 in credit/.test(w.text)));
+    // the same entry sent twice, one after the other or at the same moment, is one entry
+    r = await s.cmd('pay', {jobId:'m2', kind:'payment', amount:300, method:'Card machine', byName:'Sam', key:k(3), excess:'credit'}, shop);
+    assert.strictEqual(r.json.duplicate, true); assert.strictEqual(Object.keys(s.job('m2').pay).length, 1);
+    const twice = await Promise.all([1, 2].map(() => s.cmd('pay', {jobId:'m3', kind:'payment', amount:50, method:'Cash', byName:'Sam', key:k(4)}, shop)));
+    assert.deepStrictEqual(twice.map(x => x.status), [200, 200]); assert.strictEqual(twice.filter(x => x.json.duplicate).length, 1); assert.strictEqual(Object.keys(s.job('m3').pay).length, 1); assert.strictEqual(L.paidOf(s.job('m3')), 50);
+    // two different payments at the same moment cannot take the job past what is owed
+    const race = await Promise.all([s.cmd('pay', {jobId:'m3', kind:'payment', amount:150, method:'Cash', byName:'Sam', key:k(5)}, shop), s.cmd('pay', {jobId:'m3', kind:'payment', amount:150, method:'Cash', byName:'Sam', key:k(6)}, shop)]);
+    assert.deepStrictEqual(race.map(x => x.status).sort(), [200, 409]); assert.strictEqual(L.paidOf(s.job('m3')), 200); assert.strictEqual(L.balanceOf(s.job('m3')), 27.4);
+    // who entered it, and a reference, are required
+    assert.strictEqual((await s.cmd('pay', {jobId:'m3', kind:'payment', amount:5, method:'Cash', key:k(7)}, shop)).status, 400);
+    assert.strictEqual((await s.cmd('pay', {jobId:'m3', kind:'payment', amount:5, method:'Cash', byName:'Sam'}, shop)).status, 400);
+    assert.strictEqual((await s.cmd('pay', {jobId:'m3', kind:'payment', amount:0, method:'Cash', byName:'Sam', key:k(7)}, shop)).status, 400);
+    // a correction: the wrong entry stays, struck out, with the reason, and the right one sits beside it
+    const first = Object.keys(s.job('m3').pay).find(x => s.job('m3').pay[x].amount === 50);
+    assert.strictEqual((await s.cmd('pay', {jobId:'m3', kind:'correction', payK:first, amount:60, method:'Card machine', byName:'Sam', key:k(8)}, shop)).status, 400, 'a correction needs a reason');
+    r = await s.cmd('pay', {jobId:'m3', kind:'correction', payK:first, amount:60, method:'Card machine', reason:'Typed 50, the slip says 60', byName:'Sam', key:k(8)}, shop);
+    assert.strictEqual(r.status, 200); let p = s.job('m3').pay;
+    assert.ok(p[first].amount === 50 && p[first].void.reason === 'Typed 50, the slip says 60' && p[first].void.replacedBy === 'p' + k(8) && p['p' + k(8)].amount === 60 && p['p' + k(8)].corrects === first && p['p' + k(8)].method === 'Card machine');
+    assert.strictEqual(L.paidOf(s.job('m3')), 210); assert.strictEqual(Object.keys(p).length, 3, 'nothing is deleted');
+    r = await s.cmd('pay', {jobId:'m3', kind:'correction', payK:'p' + k(8), amount:500, method:'Cash', reason:'Trying to overpay by correcting', byName:'Sam', key:k(9)}, shop);
+    assert.strictEqual(r.json.error.code, 'overpayment', 'a correction is checked against what is owed too');
+    // striking one out: a reason, once, and it stops counting
+    assert.strictEqual((await s.cmd('pay', {jobId:'m3', kind:'void', payK:'p' + k(5), reason:'', byName:'Sam'}, shop)).status, 400);
+    const struck = s.job('m3').pay['p' + k(5)] ? 'p' + k(5) : 'p' + k(6);
+    r = await s.cmd('pay', {jobId:'m3', kind:'void', payK:struck, reason:'Entered on the wrong job', byName:'Sam'}, shop); assert.strictEqual(r.status, 200);
+    assert.strictEqual((await s.cmd('pay', {jobId:'m3', kind:'void', payK:struck, reason:'Entered on the wrong job', byName:'Sam'}, shop)).json.duplicate, true);
+    assert.strictEqual(L.paidOf(s.job('m3')), 60); assert.strictEqual(s.job('m3').pay[struck].amount, 150); assert.strictEqual(s.job('m3').pay[struck].void.byName, 'Sam');
+    // refunds: never more than was paid, always with a reason, and as their own entry
+    r = await s.cmd('pay', {jobId:'m3', kind:'refund', amount:100, method:'Cash', reason:'Customer changed their mind', byName:'Sam', key:k(10)}, shop);
+    assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'over_refund');
+    assert.strictEqual((await s.cmd('pay', {jobId:'m3', kind:'refund', amount:20, method:'Cash', reason:'', byName:'Sam', key:k(10)}, shop)).status, 400);
+    r = await s.cmd('pay', {jobId:'m3', kind:'refund', amount:20, method:'Cash', reason:'Door bar not needed', byName:'Sam', key:k(10)}, shop); assert.strictEqual(r.status, 200);
+    p = s.job('m3').pay; assert.ok(p['p' + k(10)].kind === 'refund' && p['p' + k(10)].reason === 'Door bar not needed'); assert.strictEqual(L.paidOf(s.job('m3')), 40); assert.strictEqual(L.balanceOf(s.job('m3')), 187.4); assert.strictEqual(Object.keys(p).length, 4);
+    // the receipt says the same as the ledger: live entries only, the refund as a refund, the fitter's money apart
+    const receipt = L.receiptMessage(s.job('m3'), 'Sam', {name:'Innovation Flooring Direct', phone:'0141 952 5200'});
+    assert.match(receipt, /paid £60\.00 by card machine/); assert.match(receipt, /refunded £20\.00 by cash/); assert.doesNotMatch(receipt, /£50\.00|£150\.00 by/);
+    assert.match(receipt, /Paid to the shop so far: £40\.00\nStill to pay the shop: £187\.40\nFitting, paid to your fitter on completion: £150\.00/);
+    assert.match(L.receiptMessage(s.job('m2'), 'Sam', {name:'X', phone:'1'}), /In credit with the shop: £72\.60/);
+    // every change is on the job's own history, with who made it
+    const hist = Object.values(s.job('m3').log).map(x => x.text).join('\n');
+    assert.match(hist, /Recorded £50\.00 taken by cash\. Entered by Sam/); assert.match(hist, /corrected by Sam: Typed 50, the slip says 60\. Recorded £60\.00 taken by card machine/); assert.match(hist, /struck out by Sam: Entered on the wrong job/); assert.match(hist, /Recorded a refund of £20\.00 by cash: Door bar not needed/);
+    // a new shop sale cannot be saved already carrying more paid than it comes to, or a piece already cut
+    r = await s.req('POST', '/api/db/set', {path:'jobs/mnew', data:testJob({pay:{p1:{at:'2026-11-10T09:00:00.000Z', amount:500, method:'Cash'}}})}, shop);
+    assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'overpayment'); assert.strictEqual(s.app.store.getDoc('jobs/mnew').exists, false);
+    assert.strictEqual((await s.req('POST', '/api/db/set', {path:'jobs/mnew', data:testJob({pay:{p1:{at:'2026-11-10T09:00:00.000Z', amount:50, method:'Cash'}}})}, shop)).status, 200, 'a deposit taken with the sale is fine');
+    assert.strictEqual((await s.req('POST', '/api/db/set', {path:'jobs/mcut', data:testJob({lines:{l1:Object.assign({}, testJob().lines.l1, {picked:true})}})}, shop)).json.error.code, 'use_command');
+    // a cancelled job takes no payment
+    s.app.store.updateDoc(docPath('jobs/m1'), {status:'cancelled'});
+    assert.strictEqual((await s.cmd('pay', {jobId:'m1', kind:'payment', amount:1, method:'Cash', byName:'Sam', key:k(11)}, shop)).json.error.code, 'invalid_state');
+  } finally { s.stop(); }
+});
+
+test('messages: only the mail server or the text service taking it counts as sent; failures, retries, duplicates, test mode and hand-sent are all recorded for what they are', async () => {
+  const s = await boot({}, {messaging:true});
+  try {
+    const shop = await s.signIn(SHOPM), owner = await s.signIn(OWNER), L = s.app.rules, k = n => 'msg' + String(n).padStart(6, '0'), ms = id => s.job(id).msgs || {};
+    const quote = {qa:{n:1, at:'2026-11-10T09:00:00.000Z', byName:'Sam', lines:[{label:'Carpet', price:200}, {label:'Fitting', price:150}], total:350}};
+    s.app.store.setDoc(docPath('jobs/g1'), testJob({lines:{}, total:0, fitterDue:0, quotes:quote})); s.app.store.setDoc(docPath('jobs/g2'), testJob({date:'2026-11-20', diary:true}));
+    const body = 'Hi Zed,\n\nThanks for coming in. Here is your quote.\n\nCarpet: £200.00\nFitting: £150.00\n\nTotal: £350.00\n\nThanks again,\nSam\nInnovation Flooring Direct';
+    const send = (extra, cookie) => s.cmd('msg.send', Object.assign({jobId:'g1', kind:'quote', channel:'email', to:'zed@example.test', subject:'Your quote from Innovation Flooring Direct', body:body, rev:'qa', byName:'Sam'}, extra), cookie || shop);
+    assert.deepStrictEqual((await s.req('GET', '/api/status', undefined, shop)).json, {email:true, emailFrom:'shop@example.test', sms:true, testOnly:true, allow:0});
+    // test mode is on until the owner says otherwise: nothing goes to anyone who is not on the owner's list
+    let r = await send({key:k(1)});
+    assert.strictEqual(r.status, 403); assert.strictEqual(r.json.error.code, 'test_mode'); assert.strictEqual(s.mailbox.state.got.length, 0); assert.deepStrictEqual(ms('g1'), {});
+    r = await s.req('POST', '/api/db/update', {path:'settings/main', data:{msgs:{testOnly:false}}}, shop);
+    assert.strictEqual(r.status, 403, 'the shop sign-in cannot switch test mode off'); 
+    s.app.store.setDoc(docPath('settings/main'), {fitters:['Lennox']});
+    assert.strictEqual((await s.req('POST', '/api/db/update', {path:'settings/main', data:{msgs:{testOnly:true, allow:['zed@example.test', '07700 900555', '07700 900556', '07700 900557']}}}, owner)).status, 200);
+    assert.strictEqual((await s.req('POST', '/api/db/update', {path:'settings/main', data:{bays:['W4-01']}}, shop)).status, 200, 'other settings still save for the shop');
+    // a size in a quote is refused by the server too
+    assert.strictEqual((await send({key:k(2), body:body.replace('Carpet:', 'Carpet 5.4m x 4m:')})).json.error.code, 'has_sizes');
+    // a real send: the mail server takes it, and the record holds who, what exactly, which quote, and the server's reference
+    r = await send({key:k(3)});
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.ok, true);
+    let got = s.mailbox.state.got; assert.strictEqual(got.length, 1);
+    assert.deepStrictEqual(got[0].to, ['zed@example.test']); assert.strictEqual(got[0].text, body, 'the customer gets exactly the words on the screen'); assert.strictEqual(got[0].subject, 'Your quote from Innovation Flooring Direct');
+    assert.match(got[0].fromHeader, /Innovation Flooring Direct <shop@example\.test>/); assert.strictEqual(s.mailbox.state.signIns, 1);
+    let m = ms('g1')['m' + k(3)];
+    assert.ok(m.state === 'sent' && m.to === 'zed@example.test' && m.body === body && m.rev === 'qa' && m.kind === 'quote' && m.channel === 'email' && m.byName === 'Sam' && m.ref === got[0].id && m.sentAt && Object.keys(m.tries).length === 1, JSON.stringify(m));
+    assert.ok(L.quoteSent(s.job('g1'), Object.assign({k:'qa'}, quote.qa)), 'and now the quote counts as sent');
+    assert.match(Object.values(s.job('g1').log).map(x => x.text).join('\n'), /Quote emailed to zed@example\.test by Sam\. Accepted by the mail server, reference </);
+    // the same request again is the same message; a fresh request for something already sent is refused unless it is meant
+    r = await send({key:k(3)}); assert.strictEqual(r.json.duplicate, true); assert.strictEqual(s.mailbox.state.got.length, 1);
+    r = await send({key:k(4)}); assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'already_sent'); assert.strictEqual(s.mailbox.state.got.length, 1); assert.strictEqual(Object.keys(ms('g1')).length, 1);
+    r = await send({key:k(4), again:true}); assert.strictEqual(r.json.ok, true); assert.strictEqual(s.mailbox.state.got.length, 2);
+    // a send that fails: recorded as not sent, with the reason, and it does not count as sent
+    s.mailbox.state.refuse['zed@example.test'] = 1;
+    r = await send({key:k(5), rev:'qb'});
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.ok, false); m = ms('g1')['m' + k(5)];
+    assert.ok(m.state === 'failed' && /would not take that address: 550/.test(m.err) && m.failedAt && !m.sentAt && !m.ref, JSON.stringify(m)); assert.strictEqual(s.mailbox.state.got.length, 2);
+    assert.strictEqual(L.quoteSent(s.job('g1'), {k:'qb'}), ''); assert.strictEqual(L.msgFailed(s.job('g1')).map(x => x.k).join(), 'm' + k(5));
+    assert.ok(L.warningsOf(s.job('g1'), '2026-11-10', {}).some(w => w.tone === 'bad' && /did not send/i.test(w.text)), 'the job is flagged for the shop to act on');
+    assert.match(Object.values(s.job('g1').log).map(x => x.text).join('\n'), /IT DID NOT SEND: The mail server would not take that address/);
+    // trying again: the same record, one message delivered, both attempts kept
+    r = await s.cmd('msg.retry', {jobId:'g1', mk:'m' + k(5), byName:'Sam'}, shop);
+    assert.strictEqual(r.json.ok, true); m = ms('g1')['m' + k(5)];
+    assert.ok(m.state === 'sent' && m.ref && m.err === '' && Object.values(m.tries).filter(t => t.ok).length === 1 && Object.values(m.tries).filter(t => !t.ok).length === 1); assert.strictEqual(s.mailbox.state.got.length, 3); assert.strictEqual(Object.keys(ms('g1')).length, 3);
+    assert.strictEqual((await s.cmd('msg.retry', {jobId:'g1', mk:'m' + k(5), byName:'Sam'}, shop)).json.error.code, 'invalid_state', 'a message that went is not sent again by retrying');
+    assert.strictEqual(s.mailbox.state.got.length, 3); assert.strictEqual(L.msgFailed(s.job('g1')).length, 0);
+    // the mail server being down, or refusing the sign-in, is a failure with a plain reason
+    s.mailbox.state.badAuth = true; r = await send({key:k(6), rev:'qc'});
+    assert.strictEqual(r.json.ok, false); assert.match(ms('g1')['m' + k(6)].err, /refused the sign-in/); s.mailbox.state.badAuth = false;
+    // texts: accepted is "sent"; "delivered" only once the text service says the handset has it
+    const snap = L.bookingSnap(s.job('g2')), text = L.confirmMessage(s.job('g2'), 'Sam', {name:'Innovation Flooring Direct', phone:'0141 952 5200'});
+    const sms = (extra) => s.cmd('msg.send', Object.assign({jobId:'g2', kind:'confirm', channel:'sms', to:'07700 900555', body:text, rev:'r1', snap:snap, byName:'Sam'}, extra), shop);
+    r = await sms({key:k(7)}); assert.strictEqual(r.json.ok, true); m = ms('g2')['m' + k(7)];
+    assert.ok(m.state === 'sent' && m.to === '+447700900555' && /^SM[0-9a-f]{32}$/.test(m.ref) && m.snap.fitter === 'Lennox' && m.snap.date === '2026-11-20' && !m.deliveredAt);
+    assert.strictEqual(s.twilio.state.sent[0].body, text); assert.strictEqual(s.twilio.state.sent[0].to, '+447700900555'); assert.match(text, /Your fitting is booked for Friday 20 November\.[\s\S]*Your fitter is Lennox\.[\s\S]*fitting total of £150\.00 is paid on completion of the job, directly to your fitter/);
+    assert.strictEqual(L.confirmState(s.job('g2')), 'sent');
+    await s.app.commands.poll(); m = ms('g2')['m' + k(7)];
+    assert.ok(m.state === 'delivered' && m.deliveredAt); assert.match(Object.values(s.job('g2').log).map(x => x.text).join('\n'), /Fitting confirmation text to \+447700900555 delivered to the handset/);
+    // what the customer was told is kept with it, so a later change shows the booking as needing to be confirmed again
+    s.app.store.updateDoc(docPath('jobs/g2'), {slot:'PM'}); assert.strictEqual(L.confirmState(s.job('g2')), 'changed'); assert.strictEqual(L.confirmChanges(s.job('g2')).join(), 'morning or afternoon');
+    s.app.store.updateDoc(docPath('jobs/g2'), {slot:''}); assert.strictEqual(L.confirmState(s.job('g2')), 'sent');
+    // a text the network could not deliver turns from sent to failed
+    s.twilio.state.undeliverable['+447700900556'] = true;
+    r = await sms({key:k(8), to:'07700 900556'}); assert.strictEqual(r.json.ok, true); await s.app.commands.poll(); m = ms('g2')['m' + k(8)];
+    assert.ok(m.state === 'failed' && /could not deliver it: Unreachable destination handset/.test(m.err) && m.sentAt && m.failedAt);
+    // a text the service refuses outright
+    s.twilio.state.refuse['+447700900557'] = 1;
+    r = await sms({key:k(9), to:'07700 900557'}); assert.strictEqual(r.json.ok, false); assert.match(ms('g2')['m' + k(9)].err, /The text service refused it: The To number is not a valid phone number \(code 21211\)/);
+    r = await s.cmd('msg.retry', {jobId:'g2', mk:'m' + k(9), byName:'Sam'}, shop); assert.strictEqual(r.json.ok, true); assert.strictEqual(s.twilio.state.sent.filter(t => t.to === '+447700900557').length, 1);
+    // copied, or opened in an app: prepared, never sent
+    s.app.store.setDoc(docPath('jobs/g3'), testJob({lines:{}, total:0, fitterDue:0, quotes:quote})); s.app.store.setDoc(docPath('jobs/g4'), testJob({date:'2026-11-20', diary:true}));
+    r = await s.cmd('msg.prepared', {jobId:'g3', kind:'quote', channel:'copy', to:'', body:body, rev:'qa', byName:'Sam', how:'copied', key:k(10)}, shop); assert.strictEqual(r.status, 200);
+    r = await s.cmd('msg.prepared', {jobId:'g3', kind:'quote', channel:'email', to:'zed@example.test', body:body, rev:'qa', byName:'Sam', how:'opened', key:k(11)}, shop); assert.strictEqual(r.status, 200);
+    r = await s.cmd('msg.prepared', {jobId:'g4', kind:'confirm', channel:'copy', to:'', body:text, rev:'r1', snap:snap, byName:'Sam', how:'copied', key:k(12)}, shop); assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(Object.values(ms('g3')).map(x => x.state), ['prepared', 'prepared']); assert.strictEqual(L.quoteSent(s.job('g3'), {k:'qa'}), '');
+    const w3 = L.quoteWait(s.job('g3'), '2026-11-10'); assert.strictEqual(w3.state, 'unsent'); assert.strictEqual(w3.why, 'prepared'); assert.strictEqual(L.confirmState(s.job('g4')), 'todo', 'a copied confirmation still leaves the customer to be told');
+    assert.strictEqual(s.mailbox.state.got.length, 3); assert.match(Object.values(s.job('g3').log).map(x => x.text).join('\n'), /Quote copied by Sam\. Prepared only: nothing was sent from here/);
+    // sent by a member of staff themselves: recorded as exactly that, under their name
+    assert.strictEqual((await s.cmd('msg.manual', {jobId:'g3', kind:'quote', channel:'email', to:'', body:body, rev:'qa', byName:'Sam', key:k(13)}, shop)).status, 400, 'where it went has to be said');
+    r = await s.cmd('msg.manual', {jobId:'g3', kind:'quote', channel:'email', to:'zed@example.test', body:body, rev:'qa', byName:'Sam', note:'From the shop mailbox', key:k(13)}, shop); assert.strictEqual(r.status, 200);
+    m = ms('g3')['m' + k(13)]; assert.ok(m.state === 'manual' && m.byName === 'Sam' && m.note === 'From the shop mailbox' && !m.ref); assert.ok(L.quoteSent(s.job('g3'), {k:'qa'})); assert.strictEqual(L.quoteWait(s.job('g3'), '2026-11-10').state, 'waiting');
+    assert.match(Object.values(s.job('g3').log).map(x => x.text).join('\n'), /Quote recorded as sent by email from their own mailbox to zed@example\.test by Sam: From the shop mailbox/);
+    // nobody can write "sent" onto a job through the plain record route
+    r = await s.req('POST', '/api/db/update', {path:'jobs/g4', data:{msgs:{mforged:{kind:'confirm', state:'sent', at:'2026-11-10T09:00:00.000Z', snap:snap}}}}, shop);
+    assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'use_command'); assert.strictEqual(L.confirmState(s.job('g4')), 'todo');
+    assert.strictEqual((await s.req('POST', '/api/db/set', {path:'jobs/gnew', data:testJob({msgs:{mforged:{kind:'quote', state:'sent'}}})}, shop)).status, 409, 'nor on a new record');
+    // the old way of marking things sent, a click recorded on the quote or the job, no longer counts for anything
+    s.app.store.setDoc(docPath('jobs/g5'), testJob({lines:{}, total:0, quotes:{qa:Object.assign({}, quote.qa, {sent:{email:{at:'2026-11-10T09:00:00.000Z', to:'zed@example.test'}}})}, confirms:{c1:{at:'2026-11-10T09:00:00.000Z', date:'2026-11-20', fitter:'Lennox'}}}));
+    assert.strictEqual(L.quoteSent(s.job('g5'), {k:'qa'}), ''); assert.strictEqual(L.quoteWait(s.job('g5'), '2026-11-10').state, 'unsent');
+    // none of the sending details, or who is on the owner's list, reach a screen
+    const seen = JSON.stringify((await s.req('GET', '/api/status', undefined, shop)).json) + (await s.req('GET', '/', undefined, shop)).text;
+    assert.doesNotMatch(seen, /mail-test-pass|tw-test-token|ACtest/); assert.strictEqual((await s.req('GET', '/api/status', undefined, shop)).json.allow, 4);
+    assert.strictEqual((await s.req('GET', '/api/status')).status, 401);
+  } finally { s.stop(); }
+});
+
+test('messages: with no mail server or text service set up nothing is sent and nothing says it was; a restart mid-send is not assumed to have gone', async () => {
+  const s = await boot();
+  try {
+    const shop = await s.signIn(SHOPM), owner = await s.signIn(OWNER);
+    s.app.store.setDoc(docPath('jobs/n1'), testJob());
+    await s.req('POST', '/api/db/set', {path:'settings/main', data:{msgs:{testOnly:false, allow:[]}}}, owner);
+    assert.deepStrictEqual((await s.req('GET', '/api/status', undefined, shop)).json, {email:false, emailFrom:'', sms:false, testOnly:false, allow:0});
+    for (const ch of ['email', 'sms']){
+      const r = await s.cmd('msg.send', {jobId:'n1', kind:'other', channel:ch, to:ch === 'email' ? 'zed@example.test' : '07700 900555', subject:'x', body:'Hello', rev:'', byName:'Sam', key:'nosetup' + ch}, shop);
+      assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'not_set_up'); assert.match(r.json.error.message, /has not been set up yet, so nothing was sent/);
+    }
+    assert.strictEqual(s.job('n1').msgs, undefined); assert.strictEqual(s.texts.length, 2, 'only the two sign-in codes were ever texted');
+    // caught mid-send by a restart: it is marked as not known to have gone, for a person to check, rather than sent or silently dropped
+    s.app.store.updateDoc(docPath('jobs/n1'), {msgs:{mstuck:{kind:'quote', channel:'email', to:'zed@example.test', body:'Hello', rev:'qa', byName:'Sam', state:'queued', at:'2026-11-10T09:00:00.000Z'}}});
+    const dir = s.dir; s.app.close();
+    const again = await boot({}, {dir:dir});
+    const m = again.job('n1').msgs.mstuck; assert.strictEqual(m.state, 'failed'); assert.match(m.err, /restarted while this was being sent, so it is not known to have gone/);
+    again.stop();
+  } catch (e){ try { s.stop(); } catch (x) {} throw e; }
 });

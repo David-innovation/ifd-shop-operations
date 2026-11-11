@@ -3,7 +3,7 @@
    One small server: sign-in by texted code, the shop's records, the line to Shopify, pictures, and live updates between screens.
    Nothing secret is in this file. Keys and phone numbers come from the hosting environment. */
 const http = require('node:http'), fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
-const store = require('./lib/store'), shopifyLib = require('./lib/shopify'), sms = require('./lib/sms');
+const store = require('./lib/store'), shopifyLib = require('./lib/shopify'), sms = require('./lib/sms'), mail = require('./lib/mail'), rules = require('./lib/rules'), commands = require('./lib/commands');
 
 const SHOP_ROLES = ['owner', 'shop'];                       /* full shop screens */
 const ROLES = ['owner', 'shop', 'fitter', 'estimator'];
@@ -26,6 +26,9 @@ function create(opts){
   const VERSION = crypto.createHash('sha256').update(appBody + pub('shim.js')).digest('hex').slice(0, 12);
   const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/shim.js"></script></head><body>' + appBody + '</body></html>';
   const db = st.db;
+  /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
+  const L = rules.load(appBody);
+  const texter = opts.texter || sms.make(env, fetchImpl, log), mailer = opts.mailer || mail.make(env, log);
   const q = {
     userByMobile: db.prepare('SELECT * FROM users WHERE mobile = ?'), userById: db.prepare('SELECT * FROM users WHERE id = ?'),
     addUser: db.prepare('INSERT INTO users(id, name, mobile, role, active, created) VALUES(?, ?, ?, ?, 1, ?)'),
@@ -85,6 +88,8 @@ function create(opts){
     try { return new URL(o).host === req.headers.host; } catch (e){ return false; }
   }
   function broadcast(coll){ const msg = 'event: change\ndata: ' + JSON.stringify({coll:coll}) + '\n\n'; listeners.forEach(r => { try { r.write(msg); } catch (e) {} }); }
+  const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, pollMs:opts.pollMs});
+  cmds.start();
 
   /* ---------- sign-in by texted code ---------- */
   async function requestCode(req, res){
@@ -135,6 +140,9 @@ function create(opts){
     const d = store.docPath(body.path); if (!d) return fail(res, 400, 'invalid_argument', 'Bad path.');
     if (what === 'delete'){ st.deleteDoc(d.path); st.audit(user.id, 'delete', d.path); broadcast(d.coll); return send(res, 200, {ok:true}); }
     if (!body.data || typeof body.data !== 'object' || Array.isArray(body.data)) return fail(res, 400, 'invalid_argument', 'Nothing to save.');
+    /* money, messages and cutting have rules of their own, so these plain routes may not change them */
+    if ((what === 'set' || what === 'update') && d.coll === 'jobs') cmds.guardJobWrite(d, body.data, what === 'set', user);
+    if ((what === 'set' || what === 'update') && d.path === 'settings/main') cmds.guardSettings(d, body.data, what === 'set', user);
     if (what === 'set'){ st.setDoc(d, body.data); st.audit(user.id, 'set', d.path); broadcast(d.coll); return send(res, 200, {ok:true}); }
     if (what === 'update'){
       if (!st.updateDoc(d, body.data)) return fail(res, 404, 'invalid_argument', 'That record does not exist.');
@@ -201,6 +209,8 @@ function create(opts){
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
     if (p === '/api/users') return send(res, 200, {users:q.users.all().map(u => ({id:u.id, name:u.name, role:u.role, active:!!u.active}))});
     if (p.startsWith('/api/db/')) return dbRoute(req, res, url, user, p.slice(8));
+    if (p === '/api/cmd' && req.method === 'POST'){ const body = await readJson(req); return send(res, 200, await cmds.run(String(body.cmd || ''), body, user)); }
+    if (p === '/api/status') return send(res, 200, cmds.status());
     if (p === '/api/shopify' && req.method === 'POST') return shopifyRoute(req, res, user);
     if (p === '/api/shopify/status') return send(res, 200, {ready:shop.ready(), store:shop.store});
     if (p === '/api/geo' && req.method === 'GET') return geoRoute(res, url);
@@ -222,10 +232,10 @@ function create(opts){
     fail(res, 404, 'not_found', 'Not found.');
   }
   const server = http.createServer((req, res) => {
-    handle(req, res).catch(e => { if (res.headersSent) return res.end(); if (e && e.status) return fail(res, e.status, e.code, e.message); log('ERROR ' + (e && e.stack || e)); fail(res, 500, 'server_error', 'Something went wrong on the server.'); });
+    handle(req, res).catch(e => { if (res.headersSent) return res.end(); if (e && e.status) return send(res, e.status, {error:Object.assign({code:e.code, message:e.message}, e.more || {})}); log('ERROR ' + (e && e.stack || e)); fail(res, 500, 'server_error', 'Something went wrong on the server.'); });
   });
   const beat = setInterval(() => listeners.forEach(r => { try { r.write(': keep\n\n'); } catch (e) {} }), 25000); beat.unref();
-  return { server, store:st, ensureUser, version:VERSION, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ clearInterval(beat); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
+  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ clearInterval(beat); cmds.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
     /* for the owner's tools and the tests */
     disableUser(id){ const u = q.userById.get(id); if (u){ q.setUser.run(u.name, u.role, 0, id); q.dropSessionsOf.run(id); } } };
 }

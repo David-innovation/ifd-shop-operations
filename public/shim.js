@@ -118,8 +118,10 @@
     delete: ref => call('DELETE', '/api/assets/' + String(ref).replace(/^.*\//, '')),
     list: async () => ({assets:[], usage:{files:0, bytes:0, maxFiles:0, maxBytes:0}})
   };
+  /* changes the server checks against the shop's rules before it makes them: cutting, money, messages */
+  const cmd = { run: (name, body) => call('POST', '/api/cmd', Object.assign({cmd:name}, body || {})), status: () => call('GET', '/api/status') };
   const geo = { lookup: codes => call('GET', '/api/geo?codes=' + encodeURIComponent((codes || []).join(','))).then(r => r.codes || {}) };
-  const caps = {db:db, mcp:mcp, user:user, downloads:downloads, assets:assets, geo:geo};
+  const caps = {db:db, mcp:mcp, user:user, downloads:downloads, assets:assets, geo:geo, cmd:cmd};
   window.claude = {use: async name => caps[name] || null};
   /* a way out, since the shop's screen is shared */
   window.addEventListener('DOMContentLoaded', () => {

@@ -3,7 +3,7 @@
 One system for Innovation Flooring Direct: jobs, stock allocation, the diary, measures and site checks, deliveries and the fitters' own pages.
 Shopify stays the single stock authority. This system never keeps a second stock count.
 
-**Status: live on Render since 10 November 2026 and connected to the Innovation Flooring Direct store. Shop screens only so far: fitters and estimators cannot sign in to their own pages yet, and texts are not switched on.**
+**Status: live on Render since 10 November 2026 and connected to the Innovation Flooring Direct store. Shop screens only so far: fitters and estimators cannot sign in to their own pages yet. Customer emails and texts are built and tested against stand-ins, but nothing is sent from the live system until the mailbox and text service details are typed into the hosting.**
 
 ## How it fits together
 
@@ -12,13 +12,22 @@ Shopify stays the single stock authority. This system never keeps a second stock
         ▲                    │
         └── live updates ────┤──► records (one SQLite file on the service's disk)
                              ├──► pictures (files on the same disk)
-                             └──► Twilio (sign-in codes and reminder texts)
+                             ├──► Twilio (sign-in codes and customer texts)
+                             └──► a mail server (customer emails, over SMTP)
 ```
 
 - **Sign-in** is by a code texted to a mobile number the owner has approved. A number that is not set up gets no text. Codes last ten minutes, work once, and lock after five wrong tries.
 - **The shop's screens** (`app/`) are the ones proven on the Claude-hosted version, unchanged. `public/shim.js` gives them the same building blocks, backed by this server.
 - **Shopify** is reached only by the server, with its own key. A screen can only send the named questions and changes listed in `lib/shopify.js`. Every change is written to the audit log with who made it.
 - **Fitters and whoever measures** can sign in, but the server refuses them the shop's screens, records, Shopify and pictures. Their own pages are the next stage.
+- **One set of rules.** The shop's rules and sums are the first script in `app/ifd-shop-operations.html`. The server loads that same code (`lib/rules.js`), so a rule cannot say one thing on a screen and another on the server.
+- **Three things only happen through the server's own commands** (`POST /api/cmd`, in `lib/commands.js`), whichever screen or script asks:
+  - *Cutting.* A roll piece is only marked cut when nothing holds the job: sizes verified, no review outstanding, and the carpet sold still covers the floor as measured. Only the owner can override, with a reason that is written on the job.
+  - *Money.* A record of money already taken; it never charges a card. More than is owed is refused unless it is recorded as change given or as credit. The same entry sent twice is one entry. Nothing is deleted: a wrong entry is struck out with a reason, a correction sits beside it, and a refund is its own entry.
+  - *Messages to customers.* Sent by the server through the mail server or Twilio. A message counts as sent only when that service accepts it and gives a reference; a text counts as delivered only when Twilio reports the handset has it. Copying a message or opening it in an app is recorded as prepared, never sent. Failed sends are kept with the reason, listed on the Today screen, and retried without making a second message. A member of staff who really did send it themselves records that under their own name.
+  The plain record routes refuse to change payments, messages, or a roll line's cut tick.
+- **Test mode for messages** is on by default and can only be changed by the owner, in Setup. While it is on, messages go only to the test details the owner has listed there. Those details live in the system's own records, not in this repository.
+- **Shopify and money.** The Shopify sale is the shop's part only: fitting money the customer pays straight to the fitter is left off it and noted on it. On this Shopify plan an order is either unpaid or paid in full, so staff are told to mark it paid only when the shop has been paid in full here; part payments live in this system's ledger. `Check Shopify` on a finished job reads the order back and says whether the two agree. This system never marks a Shopify order paid or fulfilled itself.
 
 ## Files
 
@@ -27,11 +36,14 @@ Shopify stays the single stock authority. This system never keeps a second stock
 | `server.js` | Sign-in, records, the Shopify line, pictures, live updates |
 | `lib/store.js` | Records in SQLite. Nested values merge inside one transaction, so two saves at once both land |
 | `lib/shopify.js` | Key exchange with Shopify and the list of permitted requests |
-| `lib/sms.js` | Texts through Twilio. Until Twilio is set up they are written to the service log instead |
+| `lib/sms.js` | Texts through Twilio. Until Twilio is set up a sign-in code is written to the service log instead; customer texts are never logged in place of sending |
+| `lib/mail.js` | Customer emails over SMTP, with no outside packages |
+| `lib/rules.js` | Loads the shop's rules from the screens for the server to use |
+| `lib/commands.js` | Cutting, money and customer messages, checked and recorded by the server |
 | `app/ifd-shop-operations.html` | The shop's screens |
 | `public/` | Sign-in page and the piece that connects the screens to the server |
 | `test/` | Server tests: `npm test` |
-| `testkit/` | Stand-in Shopify, and a browser run of the real screens: `node testkit/browser-check.js` |
+| `testkit/` | Stand-ins for Shopify, the mail server and the text service, and a browser run of the real screens: `node testkit/browser-check.js` |
 | `render.yaml` | Hosting set-up for Render |
 
 ## Settings typed into the hosting (never stored here)
@@ -41,7 +53,10 @@ Shopify stays the single stock authority. This system never keeps a second stock
 | `OWNER_NAME`, `OWNER_MOBILE` | The owner's name and mobile. The first person who can sign in |
 | `SHOP_MOBILE` | The mobile that receives codes for the shared shop screen |
 | `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET` | The key pair from the store's own app in Shopify's Dev Dashboard |
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | Twilio details. Leave empty to have texts written to the log |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | Twilio details. Without them sign-in codes are written to the log and customer texts cannot be sent |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | The mail server customer emails go out through. Port 465 (the default) or 587. For a Google mailbox: `smtp.gmail.com`, 465, the mailbox address, and an app password made for this system |
+| `EMAIL_FROM` | Who emails come from, for example `Innovation Flooring Direct <help@...>`. Has to be an address the mail server lets that mailbox send as |
+| `EMAIL_REPLY_TO` | Optional. Where a customer's reply goes, if not the sending address |
 | `SESSION_PEPPER` | Made by the hosting. Protects sign-in records |
 
 ## Where the records are and how they are kept safe
@@ -50,7 +65,7 @@ Records and pictures are on the service's own disk (`DATA_DIR`). Still to do bef
 
 ## What has been proven so far
 
-- `npm test`: sign-in rules, records, live updates, the Shopify line (key reuse, renewal, refusals), pictures, and that a fitter's sign-in is refused everything belonging to the shop.
-- `node testkit/browser-check.js`: the real screens signing in, reading website orders, making a job, two screens updating each other, pictures, sign-out.
+- `npm test`: sign-in rules, records, live updates, the Shopify line (key reuse, renewal, refusals), pictures, that a fitter's sign-in is refused everything belonging to the shop, and the server's own rules for cutting, money and messages (holds, overrides, overpayments, change and credit, duplicates, corrections, refunds, failed sends and retries, test mode, restarts mid-send).
+- `node testkit/browser-check.js`: the real screens in a browser, from sign-in through pricing a measure, sending the quote, the customer saying yes, cutting, picking, the diary and the fitting confirmation, payments and receipts, and closing a finished job off against Shopify.
 
-All of that is against a stand-in for Shopify. Nothing has been run against the live store from this server yet.
+All of that is against stand-ins: a made-up Shopify, a made-up mail server and a made-up text service, with made-up people. Sending real emails and texts from the live system has not been shown yet. That needs the mailbox and Twilio details in the hosting, and then a quote and a booking confirmation arriving at the owner's own test details.

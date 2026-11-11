@@ -3,7 +3,28 @@
 const DOMAIN = 'innovationflooring.myshopify.com';
 const resp = (status, obj) => ({ok:status >= 200 && status < 300, status:status, json:async () => obj, text:async () => JSON.stringify(obj)});
 function make(){
-  const state = {tokens:0, calls:[], expireNext:false, down:false, avail:36, drafts:0};
+  const state = {tokens:0, calls:[], expireNext:false, down:false, avail:36, drafts:0, docs:{}, orders:0};
+  /* drafts this system has made, and what shop staff then do with them in Shopify's own admin: make the order, take payment, send the goods */
+  const priceOf = id => id === 'gid://shopify/ProductVariant/701' ? 20.18 : 0;
+  function totalOf(input){
+    let t = 0;
+    (input.lineItems || []).forEach(it => {
+      let unit = it.originalUnitPriceWithCurrency ? Number(it.originalUnitPriceWithCurrency.amount) : it.priceOverride ? Number(it.priceOverride.amount) : priceOf(it.variantId);
+      if (it.appliedDiscount && it.appliedDiscount.valueType === 'PERCENTAGE') unit = unit * (1 - Number(it.appliedDiscount.value) / 100);
+      t += unit * (Number(it.quantity) || 0);
+    });
+    if (input.appliedDiscount && input.appliedDiscount.valueType === 'FIXED_AMOUNT') t -= Number(input.appliedDiscount.value) || 0;
+    return Math.round(t * 100) / 100;
+  }
+  const money = n => ({shopMoney:{amount:Number(n).toFixed(2)}});
+  const seenOrder = o => ({id:o.id, name:o.name, displayFulfillmentStatus:o.fulfilled ? 'FULFILLED' : 'UNFULFILLED', displayFinancialStatus:o.paid ? 'PAID' : 'PENDING', cancelledAt:o.cancelled ? '2026-11-10T10:00:00Z' : null,
+    currentTotalPriceSet:money(o.total), totalReceivedSet:money(o.paid ? o.total : 0), totalOutstandingSet:money(o.paid ? 0 : o.total)});
+  const docOf = name => Object.values(state.docs).find(d => d.name === name || d.id === name);
+  state.staff = {
+    addDraft(total){ state.drafts++; const id = 'gid://shopify/DraftOrder/' + (9000 + state.drafts); state.docs[id] = {id:id, name:'#D' + state.drafts, status:'OPEN', total:total, input:null, order:null}; return {id:id, name:'#D' + state.drafts, num:String(9000 + state.drafts)}; },
+    makeOrder(name, paid){ const d = docOf(name); state.orders++; d.status = 'COMPLETED'; d.order = {id:'gid://shopify/Order/' + (6000 + state.orders), name:'#' + (3000 + state.orders), total:d.total, paid:!!paid, fulfilled:false, cancelled:false}; return d.order; },
+    markPaid(name){ docOf(name).order.paid = true; }, fulfil(name){ docOf(name).order.fulfilled = true; }, setTotal(name, total){ const d = docOf(name); d.total = total; if (d.order) d.order.total = total; }
+  };
   const order = {id:'gid://shopify/Order/5001', name:'#2001', createdAt:'2026-11-09T19:53:06Z', displayFinancialStatus:'PAID', displayFulfillmentStatus:'UNFULFILLED', cancelledAt:null, tags:['packs-reserved'], email:'alex@example.com', phone:null,
     totalPriceSet:{shopMoney:{amount:'50.0'}}, totalOutstandingSet:{shopMoney:{amount:'0.0'}}, customer:{id:'gid://shopify/Customer/9', displayName:'Alex Sample'}, shippingAddress:null,
     customAttributes:[{key:'Quote reference', value:'QT-1'}, {key:'Quote estimated total', value:'£282.52'}],
@@ -25,7 +46,13 @@ function make(){
     if (op === 'OpsProduct') return Object.assign(base, {product:vars.id === 'gid://shopify/Product/80' ? Object.assign(carpet(), {variants:{nodes:rolls()}}) : null});
     if (op === 'OpsVariants') return Object.assign(base, {nodes:(vars.ids || []).map(id => { const r = rolls().find(x => x.id === id); return id === 'gid://shopify/ProductVariant/701' ? variant() : r ? Object.assign(r, {product:carpet()}) : null; })});
     if (op === 'OpsAdjust'){ const c = vars.input.changes[0]; if (c.changeFromQuantity !== state.avail) return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:null, userErrors:[{field:['input'], message:'stale', code:'CHANGE_FROM_QUANTITY_STALE'}]}}; state.avail += c.delta; return {inventoryAdjustQuantities:{inventoryAdjustmentGroup:{id:'g1'}, userErrors:[]}}; }
-    if (op === 'OpsDraftCreate'){ state.drafts++; state.lastDraft = vars.input; return {draftOrderCreate:{draftOrder:{id:'gid://shopify/DraftOrder/' + (9000 + state.drafts), name:'#D' + state.drafts, status:'OPEN'}, userErrors:[]}}; }
+    if (op === 'OpsDraftCreate'){
+      state.drafts++; state.lastDraft = vars.input; const id = 'gid://shopify/DraftOrder/' + (9000 + state.drafts);
+      state.docs[id] = {id:id, name:'#D' + state.drafts, status:'OPEN', total:totalOf(vars.input), input:vars.input, order:null};
+      return {draftOrderCreate:{draftOrder:{id:id, name:'#D' + state.drafts, status:'OPEN'}, userErrors:[]}};
+    }
+    if (op === 'OpsDraft'){ const d = state.docs[vars.id]; return Object.assign(base, {draftOrder:d ? {id:d.id, name:d.name, status:d.status, totalPriceSet:money(d.total), order:d.order ? seenOrder(d.order) : null} : null}); }
+    if (op === 'OpsOrder'){ const d = Object.values(state.docs).find(x => x.order && x.order.id === vars.id); return Object.assign(base, {order:d ? seenOrder(d.order) : null}); }
     return base;
   }
   async function fetchImpl(url, init){

@@ -36,5 +36,18 @@ services:
         sync: false
       - key: TWILIO_FROM
         sync: false
+      # customer emails: the shop's own mailbox, or any mail service, over SMTP
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false
       - key: SESSION_PEPPER
         generateValue: true
