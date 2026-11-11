@@ -49,6 +49,27 @@ test('accepted jobs enter diary only after preparation and checking, and explici
   }finally{s.stop();}
 });
 
+test('pack quotes combine identical variants, preserve exact quantities and gate automatic diary handover', async () => {
+  const s=await boot();try{
+    const L=s.app.rules, owner=await s.signIn(OWNER), variant='gid://shopify/ProductVariant/701';
+    const job=testJob({date:'2026-11-20',diaryAuto:true,brief:{choices:[{k:'a',title:'Oak laminate',variantId:variant},{k:'b',title:'Oak laminate',variantId:variant}]},rooms:{a:{name:'Bedroom',area:12,want:'a',status:'verified',spec:{floor:'flooring'}},b:{name:'Hall',area:8,want:'b',status:'verified',spec:{floor:'flooring'}}},lines:{}});
+    const goods={a:{cov:1.836,pack:20.18},b:{cov:1.836,pack:20.18}}, plan=L.packPlan(job,goods,{});
+    assert.equal(plan.groups.length,1);assert.equal(plan.groups[0].packs,12);assert.equal(plan.groups[0].required,22);
+    assert.equal(L.catalogue(job,{},goods,{}).flooring.amount,242.16);
+    assert.match(L.packPlan(job,{},{}).problems.join(' '),/coverage/);
+    job.accepted={packs:plan};job.lines={p:{title:'Oak laminate',variantId:variant,unit:'packs',cov:1.836,qty:11,hold:'draft',state:'allocated',bay:'W4-01',picked:true,checked:true}};
+    assert.match(L.canConfirmDiary(job,{},{}).why.join(' '),/12 packs required/);
+    job.lines.p.qty=12;job.lines.p.checked=false;
+    s.app.store.setDoc(docPath('jobs/pack-diary'),job);
+    const change=data=>s.req('POST','/api/db/update',{path:'jobs/pack-diary',data},owner);
+    assert.equal((await change({diary:true})).status,409);
+    assert.equal((await change({lines:{p:{checked:true}}})).status,200);
+    assert.equal(s.job('pack-diary').diary,true,JSON.stringify(L.canConfirmDiary(s.job('pack-diary'),{},{}))+JSON.stringify(L.canComplete(s.job('pack-diary'))));
+    const changed=s.job('pack-diary');changed.rooms.a.area=13;
+    assert.match(L.canConfirmDiary(changed,{},{}).why.join(' '),/changed after acceptance/);
+  }finally{s.stop();}
+});
+
 test('records merge the way the screens expect', () => {
   assert.deepStrictEqual(merge({a:{b:1, c:[1, 2]}, x:1}, {a:{c:[3], d:{e:1}}, y:2}), {a:{b:1, c:[3], d:{e:1}}, x:1, y:2});
   assert.strictEqual(normaliseMobile('07700 900123'), '+447700900123'); assert.strictEqual(normaliseMobile('+44 7700 900123'), '+447700900123'); assert.strictEqual(normaliseMobile('0141 952'), '');
@@ -664,3 +685,5 @@ test('catalogue pricing: each line worked out from the measure, Shopify’s pric
     assert.strictEqual((await s.req('POST', '/api/db/update', {path:'settings/main', data:{fitters:['Lennox', 'Sonnie']}}, shop)).status, 200, 'the rest of Setup is unaffected');
   } finally { s.stop(); }
 });
+
+

@@ -21,6 +21,7 @@
 - Live email sending needs authenticated sender credentials or verified provider/domain access. David's open Gmail session has no sales@ send-as address. Browser sign-in alone does not give the hosted app permission to send mail.
 - Carpet accessory product selling units and physical stock counts are not confirmed. Door-bar variations/names will be supplied tomorrow. Foam Underlay's 9,999 figure is unverified. Do not invent replacement quantities or mark the opening stocktake complete.
 - Gold Underlay was confirmed by David as 15m² per roll; Shopify title and description were corrected to match the known coverage.
-- Flooring-pack allocation on quote acceptance remains a separate Add items step. This change covers the audited carpet journey, not a complete redesign of every existing workflow.
+- Laminate and wood quotes now retain an exact variant/coverage/whole-pack snapshot, combining rooms using the same variant before rounding. Acceptance carries it into reservation and picking without Add items. Quoted underlay defaults to its saved product; untracked accessories remain picking items. Agreed prices and separate fitter payment are unchanged. Shortages retain the variant and quantity in To order and cannot enter the diary until received, put away, picked and checked. Older quotes require one review/save to create the snapshot. Changed sizes, choices or pack coverage require review.
+- Pack regression checks cover laminate, engineered wood, shortage routing, combined-room rounding, preserved totals and diary safeguards using simulated Shopify. No real stock or money is changed by these tests.
 
 The existing live job M-IRIN5 is a labelled simulation. Do not fulfil its Shopify draft or treat its bank-transfer entry as real money.
