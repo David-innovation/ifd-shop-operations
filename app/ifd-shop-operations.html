@@ -1071,10 +1071,10 @@ window.IFDLogic = (function(){
     if (bars.length) out.push({key:'bars', label:'Door bars', note:bars.join(', ')});
     var floor = round2(rooms.reduce(function(t, r){ return t + roomArea(r); }, 0)), steps = p.stairs.length ? roomsOf(job).reduce(function(t, r){ var st = hslPart(hslOf(r), 'stairs'); return t + (st ? Math.floor(num(st.n)) + Math.floor(num(st.winders)) : 0); }, 0) : 0;
     out.push({key:'fitting', label:'Fitting', note:rooms.length + (rooms.length === 1 ? ' room, ' : ' rooms, ') + fmtM(floor) + ' m² of floor' + (steps ? ', ' + steps + ' stairs' : '')});
-    var wood = woodRooms(job, goods);
-    if (wood.area){
-      out.push({key:'glue', label:'Full-spread glue', must:true, note:fmtM(wood.area) + ' m² of engineered wood. It is always fully glued, so this cannot be left off.'});
-      out.push({key:'prep', label:'Floor preparation', must:true, note:'Engineered wood is not quoted without floor preparation. Enter the amount assessed for ' + wood.names.join(', ') + '.'});
+    var wood = woodRooms(job, goods), lvt=woodRooms(job,goods,true);
+    if (wood.area || lvt.area){
+      out.push({key:'glue', label:'Full-spread glue', must:true, note:fmtM(wood.area+lvt.area) + ' m² of bonded flooring. Full-spread adhesive is included automatically.'});
+      out.push({key:'prep', label:'Floor preparation', must:true, note:'Preparation is included for bonded flooring; confirm the subfloor assessment for ' + wood.names.concat(lvt.names).join(', ') + '.'});
     }
     if (p.uplift.length) out.push({key:'uplift', label:'Uplift and disposal', note:p.uplift.join(', ') + ', ' + fmtM(p.upliftArea) + ' m²'});
     if (p.furniture.length) out.push({key:'furniture', label:'Moving furniture', note:p.furniture.join(', ')});
@@ -1086,9 +1086,9 @@ window.IFDLogic = (function(){
      out a figure for each line. Staff click to use it, change it, or type their own: nothing is priced without a person
      choosing to. A discount comes off the shop's part only, never off fitting money that goes to the fitter. */
   var PRICE_DEFAULTS = {fitCarpet:5, fitCarpetMin:120, fitHslMin:150, underlay10:5.99, underlay12:7.99, gripper:1, gripperLen:1.52, doorBar:9.99, uplift:1.5, disposal:2.5, furniture:30,
-    fitEngHerringbone:30, fitEngStraight:22, glue:5, fitLaminate:10, fitLvt:10, fitLaminatePattern:22, fitLvtPattern:22, fitStraightMin:120, fitPatternMin:200, prep:14, beading:5, beadingLen:2.4, waste:10, discounts:'5, 10, 15, 20'};
+    fitGlueStraight:18, fitGluePattern:25, fitGlueTile:20, fitGlueBasket:35, fitGlueBorder:30, fitGlueMin:200, lvtGlue:3, lvtPrep:14, lvtPrepMin:150, fitEngHerringbone:30, fitEngStraight:22, glue:5, fitLaminate:10, fitLvt:10, fitLaminatePattern:22, fitLvtPattern:22, fitStraightMin:120, fitPatternMin:200, prep:14, beading:5, beadingLen:2.4, waste:10, discounts:'5, 10, 15, 20'};
   var PRICE_PLAIN = {gripperLen:1, beadingLen:1, waste:1};     /* lengths and a percentage, not money */
-  var PRICE_FIELDS = [['fitCarpet', 'Carpet fitting, per m² of floor'], ['fitCarpetMin', 'Carpet fitting, least charge'], ['fitHslMin', 'Carpet fitting, least charge with a hall, stairs and landing'],
+  var PRICE_FIELDS = [['fitGlueStraight','Glue-down LVT straight fitting, per m²'],['fitGluePattern','Glue-down LVT herringbone / chevron fitting, per m²'],['fitGlueTile','Glue-down LVT tile fitting, per m²'],['fitGlueBasket','Glue-down LVT basket weave fitting, per m²'],['fitGlueBorder','Glue-down LVT bordered fitting, per m²'],['fitGlueMin','Glue-down LVT fitting minimum per job'],['lvtGlue','Glue-down LVT adhesive, per m²'],['lvtPrep','Glue-down LVT preparation, per m²'],['lvtPrepMin','Glue-down LVT preparation minimum per job'],['fitCarpet', 'Carpet fitting, per m² of floor'], ['fitCarpetMin', 'Carpet fitting, least charge'], ['fitHslMin', 'Carpet fitting, least charge with a hall, stairs and landing'],
     ['underlay10', 'Super Soft 10mm underlay, per m²'], ['underlay12', 'Superior 12mm underlay, per m² (10mm + £2)'], ['gripper', 'Gripper, per length'], ['gripperLen', 'Length of a gripper strip, in metres'], ['doorBar', 'Door bar, each'],
     ['uplift', 'Uplift old flooring, per m²'], ['disposal', 'Disposal of old flooring, per m²'], ['furniture', 'Moving furniture, per room'],
     ['fitEngHerringbone', 'Engineered wood fitting, herringbone, per m²'], ['fitEngStraight', 'Engineered wood fitting, straight plank, per m²'], ['glue', 'Full-spread glue, per m²'],
@@ -1104,8 +1104,9 @@ window.IFDLogic = (function(){
   function discountsOf(list){ var seen = {}; return String((list && list.discounts) || '').split(/[^0-9.]+/).map(Number).filter(function(n){ if (!(n > 0 && n < 100) || seen[n]) return false; seen[n] = 1; return true; }).sort(function(a, b){ return a - b; }); }
   /* what kind of floor a product is, from its name and its Shopify type */
   function floorKind(title, type){
-    var t = String(title || '') + ' ' + String(type || '');
-    return {wood:/engineered|real wood|hardwood/i.test(t) && !/solid wood|solid oak/i.test(t), lvt:/spc|click.*vinyl|vinyl.*click/i.test(t) && !/glue.?down/i.test(t), laminate:/laminate/i.test(t), pattern:/herringbone.?effect|herringbone look|Rillington/i.test(t) ? 'straight' : /herringbone/i.test(t) ? 'herringbone' : /chevron/i.test(t) ? 'chevron' : 'straight'};
+    var t = String(title || '') + ' ' + String(type || ''), wood=/engineered|real wood|hardwood/i.test(t) && !/solid wood|solid oak/i.test(t), glueDown=!wood && !/solid wood|solid oak/i.test(t) && /glue[ _-]?down|gluedown|lvt_glue|method:glue/i.test(t);
+    var gp=/format_herringbone/i.test(t)?'herringbone':/format_chevron/i.test(t)?'chevron':/format_basket_weave|basket[ _-]?weave/i.test(t)?'basket':/format_tile_effect|\btile\b/i.test(t)?'tile':/herringbone/i.test(t)?'herringbone':/chevron/i.test(t)?'chevron':'straight';
+    return {glueDown:glueDown,gluePattern:gp,wood:/engineered|real wood|hardwood/i.test(t) && !/solid wood|solid oak/i.test(t), lvt:/spc|click.*vinyl|vinyl.*click/i.test(t) && !glueDown, laminate:/laminate/i.test(t), pattern:/herringbone.?effect|herringbone look|Rillington/i.test(t) ? 'straight' : /herringbone/i.test(t) ? 'herringbone' : /chevron/i.test(t) ? 'chevron' : 'straight'};
   }
   /* the product the customer picked for a room: the one tied to it at booking, or the only one of that kind on the job */
   function choiceOf(job, r){
@@ -1113,9 +1114,9 @@ window.IFDLogic = (function(){
     var same = b.choices.filter(function(x){ return (x.unit === 'm') === (sp.floor === 'carpet'); });
     return same.length === 1 ? same[0] : null;
   }
-  function woodRooms(job, goods){
+  function woodRooms(job, goods, glueDown){
     var out = {area:0, names:[]}, g = goods || {};
-    roomsOf(job).forEach(function(r){ var sp = specOf(r), ch = sp && sp.floor === 'flooring' ? choiceOf(job, r) : null; if (ch && floorKind(ch.title, ch.type || (g[ch.k] || {}).type).wood){ out.area = round2(out.area + roomArea(r)); out.names.push(r.name || 'Room'); } });
+    roomsOf(job).forEach(function(r){ var sp = specOf(r), ch = sp && sp.floor === 'flooring' ? choiceOf(job, r) : null; if (ch && floorKind(ch.title, (ch.type||'')+' '+((g[ch.k] || {}).type||''))[glueDown?'glueDown':'wood']){ out.area = round2(out.area + roomArea(r)); out.names.push(r.name || 'Room'); } });
     return out;
   }
   /* a size in a product's name that is not the size in its coverage field: 10 for "10 m2 Gold Underlay" set to cover 15. 0 when they agree or the name gives no size */
@@ -1185,7 +1186,7 @@ window.IFDLogic = (function(){
     rooms.forEach(function(r){
       var sp = specOf(r), a = roomArea(r);
       if (sp.floor === 'carpet'){ carpetArea = round2(carpetArea + a); if (hslOf(r)) hsl = true; return; }
-      var ch = choiceOf(job, r), kind = floorKind(ch ? ch.title : '', ch ? (ch.type || (g[ch.k] || {}).type) : ''), id = kind.wood ? 'wood-' + kind.pattern : kind.lvt ? 'lvt-' + kind.pattern : kind.laminate ? 'laminate-' + kind.pattern : 'other';
+      var ch = choiceOf(job, r), kind = floorKind(ch ? ch.title : '', ch ? ((ch.type||'')+' '+((g[ch.k] || {}).type||'')) : ''), id = kind.glueDown ? 'gluedown-' + kind.gluePattern + (o.lvtBorder || sp.border ? '-border' : '') : kind.wood ? 'wood-' + kind.pattern : kind.lvt ? 'lvt-' + kind.pattern : kind.laminate ? 'laminate-' + kind.pattern : 'other';
       fit[id] = round2((fit[id] || 0) + a);
     });
     if (carpetArea || p.stairs.length){
@@ -1196,12 +1197,13 @@ window.IFDLogic = (function(){
       var a = fit[x[0]]; if (!a) return;
       if (x[2] > 0){ floorFit += a * x[2]; floorMinimum = Math.max(floorMinimum, /straight$/.test(x[0]) ? list.fitStraightMin : list.fitPatternMin); tb.push(x[1] + ' fitting, ' + sqm(a) + ' × ' + per(x[2]) + ' = ' + money(a * x[2])); } else tneed.push(x[1].toLowerCase() + ' (' + sqm(a) + ')');
     });
+    Object.keys(fit).filter(function(k){return k.indexOf('gluedown-')===0;}).forEach(function(k){var pattern=k.split('-')[1],border=/-border$/.test(k),rates={straight:list.fitGlueStraight,herringbone:list.fitGluePattern,chevron:list.fitGluePattern,tile:list.fitGlueTile,basket:list.fitGlueBasket},rate=rates[pattern];if(border)rate=Math.max(rate,list.fitGlueBorder);if(!(rate>0)){tneed.push('glue-down LVT '+pattern);return;}floorFit+=fit[k]*rate;floorMinimum=Math.max(floorMinimum,list.fitGlueMin);tb.push('Glue-down LVT '+pattern+(border?' with border':'')+' fitting, '+sqm(fit[k])+' × '+per(rate)+' = '+money(fit[k]*rate));});
     if (floorFit > 0) { ta += Math.max(floorFit, floorMinimum); if (floorFit < floorMinimum) tb.push('Flooring fitting minimum of ' + money(floorMinimum) + ' applied once to the job'); }
     if (tb.length || tneed.length) out.fitting = {amount:tneed.length ? 0 : round2(ta), partial:tneed.length ? round2(ta) : 0, text:tb.join('. ') + (tneed.length ? (tb.length ? '. ' : '') + 'No fitting rate is set for ' + tneed.join(' or ') + ': type the fitting price.' : '')};
-    var wood = woodRooms(job, g);
-    if (wood.area){
-      out.glue = {amount:round2(wood.area * list.glue), text:sqm(wood.area) + ' × ' + per(list.glue)};
-      out.prep = {amount:round2(wood.area * list.prep), text:sqm(wood.area) + ' × ' + per(list.prep) + '. Website preparation allowance; confirm suitability at the home check.'};
+    var wood = woodRooms(job, g), lvt=woodRooms(job,g,true);
+    if (wood.area || lvt.area){
+      out.glue = {amount:round2(wood.area * list.glue+lvt.area*list.lvtGlue), needQty:round2(wood.area+lvt.area),needUnit:'m²',text:[wood.area?sqm(wood.area)+' engineered × '+per(list.glue):'',lvt.area?sqm(lvt.area)+' glue-down LVT × '+per(list.lvtGlue):''].filter(Boolean).join('; ')};
+      out.prep = {amount:round2(wood.area * list.prep+(lvt.area?Math.max(lvt.area*list.lvtPrep,list.lvtPrepMin):0)),text:[wood.area?sqm(wood.area)+' engineered × '+per(list.prep):'',lvt.area?sqm(lvt.area)+' glue-down LVT × '+per(list.lvtPrep)+'; minimum '+money(list.lvtPrepMin)+' applied once per job':''].filter(Boolean).join('; ')+'. Website preparation allowance; confirm suitability at the home check.'};
     }
     if (p.upliftArea) out.uplift = {amount:round2(p.upliftArea * (list.uplift + list.disposal)), text:sqm(p.upliftArea) + ' × ' + money(list.uplift) + ' to lift and ' + money(list.disposal) + ' to dispose, per m²'};
     if (p.furniture.length) out.furniture = {amount:round2(p.furniture.length * list.furniture), text:p.furniture.length + (p.furniture.length === 1 ? ' room' : ' rooms') + ' × ' + money(list.furniture)};
@@ -1241,7 +1243,7 @@ window.IFDLogic = (function(){
       else if (/gripper/i.test(t)){ o.kind = 'pick'; o.qty = num(l.needQty) || Math.ceil(p.gripper / priceList(q.rates).gripperLen - 1e-9) || 1; o.unit = l.needUnit || 'lengths'; o.find = 'tag:accessory_gripper'; }
       else if (/beading|scotia/i.test(t)){ o.kind = 'pick'; o.qty = num(l.needQty) || Math.ceil(p.beading / priceList(q.rates).beadingLen - 1e-9) || 1; o.unit = l.needUnit || 'lengths'; o.find = 'tag:accessory_beading'; }
       else if (/door ?bar|threshold/i.test(t)){ o.kind = 'pick'; o.qty = bars || 1; o.sub = barKinds.map(function(k){ return p.bars[k] + ' ' + BAR_KINDS[k].toLowerCase(); }).join(', '); o.find = 'tag:accessory_doorbar'; }
-      else if (/glue|adhesive/i.test(t)){ o.kind = 'pick'; o.find = 'tag:accessory_adhesive'; }
+      else if (/glue|adhesive/i.test(t)){ o.kind = 'pick'; o.find = 'tag:accessory_adhesive'; o.qty=num(l.needQty)||1; o.unit=l.needUnit||'items'; }
       else if (/trim|nosing|primer/i.test(t)) o.kind = 'pick';
       if(o.kind==='pick' && /underlay/i.test(t) && p.underlayCarpet && !p.underlayFlooring && q.options) o.sub=q.options.underlay==='12'?'Superior 12mm':'Super Soft 10mm';
       out.push(o);
@@ -1703,7 +1705,7 @@ const VARIANT_FIELDS = 'id title sku price inventoryQuantity inventoryPolicy ' +
   'rollLocation: metafield(namespace:"custom", key:"roll_location"){value} ' +
   'rollStatus: metafield(namespace:"custom", key:"roll_status"){value} ' +
   'inventoryItem{ id tracked inventoryLevels(first:5){ nodes{ location{id name} quantities(names:["available","on_hand","committed","reserved"]){name quantity} } } }';
-const PRODUCT_FIELDS = 'id title productType status coverage: metafield(namespace:"custom", key:"coverage_per_pack"){value} ppm: metafield(namespace:"custom", key:"price_per_pack"){value}';
+const PRODUCT_FIELDS = 'id title productType status tags fittingMethod:metafield(namespace:"custom",key:"fitting_method"){value} coverage: metafield(namespace:"custom", key:"coverage_per_pack"){value} ppm: metafield(namespace:"custom", key:"price_per_pack"){value}';
 const Q_SHOP = 'query OpsShop{ shop{ name myshopifyDomain } locations(first:20){ nodes{ id name isActive } } }';
 const Q_INBOX = 'query OpsInbox{ shop{myshopifyDomain} orders(first:25, sortKey:CREATED_AT, reverse:true, query:"status:open AND fulfillment_status:unfulfilled"){ nodes{ id name createdAt displayFinancialStatus displayFulfillmentStatus cancelledAt tags email phone totalPriceSet{shopMoney{amount}} totalOutstandingSet{shopMoney{amount}} customer{id displayName} shippingAddress{name address1 address2 city zip phone} customAttributes{key value} lineItems(first:12){ nodes{ title variantTitle quantity variant{ id product{productType} } customAttributes{key value} } } } } }';
 const Q_SEARCH = 'query OpsSearch($q:String!){ shop{myshopifyDomain} products(first:12, query:$q, sortKey:RELEVANCE){ nodes{ ' + PRODUCT_FIELDS + ' variants(first:25){ nodes{ ' + VARIANT_FIELDS + ' } } } } }';
@@ -2376,8 +2378,9 @@ const CATALOGUE_SUPPLIER='actualName:metafield(namespace:"custom",key:"actual_pr
 const Q_CATALOGUE='query OpsCatalogue($q:String!,$after:String){shop{myshopifyDomain} products(first:12,after:$after,query:$q,sortKey:TITLE){pageInfo{hasNextPage endCursor} nodes{'+PRODUCT_FIELDS+' '+CATALOGUE_SUPPLIER+' tags variants(first:10){pageInfo{hasNextPage endCursor} nodes{'+CATALOGUE_VARIANT+'}}}}}';
 function catalogueOrdering(p){const name=(p.actualName?.value||p.supplierFloor?.value||'').trim(),code=(p.supplierCode?.value||'').trim(),incomplete=!name||/^(ted todd|fibre|canopy|egger|agt)$/i.test(name)||/^ted todd[, ]+(?:PROJ\w*|45PCC|CR05BL)$/i.test(name);return {name,code,incomplete,text:(incomplete?'Supplier product name needs checking before ordering'+(name?' (saved: '+name+')':''):'Order as: '+name)+(code?' · Supplier code: '+code:'')};}
 const Q_CATALOGUE_VARIANTS='query OpsCatalogueVariants($id:ID!,$after:String){shop{myshopifyDomain} product(id:$id){variants(first:50,after:$after){pageInfo{hasNextPage endCursor} nodes{'+CATALOGUE_VARIANT+'}}}}';
-function catalogueGoods(p,v){const w=Number(v.rollWidth?.value)||0,roll=L.isRoll(v,p),cov=Number(p.coverage?.value)||0;return {ppm:L.ppmOf(p)||(roll&&w?L.round2(Number(v.price)*10/w):0),pack:roll?0:Number(v.price)||0,cov:roll?0:cov,type:p.productType||'',title:p.title,clash:L.covClash(variantTitle(p,v),cov)};}
-function catalogueChoice(p,v){const roll=L.isRoll(v,p);return {k:'catalogue',title:variantTitle(p,v),type:p.productType||'',variantId:v.id,unit:roll?'m':'packs',w:Number(v.rollWidth?.value)||0,widths:roll?[Number(v.rollWidth?.value)||0].filter(Boolean):[]};}
+function productPricingType(p){return (p.productType||'')+' '+(p.tags||[]).join(' ')+' method:'+(p.fittingMethod?.value||'');}
+function catalogueGoods(p,v){const w=Number(v.rollWidth?.value)||0,roll=L.isRoll(v,p),cov=Number(p.coverage?.value)||0;return {ppm:L.ppmOf(p)||(roll&&w?L.round2(Number(v.price)*10/w):0),pack:roll?0:Number(v.price)||0,cov:roll?0:cov,type:productPricingType(p),title:p.title,clash:L.covClash(variantTitle(p,v),cov)};}
+function catalogueChoice(p,v){const roll=L.isRoll(v,p);return {k:'catalogue',title:variantTitle(p,v),type:productPricingType(p),variantId:v.id,unit:roll?'m':'packs',w:Number(v.rollWidth?.value)||0,widths:roll?[Number(v.rollWidth?.value)||0].filter(Boolean):[]};}
 VIEWS.catalogue=function(){
  const list=h('div',{id:'catalogueList'}),note=h('p',{role:'status'});let products=[],cursor=null,more=false,busy=false;
  const query=h('input',{class:'in',type:'search',placeholder:'Search range, colour or SKU',id:'catalogueSearch',onkeydown:e=>{if(e.key==='Enter')load(false);}}),kind=h('select',{class:'in','aria-label':'Product category',onchange:()=>load(false)},[['','All products'],['laminate','Laminate'],['carpet','Carpet'],['engineered','Engineered wood'],['vinyl','Vinyl / LVT'],['underlay','Underlay'],['beading','Beading']].map(([value,text])=>h('option',{value,text}))),state=h('select',{class:'in','aria-label':'Product status',onchange:()=>load(false)},[['active','Active products'],['','All statuses'],['draft','Draft products'],['archived','Archived products']].map(([value,text])=>h('option',{value,text}))),next=btn('Load more products',()=>load(true),'pri');next.hidden=true;
@@ -2389,15 +2392,15 @@ VIEWS.catalogue=function(){
  let started=false;return {nodes:[h('div',{class:'head'},h('div',{},h('h1',{text:'Product catalogue'}),h('p',{text:'Website products and current prices. Choose a floor to calculate a supply-and-fitting quote.'}))),h('div',{class:'bar'},query,kind,state,btn('Search / refresh',()=>load(false),'pri')),note,rates,list,next],refresh:()=>{if(!started&&shopOK()){started=true;load(false);}else if(!started){note.textContent="Waiting for the Shopify connection…";}}};
 };
 function catalogueQuote(p,v){
- const ch=catalogueChoice(p,v),gd=catalogueGoods(p,v),carpet=ch.unit==='m',wood=L.floorKind(p.title,p.productType).wood;
+ const ch=catalogueChoice(p,v),gd=catalogueGoods(p,v),carpet=ch.unit==='m',wood=L.floorKind(p.title,productPricingType(p)).wood,glueDown=L.floorKind(p.title,productPricingType(p)).glueDown;
  const rows=[{name:'Living room',len:'',wid:''}],roomsBox=h('div'),preview=h('div',{id:'catalogueCalculation'}),message=h('p',{role:'status'}),name=h('input',{class:'in',placeholder:'Customer name',id:'catalogueCustomer'}),phone=h('input',{class:'in',type:'tel',placeholder:'Customer mobile',id:'cataloguePhone'}),email=h('input',{class:'in',type:'email',placeholder:'Customer email',id:'catalogueEmail'});
- const under=h('input',{type:'checkbox',onchange:calculate}),edge=h('input',{type:'checkbox',onchange:calculate}),uplift=h('input',{type:'checkbox',onchange:calculate}),furniture=h('input',{type:'checkbox',onchange:calculate});let floorUnderlays=[],selectedUnderlay=null,saving=false; if(wood){under.disabled=true;under.title='Engineered wood is fully glued; separate underlay is not included.';}
+ const under=h('input',{type:'checkbox',onchange:calculate}),edge=h('input',{type:'checkbox',onchange:calculate}),uplift=h('input',{type:'checkbox',onchange:calculate}),furniture=h('input',{type:'checkbox',onchange:calculate});let floorUnderlays=[],selectedUnderlay=null,saving=false; if(wood||glueDown){under.disabled=true;under.title='Bonded flooring does not use separate underlay.';}
  const underPick=h('select',{class:'in','aria-label':'Underlay product',onchange:e=>{selectedUnderlay=floorUnderlays.find(x=>x.id===e.target.value)||null;calculate();}},h('option',{value:'',text:'Choose flooring underlay if required'}));
- function job(){const rooms={};rows.forEach((r,i)=>rooms['r'+i]={n:i+1,name:r.name||'Room '+(i+1),len:Number(r.len)||0,wid:Number(r.wid)||0,area:L.round2((Number(r.len)||0)*(Number(r.wid)||0)),source:'customer',status:'unverified',want:'catalogue',spec:{floor:carpet?'carpet':'flooring',underlay:!wood&&under.checked,gripper:carpet&&edge.checked,beading:!carpet&&edge.checked,bars:false,old:uplift.checked,uplift:uplift.checked,furniture:furniture.checked,dir:'any'}});return {status:'open',type:'Fitting',source:'catalogue',diary:false,date:'',fitter:'',sizeCheck:'estimator',rooms,brief:{choices:[ch],rooms:rows.map(r=>({name:r.name,want:'catalogue'})),also:[]},customer:{name:name.value.trim(),phone:phone.value.trim(),email:email.value.trim()},lines:{},pay:{},total:0,quote:[],pre:{}};}
+ function job(){const rooms={};rows.forEach((r,i)=>rooms['r'+i]={n:i+1,name:r.name||'Room '+(i+1),len:Number(r.len)||0,wid:Number(r.wid)||0,area:L.round2((Number(r.len)||0)*(Number(r.wid)||0)),source:'customer',status:'unverified',want:'catalogue',spec:{floor:carpet?'carpet':'flooring',underlay:!wood&&!glueDown&&under.checked,gripper:carpet&&edge.checked,beading:!carpet&&edge.checked,bars:false,old:uplift.checked,uplift:uplift.checked,furniture:furniture.checked,dir:'any'}});return {status:'open',type:'Fitting',source:'catalogue',diary:false,date:'',fitter:'',sizeCheck:'estimator',rooms,brief:{choices:[ch],rooms:rows.map(r=>({name:r.name,want:'catalogue'})),also:[]},customer:{name:name.value.trim(),phone:phone.value.trim(),email:email.value.trim()},lines:{},pay:{},total:0,quote:[],pre:{}};}
  function calculate(){const j=job(),cat=L.catalogue(j,S.prices,{catalogue:gd},{underlay:'10',underlayFloor:selectedUnderlay}),valid=rows.length&&rows.every(r=>Number(r.len)>0&&Number(r.wid)>0&&Number(r.len)<=100&&Number(r.wid)<=100),issues=[];preview.replaceChildren();if(!valid){preview.append(h('p',{text:'Enter each room’s length and width in metres.'}));return;}if(carpet&&!ch.w)issues.push('The carpet roll width is missing. Select a width before quoting.');if(gd.clash)issues.push('The pack coverage conflicts with the product name. Check it before quoting.');if(!carpet&&!gd.cov)issues.push('Pack coverage is missing. Check it before quoting.');let total=0;L.quoteRows(j,{catalogue:gd}).forEach(r=>{const z=cat[r.key];if(!z||!(z.amount>0)){issues.push(r.label+' needs a price or check.');}else total+=z.amount;preview.append(h('div',{class:'card tight'},h('b',{text:r.label+': '+(z?.amount>0?L.money(z.amount):'Needs checking')}),h('p',{class:'small',text:z?.text||r.note||''})));});preview.append(h('h3',{text:(issues.length?'Known-price subtotal: ':'Estimated total: ')+L.money(L.round2(total))}));if(issues.length)preview.append(h('p',{class:'banner warn',text:Array.from(new Set(issues)).join(' ')}));preview.append(h('p',{class:'small muted',text:'Fitting is paid separately to the fitter. Customer sizes remain unverified. No stock is reserved by this estimate.'}));}
  function drawRooms(){roomsBox.replaceChildren();rows.forEach((r,i)=>{const number=(key,label)=>field(label,h('input',{class:'in',type:'number',min:'0.01',max:'100',step:'0.01',inputmode:'decimal',value:r[key],'aria-label':label+' for room '+(i+1),oninput:e=>{r[key]=e.target.value;calculate();}}));roomsBox.append(h('div',{class:'card'},field('Room',h('input',{class:'in',value:r.name,oninput:e=>{r.name=e.target.value;}})),h('div',{class:'bar'},number('len','Length (m)'),number('wid','Width (m)'),btn('Remove',()=>{rows.splice(i,1);drawRooms();calculate();},'sm'))));});}
  const save=btn('Save sizes and review quote',async()=>{if(saving)return;if(!name.value.trim()||(!phone.value.trim()&&!email.value.trim())){message.textContent='Add the customer’s name and a phone number or email so the quote can be followed up.';return;}if(!rows.length||rows.some(r=>!(Number(r.len)>0&&Number(r.wid)>0)||Number(r.len)>100||Number(r.wid)>100)){message.textContent='Check every room’s length and width in metres.';return;}if(gd.clash||(!carpet&&!gd.cov)||(carpet&&!ch.w)){message.textContent='Product coverage or roll width must be checked before saving this calculator job.';return;}saving=true;save.disabled=true;try{const id='c'+uid(),now=nowISO(),j=Object.assign(job(),{v:1,id,ref:'C-'+Date.now().toString(36).slice(-6).toUpperCase(),createdAt:now,madeAt:now,notes:'Catalogue estimate from customer sizes. Measure / site checks still required.',catalogueUnderlay:selectedUnderlay?.id||''});await createJob(id,j,'Catalogue quote started from customer sizes');quoteDialog(j);}catch(e){saving=false;save.disabled=false;message.textContent=explain(e);}},'pri');
- drawRooms();openModal(dlg('Calculate a job',h('div',{class:'sec'},h('h3',{text:variantTitle(p,v)}),h('p',{text:'Supply and fitting estimate. Add rooms using this product; complex shapes and stairs need the full measure form.'}),roomsBox,btn('Add another room',()=>{rows.push({name:'Room '+(rows.length+1),len:'',wid:''});drawRooms();calculate();},'sm'),h('div',{class:'ticks'},h('label',{},under,' Underlay required'),h('label',{},edge,carpet?' Gripper required':' Beading required'),h('label',{},uplift,' Uplift and disposal'),h('label',{},furniture,' Move furniture')),carpet?null:underPick,wood?h('p',{class:'banner warn',text:'Engineered wood includes full-spread glue. Floor preparation is included at the website rate, subject to the home check.'}):null,preview,field('Customer name',name),field('Mobile',phone),field('Email',email),message),[btn('Cancel',closeModal),save]));calculate();
+ drawRooms();openModal(dlg('Calculate a job',h('div',{class:'sec'},h('h3',{text:variantTitle(p,v)}),h('p',{text:'Supply and fitting estimate. Add rooms using this product; complex shapes and stairs need the full measure form.'}),roomsBox,btn('Add another room',()=>{rows.push({name:'Room '+(rows.length+1),len:'',wid:''});drawRooms();calculate();},'sm'),h('div',{class:'ticks'},h('label',{},under,' Underlay required'),h('label',{},edge,carpet?' Gripper required':' Beading required'),h('label',{},uplift,' Uplift and disposal'),h('label',{},furniture,' Move furniture')),carpet?null:underPick,(wood||glueDown)?h('p',{class:'banner warn',text:'Bonded flooring includes full-spread adhesive and floor preparation at the saved rates, subject to the home check.'}):null,preview,field('Customer name',name),field('Mobile',phone),field('Email',email),message),[btn('Cancel',closeModal),save]));calculate();
  if(!carpet)sq(Q_SEARCH,{q:'tag:accessory_underlay AND NOT tag:for_carpet'}).then(d=>{(d.products?.nodes||[]).forEach(pr=>(pr.variants?.nodes||[]).forEach(z=>{const cov=Number(pr.coverage?.value)||0;if(cov&&Number(z.price)>0)floorUnderlays.push({id:z.id,title:variantTitle(pr,z),cov,pack:Number(z.price),clash:L.covClash(variantTitle(pr,z),cov)});}));underPick.replaceChildren(h('option',{value:'',text:'Choose flooring underlay if required'}),...floorUnderlays.map(x=>h('option',{value:x.id,text:x.title+' · '+L.money(x.pack)})));}).catch(()=>{message.textContent='Underlay prices could not load. Retry before including underlay.';});
 }
 
@@ -3542,7 +3545,8 @@ function quoteDialog(job){
       .concat(base.filter(z => !L.quoteLines(cur).some(l => same(z, l))).map(z => mk(z, '')))
     : base.map(z => mk(z, ''));
   let pct = cur && cur.discount ? Number(cur.discount.pct) || 0 : 0, goods = {}, floorUnderlays = [], cat = {}, looking = false, strips = [];
-  const pick = Object.assign({carpetRate:0, flooringRate:0, underlay:'10', underlayFloor:null}, cur && cur.options || {});
+  const pick = Object.assign({carpetRate:0, flooringRate:0, underlay:'10', underlayFloor:null,lvtBorder:false}, cur && cur.options || {});
+  const lvtBorder=h('label',{class:'ticks',hidden:true},h('input',{type:'checkbox',checked:pick.lvtBorder,'aria-label':'Glue-down LVT border',onchange:e=>{pick.lvtBorder=e.target.checked;recalc();const i=rows.findIndex(r=>r.key==='fitting');if(i>=0&&cat.fitting?.amount>0)setPrice(rows[i],i,cat.fitting);sum();}}),' Include a border on the glue-down LVT (uses the higher applicable fitting rate)');
   const box = h('div', {id:'quoteLines'}), total = h('b', {class:'num', id:'quoteTotal'}), sums = h('p', {class:'small', id:'quoteSums', hidden:true}), discSeg = h('div', {class:'seg sm', id:'quoteDisc', role:'group', 'aria-label':'Discount'});
   const who = h('input', {class:'in', id:'quoteBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'}), lookNote = h('p', {class:'small muted', id:'quoteLook', hidden:true});
   const fullSum = () => L.round2(rows.reduce((t, r) => t + (Number(r.price) > 0 ? L.round2(r.price) : 0), 0)), netSum = () => L.round2(rows.reduce((t, r) => t + (Number(r.price) > 0 ? L.discounted(r.label, r.price, pct) : 0), 0));
@@ -3600,7 +3604,7 @@ function quoteDialog(job){
         const d = await sq(Q_VARIANTS, {ids:ids});
         (d.nodes || []).forEach(v => { if (!v) return; const pr = v.product || {};
           b.choices.filter(x => x.variantId === v.id).forEach(x => { goods[x.k] = {ppm:L.ppmOf(pr) || (x.unit === 'm' && L.isRoll(v, pr) && Number(v.price) > 0 && Number(x.w) > 0 ? L.round2(Number(v.price) * 10 / Number(x.w)) : 0),
-            cov:x.unit === 'm' ? 0 : Number(pr.coverage && pr.coverage.value) || 0, pack:x.unit === 'm' ? 0 : Number(v.price) || 0, type:pr.productType || '', title:pr.title || ''}; }); });
+            cov:x.unit === 'm' ? 0 : Number(pr.coverage && pr.coverage.value) || 0, pack:x.unit === 'm' ? 0 : Number(v.price) || 0, type:productPricingType(pr), title:pr.title || ''}; }); });
       }
       if (p.underlayFlooring){
         const d = await sq(Q_SEARCH, {q:'tag:accessory_underlay AND NOT tag:for_carpet'}); floorUnderlays = [];
@@ -3609,6 +3613,7 @@ function quoteDialog(job){
       }
     } catch (e){ lookNote.hidden = false; lookNote.textContent = 'The prices could not be looked up in Shopify just now. Type them, or close this and try again.'; }
     looking = false;
+    lvtBorder.hidden=!L.woodRooms(job,goods,true).area;
     const more = L.quoteRows(job, goods).filter(z => z.key && !rows.some(r => r.key === z.key));
     if (more.length){ more.forEach(z => rows.push(mk(z, ''))); draw(); } else recalc();
   }
@@ -3636,7 +3641,7 @@ function quoteDialog(job){
     h('div', {class:'card'}, h('h3', {}, 'Prices'), h('p', {class:'small muted', text:'New quotes fill in available catalogue prices automatically from the sizes. Check the figures, choose any required underlay, and review missing prices. Existing quotes keep their saved figures until you choose Use. Leave a line empty to leave it off the quote. The grey notes and workings are for you: the customer only sees the wording and the price.'}),
       h('div', {class:'bar'}, fill, L.roomsOf(job).some(r=>(L.specOf(r)||{}).floor==='carpet') ? btn('Review room cutting plan',()=>reviewCutPlanDialog(job),'sm') : null), lookNote, box,
       h('div', {class:'bar'}, btn('Add another line', () => { rows.push(mk({}, '')); draw(); try { box.querySelector('#ql' + (rows.length - 1)).focus(); } catch (e) {} }, 'sm')),
-      h('p', {class:'subh', text:'Discount'}), discSeg, sums,
+      lvtBorder, h('p', {class:'subh', text:'Discount'}), discSeg, sums,
       h('div', {class:'qtotal'}, h('span', {text:'Total'}), total)),
     field('Your name. Kept on the job, not shown to the customer', who), s.box), [btn('Cancel', closeModal), save]));
   lookUp();

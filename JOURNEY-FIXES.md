@@ -25,3 +25,11 @@
 - Pack regression checks cover laminate, engineered wood, shortage routing, combined-room rounding, preserved totals and diary safeguards using simulated Shopify. No real stock or money is changed by these tests.
 
 The existing live job M-IRIN5 is a labelled simulation. Do not fulfil its Shopify draft or treat its bank-transfer entry as real money.
+
+## Glue-down LVT automatic pricing
+
+- Live Build My Quote settings checked 11 November 2026: straight £18/m², herringbone/chevron £25/m², tile £20/m², basket weave £35/m², border £30/m² or the higher pattern rate. Fitting minimum £200/job. Preparation £14/m², minimum £150/job. Adhesive uses David's explicit £3/m² instruction instead of the website's older adhesive rate.
+- Product fitting_method and format tags identify glue-down products even with private-label shop names. New quotes automatically include adhesive and preparation, retain quantities, and carry into the existing pack acceptance/reservation/picking route. Existing quotes retain their agreed prices until reviewed. The quote's border checkbox recalculates fitting and persists its selection.
+- Separate underlay is disabled in the glue-down catalogue calculator. Adhesive picking records show the measured area requiring adhesive; tub size and physical stock are not invented.
+- 37 server/rules tests pass. Focused browser journeys pass for laminate, engineered wood, metadata-identified glue-down LVT and shortages with simulated Shopify, without touching real stock or money. Shopify product queries validated against API 2026-10.
+- Rate source: https://innovationflooringdirect.com/pages/quote-v2 . Shopify metafield reference: https://shopify.dev/docs/api/admin-graphql/2026-10/objects/Metafield .

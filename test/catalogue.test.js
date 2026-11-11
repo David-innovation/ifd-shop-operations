@@ -21,7 +21,24 @@ test('website fitting rates distinguish pattern, printed effect and click vinyl,
  assert.equal(calc('Oak herringbone laminate',20).fitting.amount,440);
  assert.equal(calc('EGGER Rillington herringbone effect laminate').fitting.amount,120);
  assert.equal(calc('Oak SPC herringbone').fitting.amount,200);
- assert.equal(calc('Unknown glue-down LVT').fitting.amount,0);
+ assert.equal(calc('Straight glue-down LVT').fitting.amount,200);
  assert.equal(L.priceList({fitLaminate:0,fitLvt:0}).fitLaminate,10);
 });
 
+test('glue-down LVT uses website pattern rates, per-job minimums and three-pound adhesive',()=>{
+ const make=(tags,area=20)=>({rooms:{a:{name:'Room',area,want:'c',spec:{floor:'flooring'}}},brief:{choices:[{k:'c',title:'Natural Oak',unit:'packs',type:'LVT Flooring method:glue '+tags,variantId:'v'}]}});
+ for(const [tag,price] of [['',360],['format_herringbone',500],['format_chevron',500],['format_tile_effect',400],['format_basket_weave',700]]){
+  const j=make(tag),cat=L.catalogue(j,{}, {c:{cov:2,pack:40}},{});
+  assert.equal(cat.fitting.amount,price);assert.equal(cat.glue.amount,60);assert.equal(cat.prep.amount,280);assert.equal(cat.glue.needQty,20);
+  assert.equal(L.quoteRows(j).filter(r=>r.must).length,2);
+ }
+ const small=make('',3),cat=L.catalogue(small,{}, {c:{cov:2,pack:40}},{});
+ assert.equal(cat.fitting.amount,200);assert.equal(cat.prep.amount,150);assert.equal(cat.glue.amount,9);
+ small.rooms.b={name:'Second',area:3,want:'c',spec:{floor:'flooring'}};
+ const two=L.catalogue(small,{}, {c:{cov:2,pack:40}},{});assert.equal(two.fitting.amount,200);assert.equal(two.prep.amount,150);assert.equal(two.glue.amount,18);
+ assert.equal(L.catalogue(make('format_herringbone'),{}, {c:{cov:2,pack:40}},{lvtBorder:true}).fitting.amount,600);
+ assert.equal(L.catalogue(make('format_basket_weave'),{}, {c:{cov:2,pack:40}},{lvtBorder:true}).fitting.amount,700);
+ assert.equal(L.floorKind('Oak SPC','click vinyl').glueDown,false);
+ assert.equal(L.floorKind('Engineered Oak','method:glue').glueDown,false);
+ const x=harness();x.box.catalogueQuote({title:'Natural Oak',productType:'LVT',fittingMethod:{value:'glue down'},tags:['format_herringbone'],coverage:{value:'2'}},{id:'v',price:'40'});x.input('Length (m) for room 1','4');x.input('Width (m) for room 1','5');assert.match(x.text(),/Fitting: £500.00/);assert.match(x.text(),/Full-spread glue: £60.00/);assert.match(x.text(),/Floor preparation: £280.00/);
+});
