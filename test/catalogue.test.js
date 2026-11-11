@@ -42,3 +42,7 @@ test('glue-down LVT uses website pattern rates, per-job minimums and three-pound
  assert.equal(L.floorKind('Engineered Oak','method:glue').glueDown,false);
  const x=harness();x.box.catalogueQuote({title:'Natural Oak',productType:'LVT',fittingMethod:{value:'glue down'},tags:['format_herringbone'],coverage:{value:'2'}},{id:'v',price:'40'});x.input('Length (m) for room 1','4');x.input('Width (m) for room 1','5');assert.match(x.text(),/Fitting: £500.00/);assert.match(x.text(),/Full-spread glue: £60.00/);assert.match(x.text(),/Floor preparation: £280.00/);
 });
+test('customer arrival wording never infers a time from the internal AM/PM booking',()=>{
+ for(const slot of ['AM','PM','']){const j={status:'open',type:'Fitting',diary:true,date:'2026-11-20',slot,ref:'ZZ-TIME',customer:{name:'Test'},total:0};assert.match(L.arrivalLine(j),/fitter will text/);assert.doesNotMatch(L.arrivalLine(j),/morning|afternoon/);assert.doesNotMatch(L.confirmText(j,{name:'Innovation',phone:'01419525200'}),/morning|afternoon/);}
+ const confirmed={status:'open',type:'Fitting',diary:true,date:'2026-11-20',arrival:{slot:'2-4pm',forDate:'2026-11-20'}};assert.match(L.arrivalLine(confirmed),/2-4pm/);
+});

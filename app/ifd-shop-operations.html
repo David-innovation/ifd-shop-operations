@@ -1309,7 +1309,7 @@ window.IFDLogic = (function(){
   function msgText(m){ return (MSG_KIND[m.kind] || 'Message') + ': ' + (MSG_STATE[m.state] || m.state) + (m.channel === 'email' ? ' by email' : m.channel === 'sms' ? ' by text' : m.channel === 'phone' ? ' by phone' : m.channel === 'hand' ? ' in person' : m.channel === 'post' ? ' by post' : '') + (m.to ? ' to ' + m.to : ''); }
   /* what the customer was told about a booking, kept with the message, so any later change shows up */
   function bookingSnap(job){ var c = (job && job.customer) || {}; return {date:job.date || '', fitter:job.fitter || '', slot:job.slot || '', arrival:arrivalConfirmed(job) ? String(job.arrival.slot) : '', due:fitterDue(job), total:round2(job.total), addr:String(c.address || '') + '|' + String(c.postcode || ''), items:JSON.stringify(linesOf(job).map(function(l){ return [l.title || '', l.sub || '', l.variant || l.variantId || '', l.qty || 0, l.unit || '', l.w || 0]; }).sort(function(a,b){ return JSON.stringify(a).localeCompare(JSON.stringify(b)); }))}; }
-  var SNAP_WORD = {date:'the day', fitter:'the fitter', slot:'morning or afternoon', arrival:'the arrival time', due:'the fitting total', total:'the price', addr:'the address', items:'the flooring or accessories'};
+  var SNAP_WORD = {date:'the day', fitter:'the fitter', slot:'the booking details', arrival:'the arrival time', due:'the fitting total', total:'the price', addr:'the address', items:'the flooring or accessories'};
   function snapChanges(a, b){ a = a || {}; b = b || {}; return Object.keys(SNAP_WORD).filter(function(k){ return String(a[k] == null ? '' : a[k]) !== String(b[k] == null ? '' : b[k]); }).map(function(k){ return SNAP_WORD[k]; }); }
   /* a short stable name for one set of booking details, so two sends of the same details are known to be the same revision */
   function bookingRev(snap){
@@ -1331,8 +1331,7 @@ window.IFDLogic = (function(){
   }
   function arrivalLine(job){
     if (arrivalConfirmed(job)) return 'Arrival: between ' + String(job.arrival.slot).replace(/\s+to\s+/i, ' and ');
-    var half = job.slot === 'AM' ? 'in the morning' : job.slot === 'PM' ? 'in the afternoon' : '';
-    return half ? 'Arrival: ' + half + '. Your fitter will text you an arrival time slot before the visit.' : 'Arrival: your fitter will text you an arrival time slot before the visit.';
+    return 'Arrival: your fitter will text you an arrival time slot before the visit.';
   }
   /* what the customer has to do before the fitter arrives: taken from what was sold and what the measure found, then the shop's standing notes */
   function prepNotes(job, shop){
@@ -1369,7 +1368,7 @@ window.IFDLogic = (function(){
     return out.concat(['', 'We look forward to fitting your new floor. Thank you for choosing our team.', 'If anything needs to change, ' + (shop.email ? 'reply to this email or ' : '') + 'ring us on ' + shop.phone + (job.ref ? ' and quote ' + job.ref : '') + '.', ''], signOff(shop)).join('\n');
   }
   function confirmText(job, shop, o){
-    var due = fitterDue(job), bal = balanceOf(job), when = arrivalConfirmed(job) ? ', arriving between ' + String(job.arrival.slot).replace(/\s+to\s+/i, ' and ') : job.slot === 'AM' ? ', in the morning' : job.slot === 'PM' ? ', in the afternoon' : '';
+    var due = fitterDue(job), bal = balanceOf(job), when = arrivalConfirmed(job) ? ', arriving between ' + String(job.arrival.slot).replace(/\s+to\s+/i, ' and ') : '';
     return shop.name + ': ' + (o && o.revised ? 'your fitting details have changed. It is now ' : 'your fitting is booked for ') + fmtDay(job.date) + when + (job.fitter ? ' with ' + job.fitter : '') + (job.ref ? ', ref ' + job.ref : '') + '.'
       + (due > 0 ? ' ' + money(due) + ' for fitting is paid straight to your fitter on the day.' : '') + (bal > 0.004 ? ' Still to pay the shop: ' + money(bal) + '.' : '') + ' Any changes ring ' + shop.phone + '.';
   }
@@ -3515,7 +3514,7 @@ function measuredBlock(job){
   }));
 }
 /* ---------- the quote: staff type the prices, the customer gets the figures only ---------- */
-const SHOP = {name:'Innovation Flooring Direct', phone:'0141 952 5200', email:'help@innovationflooringdirect.com', address:'2 South Elgin Place, Clydebank G81 1XP'};
+const SHOP = {name:'Innovation Flooring Direct', phone:'0141 952 5200', email:'sales@innovationflooringdirect.com', address:'2 South Elgin Place, Clydebank G81 1XP'};
 /* the shop's details with the owner's standard wording, as the message builders want them */
 function shopInfo(){ return Object.assign({}, SHOP, {words:S.words || {}}); }
 function myName(set){
@@ -5166,7 +5165,7 @@ function fitPayDialog(job){
     }, 'pri')], true));
 }
 /* ---------- telling the customer their fitting is booked ----------
-   What they are told (the day, morning or afternoon, the arrival time, the fitter, the fitting total, the price and the
+   What they are told (the day, the booking details, the arrival time, the fitter, the fitting total, the price and the
    address) is kept with the message. A later change to any of them shows the booking as needing a revised
    confirmation, which says what changed and that it replaces the earlier one. The earlier message stays on the job. */
 function confirmDialog(job){

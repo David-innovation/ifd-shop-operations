@@ -492,7 +492,7 @@ test('messages: only the mail server or the text service taking it counts as sen
     await s.app.commands.poll(); m = ms('g2')['m' + k(7)];
     assert.ok(m.state === 'delivered' && m.deliveredAt); assert.match(Object.values(s.job('g2').log).map(x => x.text).join('\n'), /Fitting confirmation text to \+447700900555 delivered to the handset/);
     // what the customer was told is kept with it, so a later change shows the booking as needing to be confirmed again
-    s.app.store.updateDoc(docPath('jobs/g2'), {slot:'PM'}); assert.strictEqual(L.confirmState(s.job('g2')), 'changed'); assert.strictEqual(L.confirmChanges(s.job('g2')).join(), 'morning or afternoon');
+    s.app.store.updateDoc(docPath('jobs/g2'), {slot:'PM'}); assert.strictEqual(L.confirmState(s.job('g2')), 'changed'); assert.strictEqual(L.confirmChanges(s.job('g2')).join(), 'the booking details');
     s.app.store.updateDoc(docPath('jobs/g2'), {slot:''}); assert.strictEqual(L.confirmState(s.job('g2')), 'sent');
     // a text the network could not deliver turns from sent to failed
     s.twilio.state.undeliverable['+447700900556'] = true;
@@ -571,19 +571,19 @@ test('customer wording: references, the shop and the fitter paid apart with one 
     assert.match(supply, /Carpet: £300\.00\n\nTotal: £300\.00\n\nHow payment works\n£300\.00 is paid to Innovation Flooring Direct\./); assert.doesNotMatch(supply, /fitter/);
     // the booking confirmation: reference, date, arrival, fitter, address, the money both ways, what to do beforehand, how to reach the shop
     const cm = L.confirmMessage(job, SHOP);
-    assert.match(cm, /Your fitting is booked\.\n\nYour job confirmation\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: in the morning\. Your fitter will text you an arrival time slot before the visit\.\nFitter: Lennox\nAddress: 1 Test Street, G81 1XP\n/);
+    assert.match(cm, /Your fitting is booked\.\n\nYour job confirmation\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: your fitter will text you an arrival time slot before the visit\.\nFitter: Lennox\nAddress: 1 Test Street, G81 1XP\n/);
     assert.match(cm, /Payment\nTotal: £599\.99\nTo pay Innovation Flooring Direct: £449\.99\. Paid so far: £120\.00\. Still to pay: £329\.99\. It is paid in the shop[^\n]*\nTo pay your fitter directly: £150\.00, on the day once the job is finished\. It is not paid to the shop\./);
     assert.match(cm, /Before we arrive/); assert.match(cm, /Please clear the rooms of furniture/); assert.match(cm, /We are lifting and taking away the old flooring/); assert.match(cm, /statutory consumer rights/);
     assert.match(cm, /ring us on 0141 952 5200 and quote M-2X4AM\.\n\nInnovation Flooring Direct\n2 South Elgin Place, Clydebank G81 1XP\n0141 952 5200\nhelp@example\.test$/); assert.strictEqual(L.confirmSubject(job, SHOP, false), 'Your fitting is booked with Innovation Flooring Direct, ref M-2X4AM');
     const timed = Object.assign({}, job, {arrival:{slot:'08:30 to 09:30', forDate:'2026-11-20'}});
     assert.match(L.confirmMessage(timed, SHOP), /\nArrival: between 08:30 and 09:30\n/); assert.match(L.confirmText(timed, SHOP), /booked for Fri 20 Nov, arriving between 08:30 and 09:30 with Lennox, ref M-2X4AM/);
-    // a change to the day, morning or afternoon, the arrival time, the price, the fitter, the fitting total or the address is a new revision, and the revised message says so
+    // a change to the day, the booking details, the arrival time, the price, the fitter, the fitting total or the address is a new revision, and the revised message says so
     const told = L.bookingSnap(job), changed = o => L.snapChanges(told, L.bookingSnap(Object.assign({}, job, o))).join();
-    assert.strictEqual(changed({date:'2026-11-21'}), 'the day'); assert.strictEqual(changed({slot:'PM'}), 'morning or afternoon'); assert.strictEqual(changed({arrival:{slot:'08:30 to 09:30', forDate:'2026-11-20'}}), 'the arrival time');
+    assert.strictEqual(changed({date:'2026-11-21'}), 'the day'); assert.strictEqual(changed({slot:'PM'}), 'the booking details'); assert.strictEqual(changed({arrival:{slot:'08:30 to 09:30', forDate:'2026-11-20'}}), 'the arrival time');
     assert.strictEqual(changed({total:650}), 'the price'); assert.strictEqual(changed({fitter:'Sonnie'}), 'the fitter'); assert.strictEqual(changed({fitterDue:100}), 'the fitting total'); assert.strictEqual(changed({}), '');
     assert.notStrictEqual(L.bookingRev(told), L.bookingRev(L.bookingSnap(Object.assign({}, job, {slot:'PM'})))); assert.strictEqual(L.bookingRev(told), L.bookingRev(L.bookingSnap(job))); assert.ok(L.bookingRev(told).length <= 40);
-    const rv = L.confirmMessage(Object.assign({}, job, {slot:'PM'}), SHOP, {revised:true, changes:['morning or afternoon']});
-    assert.match(rv, /The details of your fitting have changed \(morning or afternoon\)\. This replaces our earlier confirmation\.\n\nYour job confirmation\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: in the afternoon/); assert.strictEqual(L.confirmSubject(job, SHOP, true), 'Updated fitting details from Innovation Flooring Direct, ref M-2X4AM');
+    const rv = L.confirmMessage(Object.assign({}, job, {slot:'PM'}), SHOP, {revised:true, changes:['the booking details']});
+    assert.match(rv, /The details of your fitting have changed \(the booking details\)\. This replaces our earlier confirmation\.\n\nYour job confirmation\nReference: M-2X4AM\nDate: Friday 20 November 2026\nArrival: your fitter will text/); assert.strictEqual(L.confirmSubject(job, SHOP, true), 'Updated fitting details from Innovation Flooring Direct, ref M-2X4AM');
     // the owner's own wording replaces the standing wording, and only the owner can change it
     const own = Object.assign({}, SHOP, {words:{terms:'A deposit of half is taken with the order.', prep:'Please leave the heating off.'}});
     assert.match(L.quoteMessage(job, q, own), /£449\.99 is paid to Innovation Flooring Direct\. A deposit of half is taken with the order\./); assert.match(L.confirmMessage(job, own), /- Please leave the heating off\./); assert.doesNotMatch(L.confirmMessage(job, own), /aged 18/);
