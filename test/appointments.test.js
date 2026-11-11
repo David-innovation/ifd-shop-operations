@@ -1,0 +1,36 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {create}=require('../server'),{docPath}=require('../lib/store');
+test('fitter slot API enforces assignments, fixed wording, dates, test mode and duplicate protection',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ifd-slots-')),codes=[],sent=[];
+ const app=create({env:{DATA_DIR:dir,INSECURE_COOKIES:'1',SESSION_PEPPER:'test',OWNER_MOBILE:'07700900001'},now:()=>Date.parse('2026-11-11T12:00:00Z'),sendText:async(to,body)=>codes.push({to,body}),texter:{ready:true,send:async(to,body)=>{sent.push({to,body});return {ref:'SMtest'};},check:async()=>({state:'delivered'})},mailer:{ready:false},log:()=>{},pollMs:3600000});
+ await new Promise(r=>app.server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+app.server.address().port;
+ const call=async(url,cookie,body)=>{const r=await fetch(base+url,{method:body?'POST':'GET',headers:{'x-ifd':'1',cookie:cookie||'','content-type':'application/json'},body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json()};};
+ const login=async mobile=>{await call('/api/login/code',null,{mobile});const code=/code: (\d{6})/.exec(codes.at(-1).body)[1];const r=await fetch(base+'/api/login/verify',{method:'POST',headers:{'x-ifd':'1','content-type':'application/json'},body:JSON.stringify({mobile,code})});assert.equal(r.status,200);return r.headers.get('set-cookie').split(';')[0];};
+ try{
+ app.ensureUser('Lennox','07700900003','fitter');app.ensureUser('Other','07700900004','fitter');
+ const user=await login('07700900003'),other=await login('07700900004');
+ const j={status:'open',type:'Fitting',diary:true,date:'2026-11-12',fitter:'Lennox',ref:'ZZ-SLOT',customer:{name:'ZZ TEST slot',phone:'07700900555',address:'Test shop'},total:900,fitterDue:200};
+ app.store.setDoc(docPath('jobs/slot'),j);app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['07700900555']}});
+ assert.equal((await call('/api/appointments')).status,401);
+ assert.equal((await call('/api/appointments',other)).data.jobs.length,0);
+ const listing=(await call('/api/appointments',user)).data;assert.equal(listing.slots.length,6);assert.equal(listing.jobs.length,1);assert.equal(listing.jobs[0].total,undefined);
+ for(const p of listing.jobs[0].previews){assert.ok(p.length<=160);assert.match(p,/STAFF TEST/);assert.doesNotMatch(p,/£|payment|total/i);}
+ const body={jobId:'slot',date:j.date,slot:'8-10am',key:'slot_test_123'};
+ assert.equal((await call('/api/appointments/send',other,body)).status,403);
+ assert.equal((await call('/api/appointments/send',user,{...body,body:'Custom words'})).status,400);
+ assert.equal((await call('/api/appointments/send',user,{...body,to:'07700900009'})).status,400);
+ assert.equal((await call('/api/appointments/send',user,{...body,slot:'9-5'})).status,400);
+ assert.equal((await call('/api/appointments/send',user,{...body,date:'2026-11-13'})).status,409);
+ assert.equal((await call('/api/cmd',user,{cmd:'msg.send',...body})).status,403);
+ const first=await call('/api/appointments/send',user,body);assert.equal(first.data.state,'sent');assert.equal(sent.length,1);assert.equal(sent[0].to,'+447700900555');assert.match(sent[0].body,/Thu 12 Nov, 8-10am/);
+ assert.equal((await call('/api/appointments/send',user,body)).data.duplicate,true);assert.equal(sent.length,1);
+ assert.equal((await call('/api/appointments/send',user,{...body,key:'different_key'})).status,409);assert.equal(sent.length,1);
+ app.store.updateDoc(docPath('jobs/slot'),{msgs:{uncertain:{kind:'other',channel:'sms',rev:'fit-slot:2026-11-12:2-4pm',state:'unsure'}}});
+ assert.equal((await call('/api/appointments/send',user,{...body,slot:'3-5pm',key:'third_key_123'})).status,409);
+ app.store.setDoc(docPath('jobs/blocked'),{...j,customer:{...j.customer,phone:'07700900009'}});
+ assert.equal((await call('/api/appointments/send',user,{...body,jobId:'blocked'})).status,403);assert.equal(sent.length,1);
+ app.store.setDoc(docPath('jobs/notbooked'),{...j,diary:false});assert.equal((await call('/api/appointments/send',user,{...body,jobId:'notbooked'})).status,409);
+ app.ensureUser('Lennox','07700900005','fitter');assert.equal((await call('/api/appointments',user)).data.jobs.length,0);
+ }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
+});
