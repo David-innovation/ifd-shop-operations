@@ -36,18 +36,20 @@ services:
         sync: false
       - key: TWILIO_FROM
         sync: false
-      # customer emails: the shop's own mailbox, or any mail service, over SMTP
+      # Customer emails go out through the shop's help@ mailbox at Google, signed in as help@ itself.
+      # None of these is secret. The one secret, SMTP_PASS (an app password made in the help@ Google account),
+      # is typed into Render by the owner and is never stored here.
       - key: SMTP_HOST
-        sync: false
+        value: smtp.gmail.com
       - key: SMTP_PORT
-        sync: false
+        value: "465"
       - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
+        value: help@innovationflooringdirect.com
       - key: EMAIL_FROM
-        sync: false
+        value: "Innovation Flooring Direct <help@innovationflooringdirect.com>"
       - key: EMAIL_REPLY_TO
+        value: help@innovationflooringdirect.com
+      - key: SMTP_PASS
         sync: false
       - key: SESSION_PEPPER
         generateValue: true
