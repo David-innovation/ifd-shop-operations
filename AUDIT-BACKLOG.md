@@ -25,7 +25,7 @@ server and the text service, with made-up people, unless it says live. Nothing h
 
 | # | Finding | Status |
 |---|---|---|
-| 9 | Booking changes trigger renewed confirmation | **Mostly done.** Date, morning or afternoon, arrival time, fitter, fitting total, price and address are covered, with numbered revisions. Open: a change to what is being fitted (the items) is not in the snapshot. |
+| 9 | Booking changes trigger renewed confirmation | **Built and server-tested.** Date, morning or afternoon, arrival time, fitter, fitting total, price, address and the flooring/accessory items are covered, with numbered revisions. Picking/bay changes do not cause customer revisions. Earlier confirmations without item snapshots conservatively need re-confirmation. |
 | 10 | Fitting lifecycle before completion | Not started. |
 | 11 | Fitter capacity checks | Not started. |
 | 12 | Enquiry capture through to a sale | Not started. Also open: sending a quote again restarts the five days without saying so. |
@@ -36,6 +36,14 @@ server and the text service, with made-up people, unless it says live. Nothing h
 | – | Task form: owner and job link; the word "null" in an empty task | Not started. |
 
 ## Needed from the owner
+
+### Takeover check, 11 November
+
+- 19 server tests pass on the deployed Node version, 22.14.0. This is not proof of real customer delivery.
+- Manual resolution of an uncertain send now requires an explanation for either outcome, retained on the job history.
+- A truncated or malformed provider lookup cannot clear an uncertain text for retry.
+- David approved Twilio with an initial spending limit of GBP 20 and automatic top-ups off. Registration/verification and the final connection are still outstanding.
+- David is checking accessory counts and Gold Underlay coverage; no quantities or coverage were guessed or changed.
 
 - **Email:** an app password for the help@ Google account, typed into the hosting as `SMTP_PASS`.
 - **Texts:** a decision on Twilio and its cost, then the three Twilio values typed into the hosting.

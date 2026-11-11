@@ -538,6 +538,8 @@ test('a send whose answer was lost is never sent again blind: it is looked up, o
     // EMAIL: the line dropped and the message was lost with it. A person checks: it did not arrive. Only then can it be sent again, once
     s.mailbox.state.loseMessage = 1;
     r = await mail('u2', {key:k(3)}); assert.strictEqual(r.json.state, 'unsure'); assert.strictEqual(s.mailbox.state.got.length, 1);
+    assert.strictEqual((await s.cmd('msg.resolve', {jobId:'u2', mk:'m' + k(3), went:false, byName:'Sam', note:''}, shop)).status, 400);
+    assert.strictEqual(ms('u2')['m' + k(3)].state, 'unsure');
     r = await s.cmd('msg.resolve', {jobId:'u2', mk:'m' + k(3), went:false, byName:'Sam', note:'Not in Sent, customer has nothing'}, shop); assert.strictEqual(r.json.state, 'failed');
     assert.match(ms('u2')['m' + k(3)].err, /Checked by Sam: it did not arrive\. Not in Sent, customer has nothing/);
     r = await s.cmd('msg.retry', {jobId:'u2', mk:'m' + k(3), byName:'Sam'}, shop); assert.strictEqual(r.json.ok, true); assert.strictEqual(s.mailbox.state.got.length, 2); m = ms('u2')['m' + k(3)];

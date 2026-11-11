@@ -1125,12 +1125,12 @@ window.IFDLogic = (function(){
   }
   function msgText(m){ return (MSG_KIND[m.kind] || 'Message') + ': ' + (MSG_STATE[m.state] || m.state) + (m.channel === 'email' ? ' by email' : m.channel === 'sms' ? ' by text' : m.channel === 'phone' ? ' by phone' : m.channel === 'hand' ? ' in person' : m.channel === 'post' ? ' by post' : '') + (m.to ? ' to ' + m.to : ''); }
   /* what the customer was told about a booking, kept with the message, so any later change shows up */
-  function bookingSnap(job){ var c = (job && job.customer) || {}; return {date:job.date || '', fitter:job.fitter || '', slot:job.slot || '', arrival:arrivalConfirmed(job) ? String(job.arrival.slot) : '', due:fitterDue(job), total:round2(job.total), addr:String(c.address || '') + '|' + String(c.postcode || '')}; }
-  var SNAP_WORD = {date:'the day', fitter:'the fitter', slot:'morning or afternoon', arrival:'the arrival time', due:'the fitting total', total:'the price', addr:'the address'};
+  function bookingSnap(job){ var c = (job && job.customer) || {}; return {date:job.date || '', fitter:job.fitter || '', slot:job.slot || '', arrival:arrivalConfirmed(job) ? String(job.arrival.slot) : '', due:fitterDue(job), total:round2(job.total), addr:String(c.address || '') + '|' + String(c.postcode || ''), items:JSON.stringify(linesOf(job).map(function(l){ return [l.title || '', l.sub || '', l.variant || l.variantId || '', l.qty || 0, l.unit || '', l.w || 0]; }).sort(function(a,b){ return JSON.stringify(a).localeCompare(JSON.stringify(b)); }))}; }
+  var SNAP_WORD = {date:'the day', fitter:'the fitter', slot:'morning or afternoon', arrival:'the arrival time', due:'the fitting total', total:'the price', addr:'the address', items:'the flooring or accessories'};
   function snapChanges(a, b){ a = a || {}; b = b || {}; return Object.keys(SNAP_WORD).filter(function(k){ return String(a[k] == null ? '' : a[k]) !== String(b[k] == null ? '' : b[k]); }).map(function(k){ return SNAP_WORD[k]; }); }
   /* a short stable name for one set of booking details, so two sends of the same details are known to be the same revision */
   function bookingRev(snap){
-    var t = [snap.date, snap.fitter, snap.slot, snap.arrival || '', snap.due, snap.total, snap.addr].join('|'), h = 5381;
+    var t = [snap.date, snap.fitter, snap.slot, snap.arrival || '', snap.due, snap.total, snap.addr, snap.items || ''].join('|'), h = 5381;
     for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
     return 'b' + (snap.date || '') + '-' + h.toString(36);
   }
@@ -1936,8 +1936,8 @@ function unsureActions(job, m, done){
       : 'Look in the Sent folder of ' + SHOP.email + ' for a message to ' + m.to + ', or ask the customer. Then say which it was.'}),
     field('Your name', who),
     m.channel === 'sms' ? h('div', {class:'bar'}, btn('Check with the text service', () => go('msg.check', {}), 'sm pri')) : null,
-    field('If it did arrive, how you know', how),
-    h('div', {class:'bar'}, btn('It did arrive', () => go('msg.resolve', {went:true, note:how.value.trim()}), 'sm'), btn('It did not arrive', () => go('msg.resolve', {went:false, note:''}), 'sm')), s.box);
+    field('What you checked and what you found', how),
+    h('div', {class:'bar'}, btn('It did arrive', () => go('msg.resolve', {went:true, note:how.value.trim()}), 'sm'), btn('It did not arrive', () => go('msg.resolve', {went:false, note:how.value.trim()}), 'sm')), s.box);
 }
 async function retryMsg(job, m){
   if (!needCmd()) return;
