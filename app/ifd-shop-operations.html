@@ -345,6 +345,7 @@ ol.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
   .hide-phone{display:none}
 }
 @media (max-width: 420px){ .grid2{grid-template-columns:minmax(0,1fr)} }
+.simple-today{--bg:#f6f6f5;--surface:#fff;--sunk:#f1f2f2;--ink:#17191b;--muted:#566065;--line:#d8dcde;--brand:#ac1524;--on-brand:#fff;--bad:#a51b1b;--bad-bg:#ffebe8;--warn:#795400;--warn-bg:#fff1cf;--info:#205982;--info-bg:#e6f1f9;--ok:#236c41;--ok-bg:#e6f4eb;background:var(--bg);color:var(--ink);padding:24px;border-radius:12px;color-scheme:light}.simple-today h1{font-family:var(--font-body);font-size:32px}.simple-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:24px 0}.simple-work{display:flex;align-items:flex-start;gap:22px;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px;cursor:pointer;min-height:180px}.simple-work.chosen{outline:3px solid #ac1524}.simple-count{font-size:56px;line-height:1}.simple-work h2{font-family:var(--font-body);font-size:26px}.simple-work p{color:var(--muted);margin:8px 0 18px}.simple-action{display:inline-block;background:#ac1524;color:#fff;border-radius:6px;padding:10px 16px;font-weight:600}.simple-today details{border:1px solid var(--line);border-radius:8px;padding:16px;background:white;margin-top:18px}.simple-today summary{font-size:19px;font-weight:600;cursor:pointer;min-height:32px}.simple-alert{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bad-bg);color:var(--bad);padding:12px 18px;border-radius:8px}.simple-footer{margin-top:18px;justify-content:space-between}.simple-footer label{display:flex;align-items:center;gap:8px}.simple-today #workList{scroll-margin-top:100px}.simple-today .sec{margin:22px 0}.simple-today .head{flex-wrap:wrap}.simple-today .bar{flex-wrap:wrap}@media(max-width:650px){.simple-today{padding:14px}.simple-grid{grid-template-columns:1fr;gap:12px}.simple-work{padding:20px;min-height:145px}.simple-count{font-size:44px}.simple-work h2{font-size:23px}.simple-today h1{font-size:27px}}
 </style>
 
 <header class="top"><div class="top-in">
@@ -2295,58 +2296,28 @@ async function skipOrder(o){
   catch (e){ dbFail(e); }
 }
 VIEWS.today = function(){
-  const body = h('div', {style:'display:contents'});
+  const body=h('div',{class:'simple-today'});let selected='',appointmentsOpen=false;
   function draw(){
-    const t = L.todayISO(), open = openJobs(), inbox = inboxList(), att = attentionJobs(), act = actNowJobs();
-    const soon = open.filter(j => L.validISO(j.date) && L.daysBetween(t, j.date) >= 0 && L.daysBetween(t, j.date) <= 7);
-    const owed = jobsArr().filter(j => j.status !== 'cancelled').reduce((s, j) => s + Math.max(0, L.balanceOf(j)), 0);
-    const todayJobs = open.filter(j => j.date === t || j.date === L.addDays(t, 1)).sort(sortOpen);
-    const dueTasks = S.tasks.filter(x => !x.done && (!x.due || x.due <= t));
-    const held = open.filter(j => L.checksOutstanding(j).length).sort(sortOpen);
-    const price = toPriceJobs(), quotedNow = quotedJobs(), ringN = quotedNow.filter(j => L.quoteWait(j, t).state !== 'waiting').length, toOrd = toOrderJobs(), onOrd = onOrderJobs(), cuts = cutReady(), conf = confirmJobs(), failed = failedMsgs(), noOrder = open.filter(j => !L.linesOf(j).length && L.preOf(j).length && L.preOf(j).every(v => v.status === 'done') && !L.toPrice(j) && !L.quoted(j)).sort(sortOpen);
-    const heldHot = held.some(j => (j.review && j.review.on) || j.diary || (L.validISO(j.date) && L.daysBetween(t, j.date) <= 7));
-    body.replaceChildren();
-    add(body, [
-      h('div', {class:'head'}, h('div', {}, h('h1', {text:L.fmtDay(t)}), h('p', {text:'Every sale has a job. Every job has its stock in a bay before it goes in the diary.'})), btn('Book a measure', () => measureDialog(), 'pri')),
-      banners(),
-      act.length ? h('section', {class:'sec actnow', id:'actSec'}, h('h2', {}, 'Act now', h('span', {text:'sent back from site'})), h('div', {class:'list'}, act.map(actRow)))
-        : h('p', {class:'actnone', id:'actSec'}, h('b', {text:'Act now'}), 'Nothing has been sent back from site.'),
-      S.estimators.length ? h('div', {class:'estrip', id:'estStrip'}, S.estimators.map(e => { const ld = estimatorLoad(e);
-        return h('button', {type:'button', class:'estrow' + (ld.urgent.length || ld.late.length ? ' hot' : ''), onclick:() => openPersonPage(e)}, h('b', {text:e}), h('span', {class:'what', text:estimatorLine(ld)}), h('span', {class:'open', text:'Open dashboard'})); })) : null,
-      price.length ? h('section', {class:'sec pricenow', id:'priceSec'}, h('h2', {}, 'To price', h('span', {text:'measured and waiting on the shop: price it, then ring the customer'})), h('div', {class:'list'}, price.map(priceRow))) : null,
-      quotedNow.length ? h('section', {class:'sec' + (ringN ? ' actnow' : ''), id:'quotedSec'}, h('h2', {}, quotedNow.some(j => L.quoteWait(j, t).state === 'unsent') ? 'Quotes' : 'Quotes sent', h('span', {text:ringN ? ringN + (ringN === 1 ? ' to deal with now' : ' to deal with now') + ', the rest waiting on the customer' : 'waiting on the customer: ring them after ' + L.CHASE_DAYS + ' days with no reply'})), h('div', {class:'list'}, quotedNow.map(quotedRow))) : null,
-      toOrd.length ? h('section', {class:'sec actnow', id:'orderSec'}, h('h2', {}, 'To order', h('span', {text:'the customer said yes: put the order in, then enter its details and arrival date'})), h('div', {class:'list'}, toOrd.map(orderRow))) : null,
-      failed.length ? h('section', {class:'sec actnow', id:'failedSec'}, h('h2', {}, 'Messages to sort out', h('span', {text:'these did not send, or are not known to have gone'})), h('div', {class:'list'}, failed.map(failedRow))) : null,
-      conf.length ? h('section', {class:'sec actnow', id:'confirmSec'}, h('h2', {}, 'Confirmations to send', h('span', {text:'in the diary: tell the customer the day, the fitter and the fitting total'})), h('div', {class:'list'}, conf.map(confirmRow))) : null,
-      cuts.length ? h('section', {class:'sec', id:'cutSec'}, h('h2', {}, 'To cut', h('span', {text:'in stock and waiting in the warehouse'}), h('span', {class:'grow'}), btn('Open the cutting list', () => go('cut'), 'sm pri')), h('div', {class:'list'}, cuts.map(x => cutRow(x, true)))) : null,
-      onOrd.length ? h('section', {class:'sec', id:'onOrderSec'}, h('h2', {}, 'On order', h('span', {text:'waiting on the supplier'})), h('div', {class:'list'}, onOrd.map(onOrderRow))) : null,
-      h('div', {class:'tiles'},
-        h('button', {type:'button', class:'tile' + (inbox.length ? ' hot' : ''), onclick:() => { const el = document.getElementById('inboxSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(inbox.length)}), h('span', {text:'New from website'}), h('small', {text:'Waiting to be made into jobs'})),
-        h('button', {type:'button', class:'tile' + (heldHot ? ' hot' : ''), onclick:() => { const el = document.getElementById('checksSec'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, h('b', {class:'num', text:String(held.length)}), h('span', {text:'Checks outstanding'}), h('small', {text:'Sizes, measures and inspections'})),
-        h('button', {type:'button', class:'tile' + (att.length ? ' hot' : ''), onclick:() => { S.ui.jobFilter = 'attention'; go('jobs'); }}, h('b', {class:'num', text:String(att.length)}), h('span', {text:'Need attention'}), h('small', {text:'Late, unallocated or unpaid'})),
-        h('button', {type:'button', class:'tile', onclick:() => go('diary')}, h('b', {class:'num', text:String(soon.length)}), h('span', {text:'Out in 7 days'}), h('small', {text:open.length + ' open jobs in all'})),
-        h('button', {type:'button', class:'tile', onclick:() => { S.ui.jobFilter = 'owed'; go('jobs'); }}, h('b', {class:'num', text:L.money(owed)}), h('span', {text:'Still to collect'}), h('small', {text:'Across all jobs'}))),
-      h('section', {class:'sec', id:'inboxSec'},
-        h('h2', {}, 'New from website', h('span', {text:S.inbox.state === 'loading' ? 'checking Shopify' : S.inbox.state === 'ok' ? 'checked ' + whenText(new Date(S.inbox.at).toISOString()) : ''}), h('span', {class:'grow'}), shopOK() ? btn('Check now', refreshInbox, 'sm') : null),
-        S.inbox.state === 'error' ? h('div', {class:'banner warn'}, h('p', {text:S.inbox.msg})) : null,
-        listOf(inbox.map(inboxRow), shopOK() ? (S.inbox.state === 'loading' ? 'Checking Shopify for orders' : 'Nothing waiting') : 'Shopify is not connected', shopOK() ? (S.inbox.state === 'loading' ? '' : 'Website deposits and orders land here. One tap turns each into a job.') : 'Website orders will show here once Shopify is connected.')),
-      h('section', {class:'sec', id:'checksSec'}, h('h2', {}, 'Checks outstanding', h('span', {text:'sizes, measures and subfloor inspections'})),
-        listOf(held.map(checkRow), 'No checks outstanding', 'A job shows here until its sizes are verified and any measure or subfloor inspection has its findings in. It cannot be made ready for fitting before then.')),
-      noOrder.length ? h('section', {class:'sec'}, h('h2', {}, 'Visited, no sizes and no order yet', h('span', {text:'ring them'})),
-        listOf(noOrder.map(jobRow), '', '')) : null,
-      h('section', {class:'sec'}, h('h2', {}, 'Ready to book in', h('span', {text:'everything allocated, checks done'})),
-        listOf(open.filter(j => !j.diary && L.stockLines(j).length && L.allAllocated(j) && !L.checksOutstanding(j).length).sort(sortOpen).map(jobRow), 'Nothing waiting', 'A job shows here the moment its last item is put away and its checks are done, so it can go in the diary.')),
-      h('section', {class:'sec'}, h('h2', {}, 'Customers to ring', h('span', {text:'arrival times'})),
-        listOf(contactItems(['overdue', 'soon']).map(ringRow), 'Nobody to ring', 'Every fitting, delivery, measure and inspection in the next 3 days has an arrival time agreed with the customer.')),
-      h('section', {class:'sec'}, h('h2', {}, 'Needs attention'),
-        listOf(att.sort(sortOpen).slice(0, 12).map(jobRow), 'Nothing flagged', 'Jobs show here when stock is not in its bay within 7 days of going out, a date has passed or money is owed.')),
-      h('section', {class:'sec'}, h('h2', {}, 'Today and tomorrow'),
-        listOf(todayJobs.map(jobRow), 'Nothing going out', 'Jobs dated today or tomorrow show here.')),
-      h('section', {class:'sec'}, h('h2', {}, 'Tasks due', h('span', {class:'grow'}), btn('All tasks', () => go('tasks'), 'sm')),
-        listOf(dueTasks.slice(0, 8).map(taskRow), 'No tasks due', 'Add reminders for call-backs, measures and supplier chases.'))
-    ]);
+    const t=L.todayISO(),isTest=j=>j.test===true||/\bZZ[ -]?TEST\b/i.test((j.customer||{}).name||'')||/^ZZ[- ]/i.test(j.ref||j.id||''), visible=j=>S.ui.showTestJobs||!isTest(j),filter=xs=>xs.filter(visible),open=filter(openJobs());
+    const price=filter(toPriceJobs()),quotes=filter(quotedJobs()),unsent=quotes.filter(j=>L.quoteWait(j,t).state==='unsent'),waiting=quotes.filter(j=>L.quoteWait(j,t).state!=='unsent'),chase=waiting.filter(j=>L.quoteWait(j,t).state!=='waiting');
+    const conf=filter(confirmJobs()),failed=failedMsgs().filter(x=>visible(x.job)),act=filter(actNowJobs()),att=filter(attentionJobs()),inbox=inboxList(),toOrd=filter(toOrderJobs()),onOrd=filter(onOrderJobs()),cuts=cutAll().filter(x=>visible(x.job));
+    const held=open.filter(j=>L.checksOutstanding(j).length),ready=open.filter(j=>!j.diary&&L.stockLines(j).length&&L.allAllocated(j)&&!L.checksOutstanding(j).length),noOrder=open.filter(j=>!L.linesOf(j).length&&L.preOf(j).length&&L.preOf(j).every(v=>v.status==='done')&&!L.toPrice(j)&&!L.quoted(j));
+    const ring=contactItems(['overdue','soon']).filter(x=>visible(x.job)),tasks=S.tasks.filter(x=>!x.done&&(!x.due||x.due<=t)),owed=filter(jobsArr()).filter(j=>j.status!=='cancelled'&&L.balanceOf(j)>0);
+    const attentionIds=new Set([...act,...att,...held,...ready,...toOrd,...onOrd,...owed,...failed.map(x=>x.job),...cuts.map(x=>x.job)].map(j=>j.id)),attentionCount=attentionIds.size+inbox.length+tasks.length;
+    const urgent=new Set([...act,...att,...failed.map(x=>x.job)].map(j=>j.id)).size;
+    const todayJobs=open.filter(j=>j.diary&&j.date===t),visits=[];open.forEach(j=>L.preOf(j).filter(v=>v.status==='booked'&&v.date===t).forEach(v=>visits.push({job:j,v})));
+    const section=(title,rows,render,id)=>rows.length?h('section',{class:'sec',id},h('h2',{text:title+' · '+rows.length}),h('div',{class:'list'},rows.map(render))):null;
+    const groups={price:[section('Measured jobs to price',price,priceRow,'priceSec')],send:[section('Quotes to send',unsent,quotedRow,'quotedSec'),section('Booking confirmations',conf,confirmRow,'confirmSec'),section('Failed or uncertain messages',failed,failedRow,'failedSec')],follow:[section('Quotes needing a call or action',chase,quotedRow,'chaseSec'),section('Arrival times to arrange',ring,ringRow,'ringSec'),section('Visited, no sizes or order yet',noOrder,jobRow,'noOrderSec'),waiting.length>chase.length?h('details',{},h('summary',{text:'Quotes waiting for a reply · '+(waiting.length-chase.length)}),section('Not due a follow-up yet',waiting.filter(j=>L.quoteWait(j,t).state==='waiting'),quotedRow,'waitingSec')):null],attention:[section('Failed or uncertain messages',failed,failedRow,'attentionFailedSec'),section('Sent back from site',act,actRow,'actSec'),h('section',{class:'sec',id:'inboxSec'},h('h2',{},'New from website · '+inbox.length,btn('Check now',refreshInbox,'sm')),S.inbox.state==='error'?h('p',{text:S.inbox.msg}):null,listOf(inbox.map(inboxRow),S.inbox.state==='loading'?'Checking website orders':'No website orders waiting','')),section('Jobs needing attention',att,jobRow,'attentionSec'),section('Checks outstanding',held,checkRow,'checksSec'),section('Ready to book in',ready,jobRow,'readySec'),section('To order',toOrd,orderRow,'orderSec'),section('On order / arrivals to check',onOrd,onOrderRow,'onOrderSec'),section('Warehouse cutting',cuts,x=>cutRow(x,true),'cutSec'),section('Payments outstanding',owed,jobRow,'owedSec'),section('Tasks due',tasks,taskRow,'tasksSec')]};
+    const specs=[['price',price.length,'To price','Measured jobs ready for a quote','Open pricing list'],['send',unsent.length+conf.length+failed.length,'To send','Quotes, confirmations and message issues','Send messages'],['follow',chase.length+ring.length+noOrder.length,'Follow up','Customers due a call or next step','View follow-ups'],['attention',attentionCount,'Needs attention','Orders, checks, bookings and payments','Review work']];
+    const select=k=>{selected=k;draw();body.querySelector('#workList')?.scrollIntoView({behavior:'smooth',block:'start'});};
+    body.replaceChildren();add(body,[h('div',{class:'head'},h('div',{},h('h1',{text:'What needs doing today?'}),h('p',{text:L.fmtDay(t)})),h('div',{class:'bar'},btn('Price a quote',()=>select('price'),'pri'),btn('Book a measure',measureDialog,'pri'),btn('New sale',saleDialog,'pri'))),banners(),
+      urgent?h('div',{class:'simple-alert'},h('b',{text:urgent+' jobs have urgent issues'}),btn('Review urgent issues',()=>{selected='attention';draw();},'sm')):null,
+      h('div',{class:'simple-grid'},specs.map(([key,n,title,desc,label])=>h('button',{type:'button',class:'simple-work'+(selected===key?' chosen':''),'aria-expanded':String(selected===key),'aria-controls':'workList',onclick:()=>select(key)},h('b',{class:'simple-count',text:String(n)}),h('div',{},h('h2',{text:title}),h('p',{text:desc}),h('span',{class:'simple-action',text:label+' →'}))))),
+      selected?h('div',{id:'workList',tabindex:'-1'},h('div',{class:'head'},h('h2',{text:specs.find(x=>x[0]===selected)[2]}),btn('Close list',()=>{selected='';draw();},'sm')),groups[selected].filter(Boolean).length?groups[selected]:h('p',{text:'Nothing waiting in this section.'})):null,
+      h('details',{open:appointmentsOpen,ontoggle:e=>{appointmentsOpen=e.target.open;}},h('summary',{text:'Today’s appointments · '+(todayJobs.length+visits.length)}),section('Fittings, deliveries and collections',todayJobs,jobRow,'todaySec'),section('Measures and inspections',visits,x=>h('button',{type:'button',class:'row',onclick:()=>openSheet(x.job.id)},h('div',{},h('b',{text:(x.job.customer||{}).name||'No name'}),h('p',{text:L.PRE_KINDS[x.v.kind]+' · '+(x.v.who||'Unassigned')+' · '+(x.v.slot||'Time to arrange')}))),'visitsSec'),btn('Open full diary',()=>go('diary'),'sm')),
+      h('div',{class:'bar simple-footer'},h('label',{},h('input',{type:'checkbox',checked:!!S.ui.showTestJobs,onchange:e=>{S.ui.showTestJobs=e.target.checked;draw();}}),' Show test jobs'),h('small',{text:'Counts show work items; a job may need more than one action.'}),btn('Measures',()=>go('measures'),'sm'),btn('All jobs',()=>go('jobs'),'sm'))]);
   }
-  return {nodes:[body], refresh:draw};
+  return {nodes:[body],refresh:draw};
 };
 
 /* ---------- Jobs ---------- */
