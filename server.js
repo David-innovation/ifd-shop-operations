@@ -198,7 +198,7 @@ function create(opts){
     if (req.method === 'GET' && (p === '/' || p === '/login')){
       if (!user) return page(res, pub('login.html'));
       if (p === '/login'){ res.writeHead(302, {location:'/'}); return res.end(); }
-      return page(res, shopUser ? appHtml() : user.role === 'fitter' ? pub('appointments.html') : pub('holding.html').replace('{{name}}', String(user.name).replace(/[<>&"]/g, '')));
+      return page(res, shopUser ? appHtml() : ['fitter','estimator'].includes(user.role) ? pub('appointments.html') : pub('holding.html').replace('{{name}}', String(user.name).replace(/[<>&"]/g, '')));
     }
     if (p.startsWith('/api/') && req.method !== 'GET' && !sameSite(req)) return fail(res, 403, 'forbidden', 'That did not come from this system’s own pages.');
     if (p === '/api/login/code' && req.method === 'POST') return requestCode(req, res);
@@ -206,10 +206,10 @@ function create(opts){
     if (p === '/api/logout' && req.method === 'POST'){ const t = cookieOf(req); if (t) q.dropSession.run(hash(t)); res.setHeader('set-cookie', 'ifd_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' + (secure ? '; Secure' : '')); return send(res, 200, {ok:true}); }
     if (!user) return fail(res, 401, 'signed_out', 'Sign in first.');
     if (p === '/api/me') return send(res, 200, {id:user.id, name:user.name, role:user.role});
-    if (p === '/appointments' && req.method === 'GET') { if (!shopUser && user.role !== 'fitter') return fail(res,403,'forbidden','This page is for fitters and shop staff.'); return page(res,pub('appointments.html')); }
+    if (p === '/appointments' && req.method === 'GET') { if (!shopUser && !['fitter','estimator'].includes(user.role)) return fail(res,403,'forbidden','This page is for fitters, estimators and shop staff.'); return page(res,pub('appointments.html')); }
     if (p === '/api/appointments' && req.method === 'GET') return send(res,200,appointments.list(user));
     if (p === '/api/appointments/send' && req.method === 'POST') return send(res,200,await appointments.send(await readJson(req),user));
-    if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user));
+    if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));
     /* everything below is the shop's own screens. A fitter or estimator is refused here, whatever their page asks for. */
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
     if (p === '/api/users') return send(res, 200, {users:q.users.all().map(u => ({id:u.id, name:u.name, role:u.role, active:!!u.active}))});

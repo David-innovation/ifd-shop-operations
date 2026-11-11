@@ -37,6 +37,25 @@ test('fitter slot API enforces assignments, fixed wording, dates, test mode and 
  app.store.setDoc(docPath('jobs/blocked'),{...j,customer:{...j.customer,phone:'07700900009'}});
  assert.equal((await call('/api/appointments/send',user,{...body,jobId:'blocked'})).status,403);assert.equal(sent.length,2);
  app.store.setDoc(docPath('jobs/notbooked'),{...j,diary:false});assert.equal((await call('/api/appointments/send',user,{...body,jobId:'notbooked'})).status,409);
+ app.ensureUser('Surveyor','07700900006','estimator');app.ensureUser('Another surveyor','07700900007','estimator');
+ const estimator=await login('07700900006'),wrongEstimator=await login('07700900007');
+ app.store.setDoc(docPath('jobs/visit'),{...j,type:'Quote',diary:false,pre:{one:{kind:'measure',who:'Surveyor',status:'booked',date:j.date},two:{kind:'both',who:'Surveyor',status:'booked',date:j.date},cancelled:{kind:'measure',who:'Surveyor',status:'cancelled',date:j.date},done:{kind:'measure',who:'Surveyor',status:'done',date:j.date}}});
+ const visits=(await call('/api/appointments',estimator)).data.jobs;assert.equal(visits.length,2);assert.equal(visits[0].kind,'Estimator visit');assert.equal(visits[0].total,undefined);
+ for(const preview of [...visits[0].previews,...visits[0].delayPreviews]){assert.match(preview,/estimator/);assert.doesNotMatch(preview,/fitter/);assert.ok(preview.length<=160);}
+ assert.equal((await call('/api/appointments',wrongEstimator)).data.jobs.length,0);
+ const vb={...body,jobId:'visit',visitId:'one',key:'visit_send_123'};
+ assert.equal((await call('/api/appointments/send',user,vb)).status,403);
+ assert.equal((await call('/api/appointments/send',wrongEstimator,vb)).status,403);
+ assert.equal((await call('/api/appointments/send',estimator,{...vb,visitId:'missing'})).status,403);
+ assert.equal((await call('/api/appointments/send',estimator,{...vb,visitId:'cancelled'})).status,409);
+ assert.equal((await call('/api/appointments/send',estimator,{...vb,mode:'delay'})).status,409);
+ assert.equal((await call('/api/appointments/send',estimator,vb)).data.state,'sent');assert.match(sent.at(-1).body,/Your estimator will arrive/);
+ assert.equal((await call('/api/appointments/send',estimator,{...vb,visitId:'two',mode:'delay',slot:'1-3pm',key:'other_visit_delay'})).status,409);
+ assert.equal((await call('/api/appointments/send',estimator,{...vb,mode:'delay',slot:'1-3pm',key:'visit_delay_123'})).data.state,'sent');assert.match(sent.at(-1).body,/Sorry, your estimator is delayed/);
+ assert.equal((await call('/api/appointments/send',estimator,{...vb,visitId:'two',key:'visit_two_123'})).data.state,'sent');
+ assert.equal(Object.keys(app.store.getDoc('jobs/visit').data.msgs).length,3);
+ assert.equal((await call('/api/appointments/send',estimator,body)).status,403);
+ assert.equal((await call('/api/cmd',estimator,{cmd:'msg.send',...vb})).status,403);
  app.ensureUser('Lennox','07700900005','fitter');assert.equal((await call('/api/appointments',user)).data.jobs.length,0);
  }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
 });

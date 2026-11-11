@@ -170,7 +170,7 @@ test('a fitter’s sign-in cannot reach the shop’s screens, records, Shopify o
     assert.strictEqual((await s.req('GET', '/api/me', undefined, cookie)).json.role, 'fitter');
     for (const [m, u, b] of [['GET', '/api/db/list?coll=jobs'], ['GET', '/api/db/doc?path=jobs/o1'], ['POST', '/api/db/set', {path:'jobs/o1', data:{}}], ['POST', '/api/shopify', {kind:'query', query:'query OpsShop{ shop{ name } }'}], ['GET', '/api/users'], ['GET', up.json.url], ['GET', '/api/events']])
       assert.strictEqual((await s.req(m, u, b, cookie)).status, 403, m + ' ' + u);
-    const home = await s.req('GET', '/', undefined, cookie); assert.match(home.text, /Fitter arrival texts/); assert.doesNotMatch(home.text, /IFDLogic|6064/);
+    const home = await s.req('GET', '/', undefined, cookie); assert.match(home.text, /Visit arrival texts/); assert.doesNotMatch(home.text, /IFDLogic|6064/);
     // taking someone off cuts them out at once
     s.app.disableUser(fid); assert.strictEqual((await s.req('GET', '/api/me', undefined, cookie)).status, 401);
     await s.req('POST', '/api/login/code', {mobile:FITTER}); assert.strictEqual(s.texts.filter(t => t.to === FITTER).length, 1, 'and no new code is sent to them');
