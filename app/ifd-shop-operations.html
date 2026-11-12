@@ -961,13 +961,15 @@ window.IFDLogic = (function(){
   }
   /* everything the shop needs to price from the measure, worked out from the bare floor sizes and the answers in each room */
   function pricingOf(job){
-    var out = {rooms:0, unasked:[], flooringArea:0, flooringRooms:[], carpets:[], stairs:[], underlayCarpet:0, underlayFlooring:0, gripper:0, beading:0, bars:{cc:0, cf:0, ff:0}, uplift:[], upliftArea:0, oldLeft:[], furniture:[], byHand:[]};
+    var out = {rooms:0, unasked:[], flooringArea:0, flooringRooms:[], carpets:[], stairs:[], underlayCarpet:0, underlayFlooring:0, gripper:0, beading:0, bars:{cc:0, cf:0, ff:0}, uplift:[], upliftArea:0, disposal:[], disposalArea:0, exactGripper:0, exactBeading:0, gripperExact:true, beadingExact:true, oldLeft:[], furniture:[], byHand:[]};
     roomsOf(job).forEach(function(r){
       var s = specOf(r), nm = r.name || 'Room'; if (!s){ out.unasked.push(nm); return; }
-      var a = roomArea(r), e = roomEdge(r); out.rooms++;
+      var a = roomArea(r), e = roomEdge(r), tk=r.takeoff||{}, ua=typeof tk.underlayM2==='number'?tk.underlayM2:a; out.rooms++;
+      if(s.gripper){if(typeof tk.gripperLengths==='number')out.exactGripper+=tk.gripperLengths;else out.gripperExact=false;}
+      if(s.beading){if(typeof tk.beadingLengths==='number')out.exactBeading+=tk.beadingLengths;else out.beadingExact=false;}
       if (s.floor === 'flooring'){
         out.flooringArea = round2(out.flooringArea + a); out.flooringRooms.push(nm);
-        if (s.underlay) out.underlayFlooring = round2(out.underlayFlooring + a);
+        if (s.underlay) out.underlayFlooring = round2(out.underlayFlooring + ua);
         if (s.beading){ if (e) out.beading = round2(out.beading + e); else out.byHand.push('beading for ' + nm); }
       } else {
         var hx = hslOf(r);
@@ -983,7 +985,7 @@ window.IFDLogic = (function(){
           var pl = planFor(job, r);
           out.carpets.push({k:r.k, name:nm, area:a, plan:pl, std:pl && !pl.fits && pl.limited ? carpetPlan(r.len, r.wid, {dir:s.dir}) : null});
         }
-        if (s.underlay) out.underlayCarpet = round2(out.underlayCarpet + a);
+        if (s.underlay) out.underlayCarpet = round2(out.underlayCarpet + ua);
         if (s.gripper){
           if(hx){e=0;['hall','landing'].forEach(function(k){var pt=hslPart(hx,k);if(pt)e+=roomEdge(pt);});var gs=hslPart(hx,'stairs');if(gs)e+=2*stairWid(gs)*(Math.floor(num(gs.n))+Math.floor(num(gs.winders)));}
           if (e) out.gripper = round2(out.gripper + e); else out.byHand.push('gripper for ' + nm);
@@ -991,6 +993,7 @@ window.IFDLogic = (function(){
       }
       specBars(s).forEach(function(b){ out.bars[b.k] += b.n; });
       if (s.old && s.uplift){ out.uplift.push(nm); out.upliftArea = round2(out.upliftArea + a); } else if (s.old) out.oldLeft.push(nm);
+      if (r.responsibility ? r.responsibility.disposal === 'team' : s.old && s.uplift){ out.disposal.push(nm); out.disposalArea=round2(out.disposalArea+a); }
       if (s.furniture) out.furniture.push(nm);
     });
     out.rolls = carpetGroups(job, roomsOf(job)).groups;
@@ -1078,7 +1081,7 @@ window.IFDLogic = (function(){
       out.push({key:'glue', label:'Full-spread glue', must:true, note:fmtM(wood.area+lvt.area) + ' m² of bonded flooring. Full-spread adhesive is included automatically.'});
       out.push({key:'prep', label:'Floor preparation', must:true, note:'Preparation is included for bonded flooring; confirm the subfloor assessment for ' + wood.names.concat(lvt.names).join(', ') + '.'});
     }
-    if (p.uplift.length) out.push({key:'uplift', label:'Uplift and disposal', note:p.uplift.join(', ') + ', ' + fmtM(p.upliftArea) + ' m²'});
+    if (p.upliftArea || p.disposalArea) out.push({key:'uplift', label:p.upliftArea && p.disposalArea ? 'Uplift and disposal' : p.upliftArea ? 'Uplift old flooring' : 'Disposal of old flooring', note:'Uplift: '+fmtM(p.upliftArea)+' m²; disposal: '+fmtM(p.disposalArea)+' m²'});
     if (p.furniture.length) out.push({key:'furniture', label:'Moving furniture', note:p.furniture.join(', ')});
     return out;
   }
@@ -1179,8 +1182,8 @@ window.IFDLogic = (function(){
       }
       out.underlay = {amount:uneed ? 0 : round2(ua), needPick:uneed && !(o.underlayFloor && o.underlayFloor.clash), text:ub.join(', plus ')};
     }
-    if (p.gripper){ var gl = num(o.gripperQty) || Math.ceil(p.gripper / list.gripperLen - 1e-9); out.gripper = {needQty:gl, needUnit:'lengths', amount:round2(gl * list.gripper), text:'About ' + fmtM(p.gripper) + ' m round the walls, so ' + gl + (gl === 1 ? ' length' : ' lengths') + ' of ' + list.gripperLen + ' m × ' + money(list.gripper)}; }
-    if (p.beading){ var bl = num(o.beadingQty) || Math.ceil(p.beading / list.beadingLen - 1e-9); out.beading = {needQty:bl, needUnit:'lengths', amount:round2(bl * list.beading), text:'About ' + fmtM(p.beading) + ' m round the walls, so ' + bl + (bl === 1 ? ' length' : ' lengths') + ' of ' + list.beadingLen + ' m × ' + money(list.beading)}; }
+    if (p.gripper){ var gl = num(o.gripperQty) || (p.gripperExact?p.exactGripper:Math.ceil(p.gripper / list.gripperLen - 1e-9)); out.gripper = {needQty:gl, needUnit:'lengths', amount:round2(gl * list.gripper), text:(p.gripperExact?'Measured gripper quantity; perimeter ':'About ') + fmtM(p.gripper) + ' m round the walls, so ' + gl + (gl === 1 ? ' length' : ' lengths') + ' of ' + list.gripperLen + ' m × ' + money(list.gripper)}; }
+    if (p.beading){ var bl = num(o.beadingQty) || (p.beadingExact?p.exactBeading:Math.ceil(p.beading / list.beadingLen - 1e-9)); out.beading = {needQty:bl, needUnit:'lengths', amount:round2(bl * list.beading), text:(p.beadingExact?'Measured beading quantity; perimeter ':'About ') + fmtM(p.beading) + ' m round the walls, so ' + bl + (bl === 1 ? ' length' : ' lengths') + ' of ' + list.beadingLen + ' m × ' + money(list.beading)}; }
     var bars = Object.keys(BAR_KINDS).reduce(function(t, k){ return t + (Number(p.bars[k]) || 0); }, 0);
     if (bars) out.bars = {amount:round2(bars * list.doorBar), text:bars + (bars === 1 ? ' door bar' : ' door bars') + ' × ' + money(list.doorBar)};
     // ---- fitting: on the floor as measured. Carpet has a least charge; engineered wood goes by how it is laid
@@ -1207,7 +1210,7 @@ window.IFDLogic = (function(){
       out.glue = {amount:round2(wood.area * list.glue+lvt.area*list.lvtGlue), needQty:round2(wood.area+lvt.area),needUnit:'m²',text:[wood.area?sqm(wood.area)+' engineered × '+per(list.glue):'',lvt.area?sqm(lvt.area)+' glue-down LVT × '+per(list.lvtGlue):''].filter(Boolean).join('; ')};
       out.prep = {amount:round2(wood.area * list.prep+(lvt.area?Math.max(lvt.area*list.lvtPrep,list.lvtPrepMin):0)),text:[wood.area?sqm(wood.area)+' engineered × '+per(list.prep):'',lvt.area?sqm(lvt.area)+' glue-down LVT × '+per(list.lvtPrep)+'; minimum '+money(list.lvtPrepMin)+' applied once per job':''].filter(Boolean).join('; ')+'. Website preparation allowance; confirm suitability at the home check.'};
     }
-    if (p.upliftArea) out.uplift = {amount:round2(p.upliftArea * (list.uplift + list.disposal)), text:sqm(p.upliftArea) + ' × ' + money(list.uplift) + ' to lift and ' + money(list.disposal) + ' to dispose, per m²'};
+    if (p.upliftArea || p.disposalArea) out.uplift = {amount:round2(p.upliftArea * list.uplift + p.disposalArea * list.disposal), text:sqm(p.upliftArea)+' × '+money(list.uplift)+' to lift; '+sqm(p.disposalArea)+' × '+money(list.disposal)+' to dispose'};
     if (p.furniture.length) out.furniture = {amount:round2(p.furniture.length * list.furniture), text:p.furniture.length + (p.furniture.length === 1 ? ' room' : ' rooms') + ' × ' + money(list.furniture)};
     return out;
   }
@@ -1309,12 +1312,12 @@ window.IFDLogic = (function(){
   }
   function msgText(m){ return (MSG_KIND[m.kind] || 'Message') + ': ' + (MSG_STATE[m.state] || m.state) + (m.channel === 'email' ? ' by email' : m.channel === 'sms' ? ' by text' : m.channel === 'phone' ? ' by phone' : m.channel === 'hand' ? ' in person' : m.channel === 'post' ? ' by post' : '') + (m.to ? ' to ' + m.to : ''); }
   /* what the customer was told about a booking, kept with the message, so any later change shows up */
-  function bookingSnap(job){ var c = (job && job.customer) || {}; return {date:job.date || '', fitter:job.fitter || '', slot:job.slot || '', arrival:arrivalConfirmed(job) ? String(job.arrival.slot) : '', due:fitterDue(job), total:round2(job.total), addr:String(c.address || '') + '|' + String(c.postcode || ''), items:JSON.stringify(linesOf(job).map(function(l){ return [l.title || '', l.sub || '', l.variant || l.variantId || '', l.qty || 0, l.unit || '', l.w || 0]; }).sort(function(a,b){ return JSON.stringify(a).localeCompare(JSON.stringify(b)); }))}; }
-  var SNAP_WORD = {date:'the day', fitter:'the fitter', slot:'the booking details', arrival:'the arrival time', due:'the fitting total', total:'the price', addr:'the address', items:'the flooring or accessories'};
+  function bookingSnap(job){ var c = (job && job.customer) || {}; return {date:job.date || '', fitter:job.fitter || '', slot:job.slot || '', arrival:arrivalConfirmed(job) ? String(job.arrival.slot) : '', due:fitterDue(job), total:round2(job.total), preparation:JSON.stringify(roomsOf(job).map(function(r){return [r.k,r.responsibility||null,r.note||'',r.requirements||''];})), addr:String(c.address || '') + '|' + String(c.postcode || ''), items:JSON.stringify(linesOf(job).map(function(l){ return [l.title || '', l.sub || '', l.variant || l.variantId || '', l.qty || 0, l.unit || '', l.w || 0]; }).sort(function(a,b){ return JSON.stringify(a).localeCompare(JSON.stringify(b)); }))}; }
+  var SNAP_WORD = {date:'the day', fitter:'the fitter', slot:'the booking details', arrival:'the arrival time', due:'the fitting total', total:'the price', addr:'the address', items:'the flooring or accessories', preparation:'the preparation agreements or job instructions'};
   function snapChanges(a, b){ a = a || {}; b = b || {}; return Object.keys(SNAP_WORD).filter(function(k){ return String(a[k] == null ? '' : a[k]) !== String(b[k] == null ? '' : b[k]); }).map(function(k){ return SNAP_WORD[k]; }); }
   /* a short stable name for one set of booking details, so two sends of the same details are known to be the same revision */
   function bookingRev(snap){
-    var t = [snap.date, snap.fitter, snap.slot, snap.arrival || '', snap.due, snap.total, snap.addr, snap.items || ''].join('|'), h = 5381;
+    var t = [snap.date, snap.fitter, snap.slot, snap.arrival || '', snap.due, snap.total, snap.addr, snap.items || '',snap.preparation || ''].join('|'), h = 5381;
     for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
     return 'b' + (snap.date || '') + '-' + h.toString(36);
   }
@@ -1340,8 +1343,10 @@ window.IFDLogic = (function(){
     if (sold(/furniture/i)) out.push('Furniture moving is included as agreed' + (p.furniture.length ? ' in ' + p.furniture.map(customerItemName).join(', ') : '') + '. Please put away ornaments, electrics and anything breakable beforehand. Any rooms outside that agreement should be cleared before we arrive.');
     else out.push('Please clear the rooms of furniture and personal belongings before we arrive, unless furniture moving is specifically included in your agreed order.');
     if (sold(/uplift|dispos/i)) out.push((sold(/uplift/i)&&sold(/dispos/i)?'We are lifting and taking away the old flooring':sold(/uplift/i)?'Lifting the old flooring is included; disposal is only included if separately agreed':'Disposal of the old flooring is included; lifting it is only included if separately agreed') + (p.uplift.length ? ' in ' + p.uplift.map(customerItemName).join(', ') : '') + '.');
-    if (p.oldLeft.length) out.push('Please have the old flooring in ' + p.oldLeft.join(', ') + ' lifted and cleared before we arrive.');
-    else if(!sold(/uplift|dispos/i))out.push('If old flooring is present, please arrange for it to be lifted and removed before fitting, unless this work is included in your agreed order. Contact us first if you are unsure or suspect hazardous materials.');
+    var responsibilityRooms=roomsOf(job).filter(function(r){return r.responsibility;});
+    responsibilityRooms.forEach(function(r){var a=r.responsibility,who={customer:'Customer',team:'Fitting team (as agreed in the order)',other:'Other person / contractor',not_required:'Not required',unknown:'Not yet agreed'};out.push((r.name||'Room')+': furniture clearance — '+(who[a.furniture]||'Not yet agreed')+'; lifting old flooring — '+(who[a.uplift]||'Not yet agreed')+'; disposal — '+(who[a.disposal]||'Not yet agreed')+'.'+(a.note?' '+a.note:''));});
+    if (!responsibilityRooms.length && p.oldLeft.length) out.push('Please have the old flooring in ' + p.oldLeft.join(', ') + ' lifted and cleared before we arrive.');
+    else if(!responsibilityRooms.length && !sold(/uplift|dispos/i))out.push('If old flooring is present, please arrange for it to be lifted and removed before fitting, unless this work is included in your agreed order. Contact us first if you are unsure or suspect hazardous materials.');
     out.push('Please tell us in advance if you need help getting ready. Any extra work, price or change of date will be discussed and agreed before we proceed.');
     return out.concat(wordsOf(shop).prep);
   }
@@ -4966,6 +4971,9 @@ function roomBlock(job, r){
     L.specOf(r) ? h('div', {class:'meta'}, specChips(r, false, job)) : null,
     r.status === 'verified' ? h('p', {class:'small muted', text:'Verified by ' + (r.verBy || 'someone') + (L.SOURCES[r.verRole] ? ' (' + L.SOURCES[r.verRole].toLowerCase() + ')' : '') + (L.validISO(r.verOn) ? ' on ' + L.fmtDay(r.verOn) : '') + (r.verAt ? '. Recorded ' + whenText(r.verAt) + ' by ' + nameOf(r.verById) : '') + '.'}) : null,
     r.status === 'check' && r.checkWhy ? h('p', {class:'small', text:'To check: ' + r.checkWhy}) : null,
+    r.takeoff ? h('p',{text:'Measured materials: underlay '+(r.takeoff.underlayM2??'not recorded')+' m²; gripper '+(r.takeoff.gripperLengths??'not recorded')+' lengths; beading '+(r.takeoff.beadingLengths??'not recorded')+' lengths.'}) : null,
+    r.requirements ? h('p',{text:'Estimator product / accessory requirements: '+r.requirements}) : null,
+    r.responsibility ? h('p',{text:'Preparation agreement — furniture: '+r.responsibility.furniture+'; uplift: '+r.responsibility.uplift+'; disposal: '+r.responsibility.disposal+'. '+(r.responsibility.note||'')}) : null,
     r.note ? h('p', {class:'small muted', text:r.note}) : null,
     pics.length ? h('div', {class:'thumbs'}, pics.map(p => picThumb(job, p, where))) : null,
     hist.length ? h('details', {}, h('summary', {class:'small', text:'Previous sizes (' + hist.length + ')'}), h('div', {class:'log'}, hist.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': was ' + L.roomSize(x) + ', ' + (SRC_TEXT[x.source] || 'source not recorded').toLowerCase() + ', ' + (L.ROOM_STATUS[x.status] || 'Unverified').toLowerCase() + (x.status === 'verified' && x.verBy ? ' by ' + x.verBy : '') + '. ' + (x.why || '')})))) : null,

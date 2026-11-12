@@ -210,6 +210,7 @@ function create(opts){
     const user=trial?{...authUser,id:'trial_'+authUser.id,name:authUser.name+' - fitter trial',role:'fitter',trial:true}:authUser, shopUser=user&&SHOP_ROLES.includes(user.role);
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
     if (p === '/reschedule.js') return send(res,200,pub('reschedule.js'),{'content-type':'text/javascript; charset=utf-8'});
+    if (p === '/estimator-details.js') return send(res,200,pub('estimator-details.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-diary.js') return send(res,200,pub('fitter-diary.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/crew-style.css') return send(res,200,pub('crew-style.css'),{'content-type':'text/css; charset=utf-8'});
@@ -261,7 +262,7 @@ function create(opts){
     if (p === '/api/appointments/signoff' && req.method === 'POST') return send(res,200,appointments.signoff(await readJson(req),user));
     if (p.startsWith('/api/appointments/work/') && req.method === 'POST') {
       const action=p.slice('/api/appointments/work/'.length);
-      if(!['checklist','issue','approve','diary','schedule','notify','reschedule','reviewMove','calendar','visitCalendar','visitReschedule','visitReview'].includes(action))return fail(res,404,'not_found','Unknown fitting action.');
+      if(!['checklist','issue','approve','diary','schedule','notify','reschedule','reviewMove','calendar','visitCalendar','visitReschedule','visitReview','estimatorDetails'].includes(action))return fail(res,404,'not_found','Unknown fitting action.');
       return send(res,200,await appointments.work[action](await readJson(req),user));
     }
     if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));
