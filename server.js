@@ -74,7 +74,16 @@ function create(opts){
   function userOf(req){
     const t = cookieOf(req); if (!t) return null;
     const s = q.session.get(hash(t)); if (!s || s.expires < now()) return null;
-    const u = q.userById.get(s.user); return u && u.active ? u : null;
+    const restricted=s.user.startsWith('trial_');
+    const u = q.userById.get(restricted?s.user.slice(6):s.user);
+    if(!u||!u.active)return null;
+    if(restricted)return {...u,id:'trial_'+u.id,name:u.name+' - fitter trial',role:'fitter'};
+    // Permanently restrict legacy owner-trial sessions; removing a browser flag cannot restore owner access.
+    if(u.role==='owner'&&/(?:^|;\s*)ifd_trial=1(?:;|$)/.test(req.headers.cookie||'')){
+      db.prepare('UPDATE sessions SET user = ? WHERE hash = ?').run('trial_'+u.id,hash(t));
+      return {...u,id:'trial_'+u.id,name:u.name+' - fitter trial',role:'fitter'};
+    }
+    return u;
   }
   function setSession(res, user){
     const token = crypto.randomBytes(32).toString('base64url'), days = SHOP_ROLES.indexOf(user.role) !== -1 ? 14 : 30;
@@ -105,7 +114,7 @@ function create(opts){
       const c = q.code.get(mobile), fresh = !c || now() - c.win > WINDOW_MS, sent = fresh ? 1 : c.sent + 1;
       if (sent <= SENDS_PER_WINDOW){
         const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-        q.putCode.run(mobile, hash(mobile + ':' + code), now() + CODE_MINUTES * 60000, sent, fresh ? now() : c.win);
+        q.putCode.run(mobile, hash(mobile + ':' + code + (body.mode==='fitter'?':fitter':'')), now() + CODE_MINUTES * 60000, sent, fresh ? now() : c.win);
         try { await sendText(mobile, 'IFD Shop Operations sign-in code: ' + code + '. It lasts ' + CODE_MINUTES + ' minutes. Nobody from the shop will ask you for it.'); }
         catch (e){ log('TEXT FAILED to ' + mobile + ': ' + (e && e.message)); }
       }
@@ -118,11 +127,15 @@ function create(opts){
     if (!mobile || code.length !== 6) return bad();
     const user = q.userByMobile.get(mobile), c = q.code.get(mobile);
     if (!user || !user.active || !c || !c.hash || c.expires < now() || c.tries >= CODE_TRIES) return bad();
-    const want = Buffer.from(c.hash, 'hex'), got = Buffer.from(hash(mobile + ':' + code), 'hex');
+    const want = Buffer.from(c.hash, 'hex'), got = Buffer.from(hash(mobile + ':' + code + (body.mode==='fitter'?':fitter':'')), 'hex');
     if (want.length !== got.length || !crypto.timingSafeEqual(want, got)){ q.tryCode.run(mobile); return bad(); }
     q.dropCode.run(mobile);                                   /* a code works once */
-    setSession(res, user); st.audit(user.id, 'signed in', '');
-    send(res, 200, {ok:true, role:user.role});
+    const signedUser=body.mode==='fitter'&&user.role==='owner'?{...user,id:'trial_'+user.id,role:'fitter'}:user;
+    const previous=cookieOf(req);if(previous)q.dropSession.run(hash(previous));
+    setSession(res, signedUser);
+    res.setHeader('set-cookie',[res.getHeader('set-cookie'),'ifd_trial=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(secure?'; Secure':'')]);
+    st.audit(user.id, 'signed in', signedUser.role);
+    send(res, 200, {ok:true, role:signedUser.role});
   }
 
   /* ---------- records ---------- */
@@ -198,6 +211,7 @@ function create(opts){
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
     if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/shim.js') return send(res, 200, pub('shim.js'), {'content-type':'text/javascript; charset=utf-8'});
+    if (p === '/fitter' && req.method === 'GET') return page(res,pub('login.html'));
     if (req.method === 'GET' && (p === '/' || p === '/login')){
       if (!user) return page(res, pub('login.html'));
       if (p === '/login'){ res.writeHead(302, {location:'/'}); return res.end(); }
@@ -214,7 +228,9 @@ function create(opts){
       const b=await readJson(req);if(typeof b.enabled!=='boolean')return fail(res,400,'invalid_argument','Choose the shop or fitter trial.');
       const id='ZZ-OWNER-FITTER-'+authUser.id,d=store.docPath('jobs/'+id),fitterId='trial_'+authUser.id;
       if(b.enabled&&!st.getDoc(d.path).exists){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));st.setDoc(d,{test:true,status:'open',type:'Fitting',diary:true,date,fitter:authUser.name+' - fitter trial',fitterId,ref:'ZZ FITTER TRIAL',customer:{name:'ZZ TEST - David fitter trial',phone:authUser.mobile,email:'David@innovationflooringdirect.com',address:'TEST ONLY - no customer appointment'},sizeCheck:'verified',rooms:{lounge:{name:'Trial lounge',len:4,wid:3,area:12,status:'verified',source:'shop',verBy:'TEST ONLY',verRole:'shop',verOn:date}},lines:{floor:{title:'TEST ONLY laminate flooring',qty:4,unit:'packs',hold:'none'},beading:{title:'TEST ONLY beading',qty:6,unit:'lengths',hold:'none'},bars:{title:'TEST ONLY door bar',qty:1,unit:'each',hold:'none'}},total:0,fitterDue:0,notes:'OWNER FITTER TRIAL ONLY. No stock reserved, no real payment or appointment. Messages go to David only.',fitterWork:{profiles:['laminate'],version:0}});broadcast('jobs');}
-      res.setHeader('set-cookie','ifd_trial='+(b.enabled?'1':'0')+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+(b.enabled?86400:0)+(secure?'; Secure':''));return send(res,200,{ok:true,enabled:b.enabled});
+      if(!b.enabled)return fail(res,403,'forbidden','Sign out and sign in separately for owner access.');
+      q.dropSession.run(hash(cookieOf(req)));setSession(res,{...authUser,id:fitterId,role:'fitter'});
+      res.setHeader('set-cookie',[res.getHeader('set-cookie'),'ifd_trial=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(secure?'; Secure':'')]);return send(res,200,{ok:true,enabled:true});
     }
     if (p === '/api/me') return send(res, 200, {id:user.id, name:user.name, role:user.role});
     if (p === '/appointments' && req.method === 'GET') { if (!shopUser && !['fitter','estimator'].includes(user.role)) return fail(res,403,'forbidden','This page is for fitters, estimators and shop staff.'); return page(res,pub('appointments.html')); }
