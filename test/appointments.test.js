@@ -63,3 +63,10 @@ test('fitter slot API enforces assignments, fixed wording, dates, test mode and 
  }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
 
+test('virtual owner fitter trial sees its named test assignment only',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ifd-trial-assignment-')),app=create({env:{DATA_DIR:dir,SESSION_PEPPER:'test'},log:()=>{},pollMs:3600000});
+ try{const base={status:'open',type:'Fitting',diary:true,date:'2026-11-23',fitter:'David - fitter trial',customer:{name:'ZZ TEST King Street'},rooms:{},lines:{}};for(const [id,patch]of Object.entries({mine:{},real:{customer:{name:'Real customer'}},other:{fitter:'Other - fitter trial'},explicitOther:{fitterId:'trial_other'}}))app.store.setDoc(docPath('jobs/'+id),{...base,...patch});
+ const api=require('../lib/appointments').make({st:app.store,cmds:{status:()=>({testOnly:false})},users:()=>[{id:'owner1',name:'David',role:'owner',active:true}],now:()=>Date.parse('2026-11-12T12:00:00Z'),L:app.rules,broadcast:()=>{}});
+ assert.deepEqual(api.list({id:'trial_owner1',name:'David - fitter trial',role:'fitter'}).jobs.map(j=>j.id),['mine']);
+ }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
+});
