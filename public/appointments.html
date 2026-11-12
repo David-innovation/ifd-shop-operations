@@ -1,6 +1,31 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My fitting jobs | Innovation Flooring</title>
 <style>body{font:17px/1.5 system-ui;margin:auto;padding:20px;max-width:760px;background:#f5f5f5;color:#171717}h1{font-size:26px}article{background:white;border:1px solid #ddd;border-radius:12px;padding:18px;margin:18px 0}button,a{font:inherit}button{padding:12px;min-height:48px;border:1px solid #777;border-radius:8px;background:white;cursor:pointer}button:disabled{opacity:.5;cursor:default}.slots{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.slots button[aria-pressed=true],.send{background:#a31220;color:white}.preview{padding:14px;background:#f3f3f3;white-space:pre-wrap}small{display:block;color:#555}#status{font-weight:600}.history{border-top:1px solid #ddd;margin-top:14px;padding-top:10px}nav{display:flex;flex-wrap:wrap;gap:18px;align-items:center}.send{margin-top:12px;width:100%}section{margin-top:24px;border-top:1px solid #ddd;padding-top:12px}details{margin:14px 0}summary{cursor:pointer;font-weight:650;padding:12px;background:#f5f5f5}.work-label{display:block;margin:12px 0}input:not([type=checkbox]),select,textarea{box-sizing:border-box;width:100%;min-height:44px;font:inherit;padding:8px}input[type=checkbox]{width:22px;height:22px;margin:8px;vertical-align:middle}.work-task{padding:12px 0;border-bottom:1px solid #ddd}p{overflow-wrap:anywhere}</style>
-<link rel="stylesheet" href="/crew-style.css"><link rel="stylesheet" href="/after-dark.css"><body class="crew crew-diary"><header class="brand" aria-label="Innovation Flooring Direct"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">INNOVATION</span><span class="brand-sub">FLOORING DIRECT</span><span class="brand-caption">The team behind every floor</span></header><h1>My diary</h1><nav><a id="shop" href="/" hidden>Back to shop</a><button id="test" hidden>Create test for David</button><button id="esttest" hidden>Create estimator test</button><button id="refresh">Refresh</button><button id="out">Sign out</button></nav><p>Tap a job in your diary to see the details and manage the visit.</p><p id="status" role="status"></p><main id="jobs"></main>
+<link rel="stylesheet" href="/crew-style.css"><link rel="stylesheet" href="/after-dark.css">
+<style>
+.crew dialog.customer-sign{position:fixed;inset:0;margin:auto;padding:0;border:0;border-top:4px solid #d91935;border-radius:18px;width:min(100%,480px);max-width:100%;max-height:100dvh;overflow:auto;color:#171717;background:#fff;box-shadow:0 24px 100px #0008;color-scheme:light}
+.customer-sign::backdrop{background:#08090bf2}
+.crew .customer-sign *{box-sizing:border-box}
+.crew .customer-sign-brand{position:relative;background:#101114;padding:24px 26px;color:#fff}
+.crew .customer-sign-name{font-size:24px;font-weight:800;letter-spacing:1px;line-height:1.2}
+.crew .customer-sign-sub{font-size:10px;letter-spacing:3.6px;margin-top:6px;color:#ddd}
+.crew .customer-sign button.customer-sign-back{position:absolute;right:12px;top:12px;background:transparent;color:#aaa;border:0;box-shadow:none;min-height:36px;width:36px;padding:0;font-size:25px}
+.crew .customer-sign-body{padding:24px 26px 28px}
+.crew .customer-sign h2{font-size:29px;line-height:1.15;letter-spacing:-.7px;color:#151515;margin:0 0 16px}
+.crew .customer-sign p{font-size:15px;line-height:1.65;color:#45454a;margin:0 0 20px}
+.crew .customer-sign .work-label{font-size:13px;font-weight:650;color:#333;margin:20px 0}
+.crew .customer-sign input{display:block;width:100%;margin-top:8px;padding:13px 14px;border:1px solid #d7d7db;border-radius:8px;background:#fff;color:#171717;font-size:16px;box-shadow:none}
+.crew .customer-sign input:focus{outline:2px solid #c51b32;outline-offset:2px}
+.crew .customer-sign-pad{border:1px solid #d7d7db;border-radius:10px;overflow:hidden;background:#fff}
+.crew .customer-sign-pad-head{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;color:#555;font-size:13px}
+.crew .customer-sign button.customer-sign-clear{min-height:28px;border:0;background:none;color:#a5192b;padding:2px 0;font-size:13px;box-shadow:none}
+.crew .customer-sign canvas{display:block;width:100%;height:145px;background:white}
+.crew .customer-sign small{display:block;color:#888;font-size:11px;text-align:center;padding:0 8px 12px}
+.crew .customer-sign button.customer-sign-save{width:100%;margin-top:20px;min-height:50px;padding:13px;border:0;border-radius:8px;background:#b81830;color:white;font-size:16px;font-weight:650;box-shadow:none}
+.crew .customer-sign .customer-sign-note{border-left:3px solid #c51b32;padding:10px 14px;background:#f6f6f7}
+.crew .customer-sign [role=status]:empty{display:none}
+.crew .customer-sign [role=status]{margin:12px 0 0;font-size:14px}
+@media(max-width:480px){.crew dialog.customer-sign{border-radius:0;min-height:100dvh}.crew .customer-sign-body{padding:24px}.crew .customer-sign-brand{padding:23px 24px}}
+</style><body class="crew crew-diary"><header class="brand" aria-label="Innovation Flooring Direct"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">INNOVATION</span><span class="brand-sub">FLOORING DIRECT</span><span class="brand-caption">The team behind every floor</span></header><h1>My diary</h1><nav><a id="shop" href="/" hidden>Back to shop</a><button id="test" hidden>Create test for David</button><button id="esttest" hidden>Create estimator test</button><button id="refresh">Refresh</button><button id="out">Sign out</button></nav><p>Tap a job in your diary to see the details and manage the visit.</p><p id="status" role="status"></p><main id="jobs"></main>
 <script src="/reschedule.js"></script><script src="/fitter-work.js"></script><script src="/estimator-details.js"></script><script src="/fitter-diary.js"></script>
 <script>
 const status=document.getElementById('status'),jobs=document.getElementById('jobs');let busy=false;
@@ -16,17 +41,42 @@ for(const m of j.messages.slice(-6)){const p=el('div',m.state.toUpperCase()+' ·
 }catch(e){status.textContent=e.message;}}
 
 function addSignoff(card,j){
- const box=el('section'),ready=el('button','Ready for customer sign-off'),issue=el('button','Issue needs attention'),form=el('div');let outcome='clear';
- box.append(el('h3','Finish this visit'),el('p',j.paymentNotice),ready,issue,form);if(j.completionProblems?.length){ready.disabled=true;box.append(el('p','Not ready for completion: '+j.completionProblems.join(' ')));}card.append(box);
- function open(mode){outcome=mode;form.replaceChildren();const name=el('input'),note=el('textarea'),reason=el('input'),noSign=el('input'),agree=el('input'),canvas=el('canvas'),clear=el('button','Clear signature'),save=el('button','Save customer sign-off'),result=el('p');
- name.placeholder='Customer or representative name';name.autocomplete='name';note.placeholder='What needs attention?';reason.placeholder='Why the customer cannot sign';noSign.type=agree.type='checkbox';canvas.width=600;canvas.height=220;canvas.style.cssText='display:block;width:100%;height:180px;background:white;border:2px solid #555;touch-action:none';canvas.setAttribute('aria-label','Customer finger signature');
- const label=(text,input)=>{const l=el('label',text);l.style.display='block';l.append(input);return l;};let strokes=[],active=null;const ctx=canvas.getContext('2d');ctx.lineWidth=2;ctx.lineCap='round';
- const point=e=>{const r=canvas.getBoundingClientRect();return [Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))];};
- canvas.onpointerdown=e=>{if(noSign.checked)return;e.preventDefault();canvas.setPointerCapture(e.pointerId);active=[point(e)];};canvas.onpointermove=e=>{if(!active)return;const a=active.at(-1),b=point(e);if(active.length>=2000)return;active.push(b);ctx.beginPath();ctx.moveTo(a[0]*600,a[1]*220);ctx.lineTo(b[0]*600,b[1]*220);ctx.stroke();};const end=()=>{if(active?.length>1)strokes.push(active);active=null;};canvas.onpointerup=end;canvas.onpointercancel=end;clear.onclick=()=>{strokes=[];active=null;ctx.clearRect(0,0,600,220);};noSign.onchange=()=>{if(noSign.checked)clear.onclick();};
- form.append(el('h3',mode==='issues'?'Record the issue and ask the customer to review':'Ask the customer to review their job'),el('p',mode==='issues'?j.issueStatement:j.signStatement),el('p',mode==='issues'?'My choice: there are outstanding issues as recorded below.':'My choice: the agreed work is complete and I have no outstanding issues to report today.'),label('Your name',name));if(mode==='issues')form.append(label('Outstanding issues',note));form.append(label('I have read this statement and my recorded choice is correct',agree),canvas,clear,label('Customer unavailable or declines to sign',noSign),label('Reason if no signature',reason),save,result);
- const key=crypto.randomUUID();save.onclick=async()=>{save.disabled=true;try{const r=await api('/api/appointments/signoff',{jobId:j.id,date:j.date,key,outcome,name:name.value,note:note.value,agreed:agree.checked,strokes:noSign.checked?[]:strokes,reason:noSign.checked?reason.value:''});result.textContent=r.completed?'Saved. The job is complete.':'Saved. The shop has a follow-up to deal with.';ready.disabled=issue.disabled=true;form.querySelectorAll('input,textarea,button').forEach(n=>n.disabled=true);}catch(e){result.textContent=e.message;save.disabled=false;}};
+ const box=el('section'),ready=el('button','Open customer sign-off'),issue=el('button','Record unfinished work'),unavailable=el('button','Customer unable to sign'),staffForm=el('div');
+ box.append(el('h3','Finish this visit'),el('p','Complete the checklist, then hand the customer the sign-off screen. Do not collect fitting payment for unfinished work.'),ready,issue,unavailable,staffForm);
+ if(j.completionProblems?.length){ready.disabled=true;box.append(el('p','Not ready for completion: '+j.completionProblems.join(' ')));}
+ card.append(box);
+ const label=(text,input)=>{const l=el('label',text);l.className='work-label';l.append(input);return l;};
+ function customerScreen(outcome,note=''){
+  const dialog=el('dialog');dialog.className='customer-sign';dialog.setAttribute('aria-label','Customer sign-off');
+  const wrap=el('div');wrap.className='customer-sign-wrap';
+  const header=el('header'),brand=el('div','INNOVATION'),sub=el('div','FLOORING DIRECT'),back=el('button','×');header.className='customer-sign-brand';brand.className='customer-sign-name';sub.className='customer-sign-sub';back.className='customer-sign-back';back.setAttribute('aria-label','Return to fitter controls');back.onclick=()=>dialog.close();header.append(brand,sub,back);
+  const main=el('div');main.className='customer-sign-body';
+  const title=el('h2',outcome==='clear'?'Your finished floor.':'Your visit today.'),message=el('p',outcome==='clear'?j.signStatement:j.issueStatement),name=el('input'),canvas=el('canvas'),clear=el('button','Clear'),save=el('button',outcome==='clear'?'Confirm & sign off':'Confirm visit record'),result=el('p');
+  name.autocomplete='name';name.placeholder='Your full name';name.maxLength=100;name.setAttribute('aria-label','Customer name');
+  message.className='customer-sign-message';canvas.width=900;canvas.height=420;canvas.setAttribute('aria-label','Customer finger signature');canvas.style.touchAction='none';
+  clear.className='customer-sign-clear';save.className='customer-sign-save';result.setAttribute('role','status');
+  let strokes=[],active=null,saving=false;const ctx=canvas.getContext('2d');ctx.strokeStyle='#171717';ctx.lineWidth=3;ctx.lineCap='round';
+  const point=e=>{const r=canvas.getBoundingClientRect();return [Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))];};
+  canvas.onpointerdown=e=>{if(saving)return;e.preventDefault();canvas.setPointerCapture(e.pointerId);active=[point(e)];};
+  canvas.onpointermove=e=>{if(!active||saving)return;const a=active.at(-1),b=point(e);if(active.length>=2000)return;active.push(b);ctx.beginPath();ctx.moveTo(a[0]*900,a[1]*420);ctx.lineTo(b[0]*900,b[1]*420);ctx.stroke();};
+  const end=()=>{if(active?.length>1)strokes.push(active);active=null;};canvas.onpointerup=end;canvas.onpointercancel=end;
+  clear.onclick=()=>{if(saving)return;strokes=[];active=null;ctx.clearRect(0,0,900,420);};
+  const signature=el('div'),signatureHead=el('div');signature.className='customer-sign-pad';signatureHead.className='customer-sign-pad-head';signatureHead.append(el('span','Your signature'),clear);signature.append(signatureHead,canvas,el('small','Sign here with your finger'));
+  main.append(title,message);if(note){const notes=el('p',note);notes.className='customer-sign-note';main.append(notes);}
+  main.append(label('Customer name',name),signature,save,result);wrap.append(header,main);dialog.append(wrap);document.body.append(dialog);
+  const oldOverflow=document.body.style.overflow;document.body.style.overflow='hidden';dialog.onclose=()=>{document.body.style.overflow=oldOverflow;dialog.remove();};dialog.oncancel=e=>{if(saving)e.preventDefault();};
+  const key=crypto.randomUUID();save.onclick=async()=>{
+   if(saving)return;end();if(!name.value.trim()){result.textContent='Please enter your name.';name.focus();return;}if(!strokes.length){result.textContent='Please add your signature.';return;}
+   saving=true;save.disabled=clear.disabled=back.disabled=true;name.disabled=true;result.textContent='Saving your confirmation…';
+   try{const r=await api('/api/appointments/signoff',{jobId:j.id,date:j.date,key,outcome,note,name:name.value,agreed:true,strokes,reason:''});main.replaceChildren(el('h2','Thank you.'),el('p',r.completed?'Your completed fitting has been signed off. Thank you for choosing Innovation Flooring Direct.':'Your visit has been recorded. Our shop team will follow up the outstanding work.'));const done=el('button','Return to fitter');done.className='customer-sign-save';done.onclick=()=>{dialog.close();load();};main.append(done);ready.disabled=issue.disabled=unavailable.disabled=true;saving=false;back.disabled=false;back.onclick=done.onclick;}
+   catch(e){result.textContent=e.message;saving=false;save.disabled=clear.disabled=back.disabled=false;name.disabled=false;}
+  };
+  dialog.showModal();back.focus();
  }
- ready.onclick=()=>open('clear');issue.onclick=()=>open('issues');
+ ready.onclick=()=>customerScreen('clear');
+ issue.onclick=()=>{staffForm.replaceChildren();const note=el('textarea'),open=el('button','Show customer visit record'),error=el('p');note.placeholder='What needs finishing and what was agreed?';note.maxLength=2000;staffForm.append(label('Outstanding work — fitter notes',note),open,error);open.onclick=()=>{if(!note.value.trim()){error.textContent='Record the outstanding work first.';return;}customerScreen('issues',note.value.trim());};};
+ unavailable.onclick=()=>{staffForm.replaceChildren();const reason=el('input'),note=el('textarea'),save=el('button','Save for shop follow-up'),error=el('p');reason.maxLength=500;note.maxLength=2000;staffForm.append(label('Why the customer cannot sign',reason),label('Outstanding work or visit notes',note),el('p','This keeps the job open and notifies the shop. It does not confirm customer approval or authorise fitting payment.'),save,error);const key=crypto.randomUUID();save.onclick=async()=>{if(!reason.value.trim()){error.textContent='Enter the reason.';return;}save.disabled=true;try{await api('/api/appointments/signoff',{jobId:j.id,date:j.date,key,outcome:'issues',note:note.value.trim()||'Customer sign-off unavailable — shop follow-up required.',name:'',agreed:false,strokes:[],reason:reason.value.trim()});await load();status.textContent='Saved for shop follow-up. The job remains open.';}catch(e){error.textContent=e.message;save.disabled=false;}};};
 }
+
 document.getElementById('esttest').onclick=async()=>{try{await api('/api/appointments/test',{kind:'estimator'});load();}catch(e){status.textContent=e.message;}};document.getElementById('test').onclick=async()=>{try{await api('/api/appointments/test',{});load();}catch(e){status.textContent=e.message;}};document.getElementById('refresh').onclick=load;document.getElementById('out').onclick=async()=>{await api('/api/logout',{});location.href='/login';};load();
 </script></html>
