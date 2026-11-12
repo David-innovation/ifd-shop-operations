@@ -1,0 +1,18 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{create}=require('../server'),{docPath}=require('../lib/store');
+test('shop approval reprices carpet, carries supply and rejects fitter, stale and unapproved sends',async()=>{
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ifd-cut-approve-')),app=create({env:{DATA_DIR:dir,SESSION_PEPPER:'test'},log:()=>{},pollMs:3600000}),owner={id:'test',name:'TEST OWNER',role:'owner',mobile:'07700900001'},seed=require('../lib/fitter-practice');try{
+for(const s of ['carpet-detailed','carpet-exact','cutting-plan','approval-trial'])seed(app.store,owner,Date.now(),s);const id='ZZ-FITTER-PRACTICE-test-carpet-detailed',d=docPath('jobs/'+id),get=()=>({...app.store.getDoc(d.path).data,id});
+await assert.rejects(app.commands.run('cutting.configure',{jobId:id,widths:[4,5],plain:true,sameBatch:true,pileConfirmed:true},{role:'fitter'}),e=>e.status===403);
+await assert.rejects(app.commands.run('cutting.configure',{jobId:id,widths:[4,5],plain:true,sameBatch:false,pileConfirmed:true},owner),e=>e.status===400);
+await app.commands.run('cutting.configure',{jobId:id,widths:[4,5],plain:true,sameBatch:true,pileConfirmed:true},owner);
+const p=await app.commands.run('cutting.preview',{jobId:id},owner);assert.equal(p.plan.area,74);assert.equal(p.rate,14.99);
+await assert.rejects(app.commands.run('cutting.approve',{jobId:id,version:p.version,rate:14.99},{role:'fitter',id:'trial_test'}),e=>e.status===403);
+await assert.rejects(app.commands.run('msg.prepared',{jobId:id,kind:'quote',rev:'cut_trial',channel:'email',body:'Test quote',key:'test_quote1',byName:'TEST',to:'test@example.com'},owner),e=>e.code==='cutting_approval');
+const out=await app.commands.run('cutting.approve',{jobId:id,version:p.version,rate:14.99},owner),j=get(),L=app.rules,q=L.quoteOf(j);assert.equal(out.area,74);assert.equal(q.lines.find(l=>l.key==='carpet').price,1109.26);assert.equal(q.lines.find(l=>l.key==='underlay').price,179.43);assert.equal(q.total,1715.19);assert.equal(L.supplyPlan(j).groups.reduce((n,g)=>n+g.sq,0),74);assert.equal(L.linesOf(j).filter(l=>l.cuttingApproval).reduce((n,l)=>n+l.qty/10*l.w,0),74);assert.equal(L.pricingOf(j).underlayCarpet,59.81);assert.equal(L.cuttingApproved(j),true);assert.equal(Object.keys(j.quotes).length,2);
+const p2=await app.commands.run('cutting.preview',{jobId:id},owner);assert.equal((await app.commands.run('cutting.approve',{jobId:id,version:p2.version,rate:14.99},owner)).duplicate,true);
+await app.commands.run('msg.prepared',{jobId:id,kind:'quote',rev:q.k,channel:'email',body:'Test quote',key:'test_quote2',byName:'TEST',to:'test@example.com'},owner);
+await assert.rejects(app.commands.run('msg.prepared',{jobId:id,kind:'quote',rev:'cut_trial',channel:'email',body:'Old quote',key:'test_quote3',byName:'TEST',to:'test@example.com'},owner),e=>e.code==='cutting_approval');
+app.store.updateDoc(d,{rooms:{bed3:{len:2.6}}});assert.equal(L.cuttingApproved(get()),false);await assert.rejects(app.commands.run('msg.prepared',{jobId:id,kind:'quote',rev:q.k,channel:'email',body:'Stale quote',key:'test_quote4',byName:'TEST',to:'test@example.com'},owner),e=>e.code==='cutting_approval');await assert.rejects(app.commands.run('cutting.approve',{jobId:id,version:p.version,rate:14.99},owner),e=>e.status===409);
+app.store.updateDoc(d,{pay:{x:{amount:1}}});const p3=await app.commands.run('cutting.preview',{jobId:id},owner);await assert.rejects(app.commands.run('cutting.approve',{jobId:id,version:p3.version,rate:14.99},owner),e=>e.status===409);
+}finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}});

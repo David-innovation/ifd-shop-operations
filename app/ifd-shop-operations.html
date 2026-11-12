@@ -938,7 +938,11 @@ window.IFDLogic = (function(){
      Straight stairs are cut into strips with the pile running along each strip.
      Turning stairs and joins require a reviewed plan; never silently omit them. */
   function cutPlanSignature(job,r){var ch=choiceOf(job,r);return JSON.stringify({len:r.len,wid:r.wid,hsl:r.hsl||null,want:r.want||'',dir:(specOf(r)||{}).dir||'',widths:roomWidths(job,r),variant:ch&&ch.variantId||''});}
+  function cuttingInputKey(job){return JSON.stringify([job.cuttingSpec||null,briefOf(job).choices,roomsOf(job).map(function(r){return [r.k,r.name,r.len,r.wid,r.hsl||null,r.status,r.want||'',r.spec&&r.spec.dir||'',choiceOf(job,r)?choiceOf(job,r).k:''];})]);}
+  function cuttingApproved(job){return !!(job.cuttingApproval&&job.cuttingApproval.inputKey===cuttingInputKey(job));}
   function supplyPlan(job){
+    if(job.cuttingSpec&&cuttingApproved(job))return job.cuttingApproval.supply;
+
     var out = {groups:[], problems:[]}, by = {};
     roomsOf(job).forEach(function(r){
       var s=specOf(r); if(!s || s.floor!=='carpet')return;
@@ -1699,7 +1703,7 @@ window.IFDLogic = (function(){
     extractGraphQL:extractGraphQL, parseEmbeddedJson:parseEmbeddedJson, userErrorsOf:userErrorsOf,
     levelFigures:levelFigures, isRoll:isRoll, unitFor:unitFor, fmtQty:fmtQty, ppmOf:ppmOf, rollPrice:rollPrice,
     linesOf:linesOf, stockLines:stockLines, payList:payList, paidOf:paidOf, balanceOf:balanceOf, shopTotal:shopTotal, creditOf:creditOf, fitterPaid:fitterPaid, fitterOwed:fitterOwed, owedText:owedText, receiptMessage:receiptMessage, fitterDue:fitterDue, quoteFitting:quoteFitting, longDay:longDay,
-    MSG_STATE:MSG_STATE, MSG_TONE:MSG_TONE, MSG_KIND:MSG_KIND, msgsOf:msgsOf, msgWent:msgWent, msgWhen:msgWhen, msgsFor:msgsFor, msgFailed:msgFailed, msgText:msgText, bookingSnap:bookingSnap, confirmLast:confirmLast, confirmChanges:confirmChanges, confirmState:confirmState, confirmMessage:confirmMessage, confirmText:confirmText, confirmSubject:confirmSubject, confirmRevNo:confirmRevNo, bookingRev:bookingRev, snapChanges:snapChanges, underlayArea:underlayArea, cutSize:cutSize, prepNotes:prepNotes, subfloorNotice:subfloorNotice, arrivalLine:arrivalLine, receiptSubject:receiptSubject, receiptText:receiptText, accUnits:accUnits, accUnit:accUnit,
+    MSG_STATE:MSG_STATE, MSG_TONE:MSG_TONE, MSG_KIND:MSG_KIND, msgsOf:msgsOf, msgWent:msgWent, msgWhen:msgWhen, msgsFor:msgsFor, msgFailed:msgFailed, msgText:msgText, bookingSnap:bookingSnap, confirmLast:confirmLast, confirmChanges:confirmChanges, confirmState:confirmState, confirmMessage:confirmMessage, confirmText:confirmText, confirmSubject:confirmSubject, confirmRevNo:confirmRevNo, bookingRev:bookingRev, snapChanges:snapChanges, cuttingInputKey:cuttingInputKey, cuttingApproved:cuttingApproved, underlayArea:underlayArea, cutSize:cutSize, prepNotes:prepNotes, subfloorNotice:subfloorNotice, arrivalLine:arrivalLine, receiptSubject:receiptSubject, receiptText:receiptText, accUnits:accUnits, accUnit:accUnit,
     shortages:shortages, goodsMissing:goodsMissing, cutBlocks:cutBlocks, isService:isService, quoteNeeds:quoteNeeds, closeOff:closeOff, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
@@ -3108,7 +3112,7 @@ function drawSheet(){
       btn('Close', closeSheet, 'sm')),
     h('div', {class:'panel-body'},
       backCard, warns.filter(w => !(bo && w.text.indexOf('Sent back by ') === 0) && !(confirmBanner && /^(Fitting confirmation not sent|Needs reconfirmation)/.test(w.text))).map(w => h('div', {class:'banner ' + w.tone}, h('p', {text:w.text}))),
-      toPriceBanner, orderBanner, cutBanner, confirmBanner, priceQuoteCard, msgsCard, customerSignCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
+      L.roomsOf(job).some(r=>(L.specOf(r)||{}).floor==='carpet') ? h('div',{class:'card'},h('h3',{text:'Cutting plan approval'}),h('p',{text:L.cuttingApproved(job)?'Approved cutting plan controls this quote and its stock requirements.':'Approve the cutting plan before sending the quote.'}),btn('Review & approve cutting plan',()=>approveCuttingDialog(job),'pri')) : null, toPriceBanner, orderBanner, cutBanner, confirmBanner, priceQuoteCard, msgsCard, customerSignCard, custCard, pricingCard, briefCard, itemsCard, checksCard(job), diaryCard, arrivalCard, visitsCard, backLog, moneyCard, notesCard, quoteCard, finishCard,
       h('div', {class:'card'}, h('h3', {}, 'History'), h('div', {class:'log'}, logs.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ': ' + x.text}))))));
   s.replaceChildren(panel);
   panel.querySelector('.panel-body').scrollTop = top;
@@ -3571,6 +3575,17 @@ function reviewCutPlanDialog(job){
     try{await patchJob(job.id,{rooms:{[r.k]:{cutPlan:cp}}},'Reviewed cutting plan for '+r.name+' saved by '+name);const next=JSON.parse(JSON.stringify(job));next.rooms[r.k].cutPlan=cp;quoteDialog(next);}catch(e){s.say(explain(e),true);}
   },'pri')]));
 }
+async function approveCuttingDialog(job){
+ if(!job.cuttingSpec){configureCuttingDialog(job);return;}
+ if(!needCmd())return;try{const p=await runCmd('cutting.preview',{jobId:job.id}),s=sayer(),rate=h('input',{class:'in',type:'number',min:'0.01',step:'0.01',value:p.rate||''});
+ const approve=btn('Approve plan & update quote',async()=>{approve.disabled=true;try{await runCmd('cutting.approve',{jobId:job.id,version:p.version,rate:Number(rate.value)});closeModal();toast('Cutting plan approved. Quote and stock requirements updated.');}catch(e){s.say(explain(e),true);approve.disabled=false;}},'pri');
+ openModal(dlg('Approve cutting plan',h('div',{},h('p',{text:p.plan.area+'m² carpet; '+p.plan.bins.length+' roll cuts. Underlay keeps the exact measured coverage.'}),p.plan.bins.map(b=>h('p',{text:b.id+': '+(b.l/100).toFixed(1)+' × '+(b.w/100).toFixed(1)+'m — '+b.pieces.map(x=>x.name).join(', ')})),h('p',{text:'Check pile direction, cutting allowances and matching batch/width availability. Approval saves a new quote version. Existing reserved or paid orders must be amended separately; they cannot be silently changed.'}),field('Carpet price per m² before any saved discount',rate),s.box),[btn('Cancel',closeModal),approve]));}catch(e){dbFail(e);}
+}
+function configureCuttingDialog(job){
+ const s=sayer(),w4=h('input',{type:'checkbox'}),w5=h('input',{type:'checkbox'}),plain=h('input',{type:'checkbox'}),batch=h('input',{type:'checkbox'}),pile=h('input',{type:'checkbox'}),tick=(el,label)=>h('label',{class:'tick'},el,label);
+ const save=btn('Build cutting plan',async()=>{save.disabled=true;try{await runCmd('cutting.configure',{jobId:job.id,widths:[w4.checked?4:0,w5.checked?5:0].filter(Boolean),plain:plain.checked,sameBatch:batch.checked,pileConfirmed:pile.checked});closeModal();await approveCuttingDialog({...job,cuttingSpec:{configured:true}});}catch(e){s.say(explain(e),true);save.disabled=false;}},'pri');
+ openModal(dlg('Configure cutting plan',h('div',{},h('p',{text:'Confirm these facts for the selected carpet. Measurements must be verified. This planner supports one plain carpet and straight stairs; patterns and winders need a separate measured plan.'}),tick(w4,'4m rolls available'),tick(w5,'5m rolls available'),tick(plain,'Plain carpet — no pattern repeat'),tick(batch,'Selected widths available in matching dye batch'),tick(pile,'Measured length follows the agreed pile direction in every room'),s.box),[btn('Cancel',closeModal),save]));
+}
 function quoteDialog(job){
   if (!needDb()) return;
   const s = sayer(), c = job.customer || {}, cur = L.quoteOf(job), base = L.quoteRows(job), list = L.priceList(S.prices), discs = L.discountsOf(list), p = L.pricingOf(job);
@@ -3664,7 +3679,7 @@ function quoteDialog(job){
     if (errs.length){ s.say(errs.join(' '), true); return; }
     myName(name);
     const off = L.round2(lines.reduce((t, l) => t + (l.full ? l.full - l.price : 0), 0));
-    const k = 'q' + uid(), q = {n:L.quotesOf(job).length + 1, at:nowISO(), by:S.me.id || '', byName:name, lines:lines, total:L.round2(lines.reduce((t, l) => t + l.price, 0)), rates:list, supply:L.supplyPlan(job), packs:L.packPlan(job,goods,list), options:JSON.parse(JSON.stringify(pick))}, pt = {quotes:{}};
+    const k = 'q' + uid(), q = {n:L.quotesOf(job).length + 1, at:nowISO(), by:S.me.id || '', byName:name, lines:lines, total:L.round2(lines.reduce((t, l) => t + l.price, 0)), rates:list, supply:L.supplyPlan(job), packs:L.packPlan(job,goods,list), cuttingApproval:L.cuttingApproved(job)?job.cuttingApproval.signature:'', options:JSON.parse(JSON.stringify(pick))}, pt = {quotes:{}};
     if (off > 0) q.discount = {pct:pct, amount:off};
     pt.quotes[k] = q; save.disabled = true;
     try { await patchJob(job.id, pt, 'Quote of ' + L.money(q.total) + ' saved by ' + name + ': ' + lines.map(l => l.label + ' ' + L.money(l.full || l.price)).join(', ') + (off > 0 ? '. ' + pct + '% discount on the shop’s part, ' + L.money(off) + ' off' : '')); toast('Quote saved'); sendQuoteDialog(Object.assign({}, job, {quotes:Object.assign({}, job.quotes, pt.quotes)}), Object.assign({k:k}, q)); }
@@ -3895,7 +3910,7 @@ function acceptDialog(job){
   const plan = q.supply || L.supplyPlan(job);
   plan.groups.forEach(g=>{
     const ch=b.choices.find(x=>x.k===g.choice); if(!ch)return;
-    (g.cuts||[]).forEach(c=>{covered[c.room]=1;});
+    (g.cuts||[]).forEach(c=>{covered[c.room]=1;(c.rooms||[]).forEach(k=>covered[k]=1);});
     items.push({key:uid(),ch,w:g.w,len:String(g.cut),minimum:g.cut,names:g.names,cuts:g.cuts||[],stairs:[],unfit:[],pv:null,free:0,tracked:false,look:'loading',err:'',how:'',el:null});
   });
   const carpetRooms = rooms.filter(r => (L.specOf(r) || {}).floor === 'carpet'), loose = carpetRooms.filter(r => !covered[r.k]).map(r => r.name || 'Room');
