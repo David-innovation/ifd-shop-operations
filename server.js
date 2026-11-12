@@ -229,6 +229,9 @@ function create(opts){
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
     if (p === '/reschedule.js') return send(res,200,pub('reschedule.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/estimator-tools.js') return send(res,200,pub('estimator-tools.js'),{'content-type':'text/javascript; charset=utf-8'});
+    if (p === '/room-drawing-model.js') return send(res,200,fs.readFileSync(path.join(__dirname,'lib/room-drawing.js')),{"content-type":"text/javascript; charset=utf-8"});
+    if (p === '/room-drawing-editor.js') return send(res,200,pub('room-drawing-editor.js'),{"content-type":"text/javascript; charset=utf-8"});
+    if (p === '/room-drawing.css') return send(res,200,pub('room-drawing.css'),{"content-type":"text/css; charset=utf-8"});
     if (p === '/room-survey.js') return send(res,200,pub('room-survey.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/estimator-details.js') return send(res,200,pub('estimator-details.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
@@ -310,7 +313,13 @@ function create(opts){
       return send(res,200,await appointments.work[action](await readJson(req),user));
     }
     if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));
-    if(p.startsWith('/api/appointments/estimator/')&&req.method==='POST'){const action=p.split('/').pop();if(!['catalogue','selectProduct','attachment'].includes(action))return fail(res,404,'not_found','Unknown estimator action.');return send(res,200,await estimatorTools[action](await readJson(req),user));}
+    if(p.startsWith('/api/appointments/estimator/')&&req.method==='POST'){const action=p.split('/').pop();if(!['catalogue','selectProduct','attachment','drawing'].includes(action))return fail(res,404,'not_found','Unknown estimator action.');return send(res,200,await estimatorTools[action](await readJson(req),user));}
+    if(p.startsWith('/api/appointments/drawing/')&&req.method==='GET'){
+      const bits=p.slice('/api/appointments/drawing/'.length).split('/'),jobId=decodeURIComponent(bits[0]||''),roomKey=decodeURIComponent(bits[1]||''),j=st.getDoc('jobs/'+jobId).data;
+      if(!j||!(appointments.allowed(j,user)||Object.keys(j.pre||{}).some(k=>{const v=appointments.visitJob(j,k);return v&&appointments.allowed(v,user);})))return fail(res,403,'forbidden','This is not your assigned job.');
+      const r=j.rooms?.[roomKey];if(!r?.drawing)return fail(res,404,'not_found','Room drawing not found.');
+      return send(res,200,require('./lib/room-drawing').svg(r.drawing,r.name),{'content-type':'image/svg+xml; charset=utf-8','cache-control':'private, no-store','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'"});
+    }
     if(p.startsWith('/api/appointments/photo/')&&req.method==='GET'){
       const bits=p.slice('/api/appointments/photo/'.length).split('/'),jobId=decodeURIComponent(bits[0]||''),id=bits[1]||'';
       appointments.photo(jobId,id,user);const a=/^[0-9a-f]{32}$/.test(id)?q.asset.get(id):null;if(!a)return fail(res,404,'not_found','Photo not found.');

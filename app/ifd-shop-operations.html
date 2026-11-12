@@ -577,12 +577,13 @@ window.IFDLogic = (function(){
   function num(v){ var n = Number(v); return isFinite(n) && n > 0 ? n : 0; }
   function fmtM(n){ return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2); }
   function underlayArea(r){
+    if(r&&r.drawing&&r.drawingMeasured)return round2(r.drawingMeasured.netArea);
     var h=hslOf(r),t=r&&r.takeoff||{};
     if(h){if(typeof t.underlayM2==='number')return round2(t.underlayM2);var hall=hslPart(h,'hall'),land=hslPart(h,'landing'),st=hslPart(h,'stairs');return round2((hall?num(hall.len)*num(hall.wid):0)+(land?num(land.len)*num(land.wid):0)+(st?num(st.wid)*(num(st.n)*num(st.tread)+num(st.winders)*num(st.wdepth))/100:0));}
     return num(r&&r.len)>0&&num(r&&r.wid)>0?round2(num(r.len)*num(r.wid)-num(r.cutout&&r.cutout.len)*num(r.cutout&&r.cutout.wid)):roomArea(r);
   }
   function cutSize(len,w){return Number(len).toFixed(1)+' × '+Number(w).toFixed(1)+'m';}
-  function roomArea(r){ var x = hslOf(r); if (x) return hslArea(x); if(r&&r.cutout&&num(r.cutout.len)&&num(r.cutout.wid))return round2(num(r.len)*num(r.wid)-num(r.cutout.len)*num(r.cutout.wid)); var a = num(r && r.area); return a ? round2(a) : round2(num(r && r.len) * num(r && r.wid)); }
+  function roomArea(r){ if(r&&r.drawing&&r.drawingMeasured)return round2(r.drawingMeasured.netArea); var x = hslOf(r); if (x) return hslArea(x); if(r&&r.cutout&&num(r.cutout.len)&&num(r.cutout.wid))return round2(num(r.len)*num(r.wid)-num(r.cutout.len)*num(r.cutout.wid)); var a = num(r && r.area); return a ? round2(a) : round2(num(r && r.len) * num(r && r.wid)); }
   function roomSize(r){
     var l = num(r && r.len), w = num(r && r.wid), a = roomArea(r);
     if(r&&r.cutout&&num(r.cutout.len)&&num(r.cutout.wid))return 'L-shaped: '+fmtM(l)+' × '+fmtM(w)+'m outer size, less '+fmtM(r.cutout.len)+' × '+fmtM(r.cutout.wid)+'m corner = '+fmtM(a)+'m². Carpet uses full outer blank.'; if (l && w) return fmtM(l) + ' × ' + fmtM(w) + ' m' + (Math.abs(l * w - a) < 0.011 ? ' = ' : ', floor area ') + fmtM(a) + ' m²';
@@ -5026,6 +5027,7 @@ function roomBlock(job, r){
     r.status === 'verified' ? h('p', {class:'small muted', text:'Verified by ' + (r.verBy || 'someone') + (L.SOURCES[r.verRole] ? ' (' + L.SOURCES[r.verRole].toLowerCase() + ')' : '') + (L.validISO(r.verOn) ? ' on ' + L.fmtDay(r.verOn) : '') + (r.verAt ? '. Recorded ' + whenText(r.verAt) + ' by ' + nameOf(r.verById) : '') + '.'}) : null,
     r.status === 'check' && r.checkWhy ? h('p', {class:'small', text:'To check: ' + r.checkWhy}) : null,
     r.takeoff ? h('p',{text:'Measured materials: underlay '+(r.takeoff.underlayM2??'not recorded')+' m²; gripper '+(r.takeoff.gripperLengths??'not recorded')+' lengths; beading '+(r.takeoff.beadingLengths??'not recorded')+' lengths.'}) : null,
+    r.drawing ? h('a',{href:'/api/appointments/drawing/'+encodeURIComponent(job.id)+'/'+encodeURIComponent(r.k),target:'_blank',rel:'noopener'},h('img',{src:'/api/appointments/drawing/'+encodeURIComponent(job.id)+'/'+encodeURIComponent(r.k),alt:r.name+' measured room plan',style:'display:block;width:100%;max-width:760px;background:white'})) : null,
     r.surveySummary ? h('p',{style:'white-space:pre-wrap',text:r.surveySummary}) : null,
     r.requirements ? h('p',{text:'Estimator product / accessory requirements: '+r.requirements}) : null,
     r.responsibility ? h('p',{text:'Preparation agreement — furniture: '+r.responsibility.furniture+'; uplift: '+r.responsibility.uplift+'; disposal: '+r.responsibility.disposal+'. '+(r.responsibility.note||'')}) : null,
