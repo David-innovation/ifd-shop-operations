@@ -3710,7 +3710,7 @@ function messageDialog(job, o){
   const lastOf = sms => { const x = prior.filter(m => (m.channel === 'sms') === sms && m.body); return x.length ? x[x.length - 1] : null; };
   const who = h('input', {class:'in', id:'msgBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
   const msg = h('textarea', {class:'in qmsg', id:'msgBody'}), txt = h('textarea', {class:'in', id:'msgSms'}), parts = h('p', {class:'small muted', id:'msgSmsCount'}); let busy = false; const token = {email:uid(), sms:uid()};
-  msg.value = lastOf(false) ? lastOf(false).body : o.email(); txt.value = lastOf(true) ? lastOf(true).body : o.sms();
+  msg.value = o.kind === 'confirm' ? o.email() : lastOf(false) ? lastOf(false).body : o.email(); txt.value = o.kind === 'confirm' ? o.sms() : lastOf(true) ? lastOf(true).body : o.sms();
   const email = h('input', {class:'in', id:'msgEmail', type:'email', value:c.email || '', placeholder:'Customer’s email'}), phone = h('input', {class:'in', id:'msgPhone', type:'tel', value:c.phone || '', placeholder:'Customer’s mobile'});
   const warn = h('p', {class:'small', id:'msgWarn', style:'color:var(--bad);font-weight:700', hidden:true}), setup = h('p', {class:'small', id:'msgSetup', style:'font-weight:600'});
   const result = h('div', {id:'msgResult'}), list = h('div', {id:'msgList'});
