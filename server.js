@@ -227,6 +227,16 @@ function create(opts){
     if (p === '/api/logout' && req.method === 'POST'){ const t = cookieOf(req); if (t) q.dropSession.run(hash(t)); res.setHeader('set-cookie', 'ifd_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' + (secure ? '; Secure' : '')); return send(res, 200, {ok:true}); }
     if (!user && p === '/appointments' && req.method === 'GET') return page(res, pub('login.html'));
     if (!user) return fail(res, 401, 'signed_out', 'Sign in first.');
+    if(p==='/api/my-signin-link'&&req.method==='POST'){
+      if(!['owner','shop','fitter','estimator'].includes(user.role))return fail(res,403,'forbidden','This account cannot request a sign-in link.');
+      const dest=store.docPath('stafflinks/'+user.id),old=st.getDoc(dest.path).data||{};
+      if(['sending','unsure'].includes(old.state))return fail(res,409,'pending','The earlier text needs checking before sending again.');
+      if(old.at&&now()-Date.parse(old.at)<60000)return fail(res,429,'rate_limited','The link was just sent. Please check your texts.');
+      const body='Welcome to Innovation Flooring Direct. Your fitter diary: https://ifd-shop-operations.onrender.com/fitter Enter your mobile, tap Text me a code, then enter the new code to sign in. Your assigned jobs are ready to view.';
+      st.setDoc(dest,{state:'sending',at:iso(),to:user.mobile});
+      try{const result=await texter.send(user.mobile,body);st.setDoc(dest,{state:'sent',at:iso(),to:user.mobile,ref:result.ref});st.audit(user.id,'texted own sign-in link',result.ref);return send(res,200,{ok:true,state:'sent',ref:result.ref});}
+      catch(e){st.setDoc(dest,{state:e.unsure?'unsure':'failed',at:iso(),to:user.mobile});return fail(res,502,'send_failed',e.message||'Text could not be sent.');}
+    }
     if(p==='/api/fitter-practice'&&req.method==='POST'){
       const owner=user.role==='owner'?user:user.id.startsWith('trial_')?q.userById.get(user.id.slice(6)):null;
       if(!owner||owner.role!=='owner'||!owner.active)return fail(res,403,'forbidden','Practice jobs are only available for the owner trial.');

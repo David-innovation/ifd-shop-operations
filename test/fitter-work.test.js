@@ -54,5 +54,6 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  await run('issue',{resolve:'unsafe_task',note:'Cable repaired and checked safe'});await run('issue',{resolve:'prep_task',note:'Preparation completed and cured'});
  uncertain=true;const lost=await run('schedule',{...b,key:'lost_response',newDate:'2026-11-24'});assert.equal(lost.data.state,'unsure');const count=sent.length;await run('notify',{event:'lost_response'});assert.equal(sent.length,count);assert.match(current().fitterWork.notificationIssue,/TEST lost/);
  app.store.updateDoc(docPath('jobs/work'),{fitter:'Other'});assert.equal((await run('checklist',{profiles:['carpet']})).status,403);
+ uncertain=false;assert.equal((await call('/api/my-signin-link',limitedCookie,{to:'+447700999999'})).status,200);assert.equal(sent.at(-1).to,'+447700900001');assert.match(sent.at(-1).body,/\/fitter Enter your mobile/);assert.equal((await call('/api/my-signin-link',limitedCookie,{})).status,429);assert.equal((await call('/api/my-signin-link',null,{})).status,401);
  }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
