@@ -17,6 +17,13 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  const run=(action,data={},cookie=me)=>call('/api/appointments/work/'+action,cookie,{jobId:'work',date:current().date,version:current().fitterWork?.version||0,...data});
  for(const action of ['checklist','issue','schedule','notify','diary','approve'])assert.equal((await run(action,{},other)).status,403);
  assert.equal((await run('diary',{},est)).status,403);assert.equal((await run('diary')).data.jobs.length,0);
+ app.store.updateDoc(docPath('jobs/work'),{customer:{postcode:'G81 1XP'}});
+ app.store.setDoc(docPath('jobs/area'),{...j,date:'2026-11-20',customer:{name:'Own nearby job',postcode:'G81 2AA'},fitterWork:{slot:'8-10am',duration:60}});
+ app.store.setDoc(docPath('timeoff/calendar-test'),{name:'Lennox',days:{'2026-11-21':{off:true}}});
+ assert.equal((await run('calendar',{duration:60},other)).status,403);
+ const cal=await run('calendar',{duration:60});assert.equal(cal.status,200);assert.equal(cal.data.area,'G81');assert.ok(!JSON.stringify(cal.data).includes('PRIVATE CUSTOMER'));
+ const day=cal.data.days.find(d=>d.date==='2026-11-20');assert.equal(day.sameArea,true);assert.ok(!day.slots.includes('8-10am'));assert.ok(day.slots.includes('1-3pm'));assert.deepEqual(cal.data.days.find(d=>d.date==='2026-11-21').slots,[]);
+ assert.equal((await run('calendar',{duration:480})).status,200);
  assert.equal((await run('checklist',{profiles:['laminate'],checks:{bars:{state:'na',note:''}}})).status,400);
  assert.equal((await run('checklist',{profiles:['laminate'],checks:Object.fromEntries(W.checks(['laminate']).map(c=>[c.id,{state:'done'}]))})).status,200);
  assert.equal(W.completionProblems(current()).length,0);

@@ -2358,7 +2358,7 @@ async function skipOrder(o){
   catch (e){ dbFail(e); }
 }
 function rescheduleDialog(job,newDate){
- const w=job.fitterWork||{},form=window.IFDReschedule.form({id:job.id,date:job.date,newDate,version:w.version||0,slot:w.slot,duration:w.duration},b=>S.cap.work('reschedule',b),r=>{closeModal();toast('Job rescheduled. Text: '+r.state+(r.error?' — '+r.error:''),!!r.error);});
+ const w=job.fitterWork||{},form=window.IFDReschedule.form({id:job.id,date:job.date,newDate,version:w.version||0,slot:w.slot,duration:w.duration},b=>S.cap.work('reschedule',b),r=>{closeModal();toast('Job rescheduled. Text: '+r.state+(r.error?' — '+r.error:''),!!r.error);},b=>S.cap.work('calendar',b));
  openModal(dlg('Reschedule job',form,[btn('Cancel',closeModal)]));
 }
 function fitterMoves(){return jobsArr().flatMap(j=>Object.entries(j.fitterWork?.events||{}).filter(([,e])=>e.byRole==='fitter'&&!e.reviewed).map(([id,e])=>({job:j,id,e})));}
