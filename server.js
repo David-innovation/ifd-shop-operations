@@ -262,7 +262,7 @@ function create(opts){
     if (p === '/api/appointments/signoff' && req.method === 'POST') return send(res,200,appointments.signoff(await readJson(req),user));
     if (p.startsWith('/api/appointments/work/') && req.method === 'POST') {
       const action=p.slice('/api/appointments/work/'.length);
-      if(!['checklist','issue','approve','diary','schedule','notify','reschedule','reviewMove','calendar','visitCalendar','visitReschedule','visitReview','estimatorDetails'].includes(action))return fail(res,404,'not_found','Unknown fitting action.');
+      if(!['checklist','issue','approve','diary','schedule','notify','reschedule','reviewMove','calendar','visitCalendar','visitReschedule','visitReview','estimatorDetails','planCarpet'].includes(action))return fail(res,404,'not_found','Unknown fitting action.');
       return send(res,200,await appointments.work[action](await readJson(req),user));
     }
     if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));
