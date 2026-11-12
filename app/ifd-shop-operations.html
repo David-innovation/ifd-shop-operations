@@ -579,13 +579,13 @@ window.IFDLogic = (function(){
   function underlayArea(r){
     var h=hslOf(r),t=r&&r.takeoff||{};
     if(h){if(typeof t.underlayM2==='number')return round2(t.underlayM2);var hall=hslPart(h,'hall'),land=hslPart(h,'landing'),st=hslPart(h,'stairs');return round2((hall?num(hall.len)*num(hall.wid):0)+(land?num(land.len)*num(land.wid):0)+(st?num(st.wid)*(num(st.n)*num(st.tread)+num(st.winders)*num(st.wdepth))/100:0));}
-    return num(r&&r.len)>0&&num(r&&r.wid)>0?round2(num(r.len)*num(r.wid)):roomArea(r);
+    return num(r&&r.len)>0&&num(r&&r.wid)>0?round2(num(r.len)*num(r.wid)-num(r.cutout&&r.cutout.len)*num(r.cutout&&r.cutout.wid)):roomArea(r);
   }
   function cutSize(len,w){return Number(len).toFixed(1)+' × '+Number(w).toFixed(1)+'m';}
-  function roomArea(r){ var x = hslOf(r); if (x) return hslArea(x); var a = num(r && r.area); return a ? round2(a) : round2(num(r && r.len) * num(r && r.wid)); }
+  function roomArea(r){ var x = hslOf(r); if (x) return hslArea(x); if(r&&r.cutout&&num(r.cutout.len)&&num(r.cutout.wid))return round2(num(r.len)*num(r.wid)-num(r.cutout.len)*num(r.cutout.wid)); var a = num(r && r.area); return a ? round2(a) : round2(num(r && r.len) * num(r && r.wid)); }
   function roomSize(r){
     var l = num(r && r.len), w = num(r && r.wid), a = roomArea(r);
-    if (l && w) return fmtM(l) + ' × ' + fmtM(w) + ' m' + (Math.abs(l * w - a) < 0.011 ? ' = ' : ', floor area ') + fmtM(a) + ' m²';
+    if(r&&r.cutout&&num(r.cutout.len)&&num(r.cutout.wid))return 'L-shaped: '+fmtM(l)+' × '+fmtM(w)+'m outer size, less '+fmtM(r.cutout.len)+' × '+fmtM(r.cutout.wid)+'m corner = '+fmtM(a)+'m². Carpet uses full outer blank.'; if (l && w) return fmtM(l) + ' × ' + fmtM(w) + ' m' + (Math.abs(l * w - a) < 0.011 ? ' = ' : ', floor area ') + fmtM(a) + ' m²';
     return a ? fmtM(a) + ' m²' : 'No size recorded';
   }
   function roomsOf(job){
@@ -938,7 +938,7 @@ window.IFDLogic = (function(){
      Straight stairs are cut into strips with the pile running along each strip.
      Turning stairs and joins require a reviewed plan; never silently omit them. */
   function cutPlanSignature(job,r){var ch=choiceOf(job,r);return JSON.stringify({len:r.len,wid:r.wid,hsl:r.hsl||null,want:r.want||'',dir:(specOf(r)||{}).dir||'',widths:roomWidths(job,r),variant:ch&&ch.variantId||''});}
-  function cuttingInputKey(job){return JSON.stringify([job.cuttingSpec||null,briefOf(job).choices,roomsOf(job).map(function(r){return [r.k,r.name,r.len,r.wid,r.hsl||null,r.status,r.want||'',r.spec&&r.spec.dir||'',choiceOf(job,r)?choiceOf(job,r).k:''];})]);}
+  function cuttingInputKey(job){return JSON.stringify([job.cuttingSpec||null,briefOf(job).choices,roomsOf(job).map(function(r){return [r.k,r.name,r.len,r.wid,r.hsl||null,r.cutout||null,r.status,r.want||'',r.spec&&r.spec.dir||'',choiceOf(job,r)?choiceOf(job,r).k:''];})]);}
   function cuttingApproved(job){return !!(job.cuttingApproval&&job.cuttingApproval.inputKey===cuttingInputKey(job));}
   function supplyPlan(job){
     if(job.cuttingSpec&&cuttingApproved(job))return job.cuttingApproval.supply;
