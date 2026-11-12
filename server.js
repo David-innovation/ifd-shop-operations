@@ -210,6 +210,7 @@ function create(opts){
     const user=trial?{...authUser,id:'trial_'+authUser.id,name:authUser.name+' - fitter trial',role:'fitter',trial:true}:authUser, shopUser=user&&SHOP_ROLES.includes(user.role);
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
     if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
+    if (p === '/fitter-diary.js') return send(res,200,pub('fitter-diary.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/shim.js') return send(res, 200, pub('shim.js'), {'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter' && req.method === 'GET') return page(res,pub('login.html'));
     if (req.method === 'GET' && (p === '/' || p === '/login')){
