@@ -61,7 +61,7 @@ test('customer sign-off enforces assignment, signatures, holds, immutable histor
   assert.equal((await sign(b)).json.duplicate,true);assert.equal(Object.keys(s.job('signed').customerSignoffs).length,1);
   assert.equal((await s.req('POST','/api/db/update',{path:'jobs/signed',data:{customerSignoffs:{}}},owner)).status,409);
   assert.equal((await s.req('POST','/api/db/set',{path:'jobs/signed',data:j},owner)).status,409);
-  await Promise.all([s.app.commands.poll(),s.app.commands.poll()]);await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,1);assert.match(s.mailbox.state.got[0].text,/honest feedback/);
+  await Promise.all([s.app.commands.poll(),s.app.commands.poll()]);await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,1);assert.match(s.mailbox.state.got[0].text,/honest feedback/);assert.match(s.mailbox.state.got[0].html,/WITH OUR THANKS/);assert.match(s.mailbox.state.got[0].html,/Your fitting is signed off/);
   s.app.store.setDoc(docPath('jobs/issues'),j);
   assert.equal((await sign({...b,jobId:'issues',key:'customer_issues',outcome:'issues',note:'TEST: trim needs attention'})).status,200);
   assert.equal(s.job('issues').status,'open');assert.equal(s.job('issues').ret,'needed');
@@ -788,6 +788,7 @@ test('unfinished fitting cannot complete until tasks resolved and customer confi
  await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,0);
  s.app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['zed@example.test']}});await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,1);assert.match(s.mailbox.state.got[0].text,/Your visit has been signed off/);assert.doesNotMatch(s.mailbox.state.got[0].text,/Door bar still to finish/);
  assert.equal((await s.cmd('completion.review',{jobId:base.jobId},owner)).status,200);assert.equal(s.job(base.jobId).completionNotice.reviewed,true);
+ const resend={jobId:base.jobId,key:'thanks_design_resend'};assert.equal((await s.cmd('thanks.resend',resend,owner)).json.state,'sent');assert.equal((await s.cmd('thanks.resend',resend,owner)).json.duplicate,true);assert.equal(s.mailbox.state.got.length,2);assert.match(s.mailbox.state.got[1].html,/WITH OUR THANKS/);
  assert.match(saved.customerSignoffs.policy_complete.statement,/happy to pay/);
  assert.equal(saved.customerSignoffs.policy_complete.version,2);
  }finally{s.stop();}
