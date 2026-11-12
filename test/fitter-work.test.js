@@ -27,6 +27,12 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  assert.equal((await run('checklist',{profiles:['laminate'],checks:{bars:{state:'na',note:''}}})).status,400);
  assert.equal((await run('checklist',{profiles:['laminate'],checks:Object.fromEntries(W.checks(['laminate']).map(c=>[c.id,{state:'done'}]))})).status,200);
  assert.equal(W.completionProblems(current()).length,0);
+ app.store.updateDoc(docPath('jobs/work'),{notes:'Use side access',rooms:{lounge:{name:'Lounge',len:4,wid:3,area:12,note:'Alcove by door',status:'verified',verBy:'Surveyor',spec:{floor:'flooring',underlay:true,furniture:false},photos:{p:{id:'a'.repeat(32)}}}},pre:{measure:{kind:'both',date:'2026-11-11',status:'done',doneBy:'Surveyor',notes:'Parking at rear',sub:{type:'Concrete',condition:'Uneven',prep:'Agreed smoothing',access:'Side gate',readings:{}}}}});
+ const packet=(await call('/api/appointments',me)).data.jobs.find(x=>x.id==='work');assert.equal(packet.details.rooms[0].note,'Alcove by door');assert.equal(packet.details.visits[0].sub.prep,'Agreed smoothing');assert.equal(packet.details.notes,'Use side access');assert.equal(packet.pay,undefined);assert.equal((await call('/api/appointments/photo/work/'+ 'a'.repeat(32),other)).status,403);assert.equal((await call('/api/appointments/photo/work/'+ 'b'.repeat(32),me)).status,403);
+ assert.equal((await run('checklist',{profiles:['laminate'],checks:{bars:{state:'pending',returnRequired:true,note:'Fit lounge threshold'}}})).status,200);assert.equal(current().ret,'needed');assert.equal(current().fitterWork.issues.check_bars.state,'open');assert.ok(W.completionProblems(current()).length);
+ assert.equal((await run('checklist',{profiles:['laminate'],checks:{bars:{state:'pending',returnRequired:true,note:'Fit lounge threshold'}}})).status,200);assert.equal(Object.keys(current().fitterWork.issues).filter(k=>k==='check_bars').length,1);
+ assert.equal((await run('issue',{resolve:'check_bars',note:'Threshold fitted'})).status,200);assert.equal((await run('checklist',{profiles:['laminate'],checks:{bars:{state:'done'}}})).status,200);
+
  assert.equal((await run('checklist',{profiles:['laminate'],version:0})).status,409);
  assert.equal((await run('issue',{key:'beading_task',reason:'beading',note:'Finish lounge beading'})).status,200);assert.ok(W.completionProblems(current()).length);
  let b={key:'return_visit',purpose:'return',newDate:'2026-11-13',slot:'8-10am',duration:60,note:'Finish the remaining beading',agreed:true};

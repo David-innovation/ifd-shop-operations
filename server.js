@@ -265,6 +265,11 @@ function create(opts){
       return send(res,200,await appointments.work[action](await readJson(req),user));
     }
     if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));
+    if(p.startsWith('/api/appointments/photo/')&&req.method==='GET'){
+      const bits=p.slice('/api/appointments/photo/'.length).split('/'),jobId=decodeURIComponent(bits[0]||''),id=bits[1]||'';
+      appointments.photo(jobId,id,user);const a=/^[0-9a-f]{32}$/.test(id)?q.asset.get(id):null;if(!a)return fail(res,404,'not_found','Photo not found.');
+      return send(res,200,fs.readFileSync(path.join(dataDir,'assets',id)),{'content-type':a.type,'cache-control':'private, no-store'});
+    }
     /* everything below is the shop's own screens. A fitter or estimator is refused here, whatever their page asks for. */
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
     if(p==='/api/fitter-access'&&req.method==='POST'){
