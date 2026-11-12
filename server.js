@@ -74,9 +74,11 @@ function create(opts){
   function userOf(req){
     const t = cookieOf(req); if (!t) return null;
     const s = q.session.get(hash(t)); if (!s || s.expires < now()) return null;
+    const estimatorTrial=s.user.startsWith('esttrial_');
     const restricted=s.user.startsWith('trial_');
-    const u = q.userById.get(restricted?s.user.slice(6):s.user);
+    const u = q.userById.get(estimatorTrial?s.user.slice(9):restricted?s.user.slice(6):s.user);
     if(!u||!u.active)return null;
+    if(estimatorTrial)return {...u,id:'esttrial_'+u.id,name:u.name+' - estimator trial',role:'estimator'};
     if(restricted)return {...u,id:'trial_'+u.id,name:u.name+' - fitter trial',role:'fitter'};
     // Permanently restrict legacy owner-trial sessions; removing a browser flag cannot restore owner access.
     if(u.role==='owner'&&/(?:^|;\s*)ifd_trial=1(?:;|$)/.test(req.headers.cookie||'')){
@@ -278,6 +280,12 @@ function create(opts){
       const owner=user.role==='owner'?user:user.id.startsWith('trial_')?q.userById.get(user.id.slice(6)):null;
       if(!owner||owner.role!=='owner'||!owner.active)return fail(res,403,'forbidden','Practice jobs are only available for the owner trial.');
       const result=require('./lib/fitter-practice')(st,owner,now(),(await readJson(req)).scenario);st.audit(owner.id,'created fitter practice jobs','');broadcast('jobs');return send(res,200,result);
+    }
+    if(p==='/api/estimator-trial'&&req.method==='POST'){
+      if(authUser.role!=='owner')return fail(res,403,'forbidden','Only the owner can open their estimator trial.');
+      const id='ZZ-OWNER-ESTIMATOR-'+authUser.id,d=store.docPath('jobs/'+id),whoId='esttrial_'+authUser.id;
+      if(!st.getDoc(d.path).exists){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));st.setDoc(d,{test:true,status:'open',type:'Fitting',diary:false,ref:'ZZ ESTIMATOR TRIAL',customer:{name:'ZZ TEST - David estimator trial',phone:authUser.mobile,email:'David@innovationflooringdirect.com',address:'64 King Street - TEST ONLY',postcode:'G81 1DX'},brief:{rooms:'Living room and bedroom',note:'TEST ONLY - measure rooms, accessories, preparation and concealed subfloor. No real order or stock.'},rooms:{},lines:{},total:0,notes:'OWNER ESTIMATOR TRIAL ONLY. No real appointment, stock or payment.',pre:{trial:{kind:'both',status:'booked',date,who:authUser.name+' - estimator trial',whoId,duration:60}}});broadcast('jobs');}
+      q.dropSession.run(hash(cookieOf(req)));setSession(res,{...authUser,id:whoId,role:'estimator'});return send(res,200,{ok:true});
     }
     if(p==='/api/fitter-trial'&&req.method==='POST'){
       if(authUser.role!=='owner')return fail(res,403,'forbidden','Only the owner can open their fitter trial.');

@@ -2886,7 +2886,7 @@ VIEWS.setup = function(){
         h('div', {class:'card'}, h('p', {class:'muted', text:'Stock and customers live in Shopify. Jobs, the diary, bays and tasks live with this page. Save a copy of them whenever you like.'}),
           h('div', {class:'bar'}, btn('Save a backup file', exportJobs)))));
   }
-  return {nodes:[h('div', {class:'head'}, h('h1', {text:'Setup'})), body], refresh:draw};
+  return {nodes:[h('div', {class:'head'}, h('h1', {text:'Setup'}), S.me?.role==='owner'?btn('Open my private estimator trial',async()=>{try{const r=await fetch('/api/estimator-trial',{method:'POST',headers:{'x-ifd':'1','content-type':'application/json'},body:'{}'});const d=await r.json();if(!r.ok)throw new Error(d.error?.message||'Could not open trial');location.href='/appointments';}catch(e){toast(e.message);}},'pri'):null), body], refresh:draw};
 };
 VIEWS.cut = function(){
   const body = h('div', {style:'display:contents'});
