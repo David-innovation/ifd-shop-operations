@@ -784,7 +784,10 @@ test('unfinished fitting cannot complete until tasks resolved and customer confi
  const resolved=await s.req('POST','/api/appointments/work/issue',{action:'issue',jobId:base.jobId,date:j.date,version:saved.fitterWork.version,resolve:'signoff_policy_issue',note:'TEST return visit: bar fitted securely'},fitter);
  assert.equal(resolved.status,200,JSON.stringify(resolved.json));
  assert.equal((await sign({...base,key:'policy_complete',outcome:'clear',note:''})).status,200);
- saved=s.job(base.jobId);assert.equal(saved.status,'done');
+ saved=s.job(base.jobId);assert.equal(saved.status,'done');assert.equal(saved.completionNotice.reviewed,false);
+ await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,0);
+ s.app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['zed@example.test']}});await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,1);assert.match(s.mailbox.state.got[0].text,/Your visit has been signed off/);assert.doesNotMatch(s.mailbox.state.got[0].text,/Door bar still to finish/);
+ assert.equal((await s.cmd('completion.review',{jobId:base.jobId},owner)).status,200);assert.equal(s.job(base.jobId).completionNotice.reviewed,true);
  assert.match(saved.customerSignoffs.policy_complete.statement,/happy to pay/);
  assert.equal(saved.customerSignoffs.policy_complete.version,2);
  }finally{s.stop();}
