@@ -1,0 +1,19 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {create}=require('../server'),{docPath}=require('../lib/store'),{token}=require('../lib/estimator-details');
+test('room catalogue choices, photos and sketches stay on the job through estimator submission and fitter handoff',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'est-tools-')),app=create({env:{DATA_DIR:dir,SESSION_PEPPER:'test'},log:()=>{},pollMs:3600000});
+ try{const st=app.store,L=app.rules,u={id:'est',name:'Estimator',role:'estimator'},product={id:'p',title:'Clay Oak',status:'ACTIVE',productType:'Laminate',coverage:{value:'1.83'},actualName:{value:'Supplier Oak'},tags:[]},variant={id:'gid://shopify/ProductVariant/123',title:'Default Title',sku:'CLAY',product},assets=[];
+ const tools=require('../lib/estimator-tools').make({st,L,allowed:(j,x)=>x.id==='est',visitJob:j=>j.pre?.v,shop:{graphql:async q=>({data:q.includes('OpsEstimatorVariant')?{productVariant:variant}:{products:{nodes:[{...product,variants:{nodes:[variant]}}],pageInfo:{hasNextPage:false}}}})},now:()=>Date.parse('2026-11-12T10:00:00Z'),broadcast:()=>{},saveAsset:(...a)=>assets.push(a)});
+ st.setDoc(docPath('jobs/t'),{status:'open',customer:{name:'TEST'},rooms:{r:{name:'Bedroom',len:2.5,wid:2.8,area:7,status:'verified'}},pre:{v:{kind:'measure',status:'booked'}},brief:{choices:[]},lines:{},accepted:{id:'old'},quote:{amount:500}});
+ const get=()=>st.getDoc('jobs/t').data,b=()=>({jobId:'t',visitId:'v',roomKey:'r',version:token(get())});
+ await assert.rejects(tools.catalogue(b(),{id:'other',role:'estimator'}),e=>e.status===403);
+ const found=await tools.catalogue({...b(),query:'Clay'},u);assert.equal(found.items[0].actualName,'Supplier Oak');assert.equal(found.items[0].price,undefined);
+ const stale=b();await tools.selectProduct({...b(),variantId:variant.id,title:'FORGED'},u);assert.equal(L.choiceOf(get(),get().rooms.r).title,'Clay Oak');assert.equal(L.choiceOf(get(),get().rooms.r).variantId,variant.id);assert.equal(get().review.on,true);assert.deepEqual(get().lines,{});assert.equal(get().quote.amount,500);assert.deepEqual(get().accepted,{id:'old'});await assert.rejects(tools.selectProduct({...stale,variantId:variant.id},u),e=>e.status===409);
+ const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1cAAAAASUVORK5CYII=';
+ await tools.attachment({...b(),kind:'photo',name:'Doorway',image},u);await tools.attachment({...b(),kind:'sketch',name:'Bedroom plan',image},u);assert.equal(assets.length,2);await assert.rejects(tools.attachment({...b(),kind:'photo',image:'data:image/svg+xml;base64,AAAA'},u),e=>e.status===400);
+ const save=require('../lib/estimator-details').make({st,L,allowed:()=>true,visitJob:j=>j.pre.v,now:()=>Date.parse('2026-11-12T10:00:00Z'),broadcast:()=>{}});
+ save({...b(),submit:true,notes:'All measured',findings:{outcome:'ok'},rooms:[{key:'r',name:'Bedroom',len:2.5,wid:2.8,want:'variant_123',note:'Lay lengthways',requirements:'White beading',checked:true,spec:{floor:'flooring',underlay:true,gripper:false,beading:true,old:false},takeoff:{beadingLengths:5},responsibility:{furniture:'customer',uplift:'not_required',disposal:'not_required',note:''}}]},u);
+ const job=get(),details=require('../lib/fitter-details').details(job,L);assert.equal(details.rooms[0].product,'Clay Oak');assert.equal(details.rooms[0].photos.length,2);assert.equal(details.rooms[0].takeoff.underlayM2,7);assert.equal(job.pre.v.status,'done');assert.equal(job.review.on,true);assert.equal(job.rooms.r.photos[assets[0][0]].name,'Doorway');assert.equal(L.choiceOf(job,job.rooms.r).actualName,'Supplier Oak');assert.equal(job.quote.amount,500);
+ }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
+});

@@ -104,6 +104,7 @@ function create(opts){
   cmds.start();
   const appointments = require('./lib/appointments').make({st,cmds,users:()=>q.users.all(),now,L,broadcast});
 
+  const estimatorTools=require('./lib/estimator-tools').make({st,L,shop,now,broadcast,allowed:appointments.allowed,visitJob:appointments.visitJob,saveAsset:(id,type,buf,u,at)=>{fs.writeFileSync(path.join(dataDir,'assets',id),buf);q.addAsset.run(id,type,buf.length,u.id,at);}});
   /* ---------- sign-in by texted code ---------- */
   async function requestCode(req, res){
     const body = await readJson(req), mobile = sms.normaliseMobile(body.mobile), ip = req.socket.remoteAddress || '';
@@ -227,6 +228,7 @@ function create(opts){
     }
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
     if (p === '/reschedule.js') return send(res,200,pub('reschedule.js'),{'content-type':'text/javascript; charset=utf-8'});
+    if (p === '/estimator-tools.js') return send(res,200,pub('estimator-tools.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/estimator-details.js') return send(res,200,pub('estimator-details.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-diary.js') return send(res,200,pub('fitter-diary.js'),{'content-type':'text/javascript; charset=utf-8'});
@@ -307,6 +309,7 @@ function create(opts){
       return send(res,200,await appointments.work[action](await readJson(req),user));
     }
     if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));
+    if(p.startsWith('/api/appointments/estimator/')&&req.method==='POST'){const action=p.split('/').pop();if(!['catalogue','selectProduct','attachment'].includes(action))return fail(res,404,'not_found','Unknown estimator action.');return send(res,200,await estimatorTools[action](await readJson(req),user));}
     if(p.startsWith('/api/appointments/photo/')&&req.method==='GET'){
       const bits=p.slice('/api/appointments/photo/'.length).split('/'),jobId=decodeURIComponent(bits[0]||''),id=bits[1]||'';
       appointments.photo(jobId,id,user);const a=/^[0-9a-f]{32}$/.test(id)?q.asset.get(id):null;if(!a)return fail(res,404,'not_found','Photo not found.');

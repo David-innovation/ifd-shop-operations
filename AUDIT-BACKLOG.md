@@ -53,3 +53,6 @@ server and the text service, with made-up people, unless it says live. Nothing h
 - **Carpet prices:** most catalogue carpets have no price in Shopify, so the price per m² is typed on the pricing screen. Adding the price per m² to each carpet in Shopify would let the screen work it out.
 - **Stairs:** how carpet for stairs is cut from the roll is still undecided, so the m² for stairs is added by hand on the pricing screen.
 - **Underlay data to check:** "10 m2 Premium Quality Gold Underlay" says 10 m² in its name but 15 in its coverage field. "Foam Laminate Underlay" shows 9,999 in stock and, like the Fibreboard, allows overselling, so its figure cannot be relied on. Beading and adhesive are not stock-counted.
+
+## Next improvement requested by David — private fitter feedback (12 November 2026)
+Add a customer-email link to rate the fitter privately and leave comments. Keep feedback linked to the job and assigned fitter, with a separate shop-only page for each fitter so the shop can review performance, discuss concerns and track follow-up. This is internal service improvement, separate from public Google/Facebook review requests. Do not use the private score to gate public reviews. Implement after the estimator photos, sketches and catalogue work.
