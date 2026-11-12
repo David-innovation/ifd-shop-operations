@@ -80,5 +80,14 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  assert.equal((await call('/api/my-availability',me,{start:'2026-11-14',off:false})).status,200);const remaining=(await call('/api/appointments',me)).data.availability;assert.equal(remaining['2026-11-14'].off,false);assert.equal(remaining['2026-11-13'].off,true);
  assert.equal((await call('/api/my-availability',me,{start:'2026-11-11',off:true})).status,400);assert.equal((await call('/api/my-availability',me,{start:'2026-11-13',end:'2027-03-01',off:true})).status,400);assert.equal((await call('/api/my-availability',null,{start:'2026-11-13',off:true})).status,401);
  assert.equal((await call('/api/my-availability',est,{start:'2026-11-14',off:true})).status,200);
+ app.store.setDoc(docPath('jobs/measuremove'),{status:'open',type:'Quote',customer:{name:'TEST MEASURE',phone:'07700900555',postcode:'G81 1DX'},pre:{m:{kind:'measure',status:'booked',who:'Surveyor',date:'2026-11-13'}}});
+ app.store.setDoc(docPath('jobs/measurenear'),{status:'open',type:'Quote',customer:{name:'Nearby measure',postcode:'G81 2AA'},pre:{m:{kind:'measure',status:'booked',who:'Surveyor',date:'2026-11-19',rescheduleSlot:'8-10am',duration:60}}});
+ const vb={jobId:'measuremove',visitId:'m',date:'2026-11-13',version:0,duration:60,newDate:'2026-11-19',slot:'11am-1pm',reason:'Customer requested a change',agreed:true,key:'measure_move_test'};
+ assert.equal((await call('/api/appointments/work/visitCalendar',me,vb)).status,403);
+ const vc=await call('/api/appointments/work/visitCalendar',est,vb);assert.equal(vc.status,200);assert.equal(vc.data.days.find(x=>x.date==='2026-11-19').sameArea,true);assert.ok(!vc.data.days.find(x=>x.date==='2026-11-19').slots.includes('8-10am'));assert.deepEqual(vc.data.days.find(x=>x.date==='2026-11-14').slots,[]);
+ assert.equal((await call('/api/appointments/work/visitReschedule',est,{...vb,newDate:'2026-11-14'})).status,409);
+ assert.equal((await call('/api/appointments/work/visitReschedule',est,vb)).status,200);assert.equal(app.store.getDoc('jobs/measuremove').data.pre.m.date,'2026-11-19');assert.match(sent.at(-1).body,/estimator visit.*19 Nov, 11am-1pm/);assert.equal(app.store.getDoc('jobs/measuremove').data.visitMoves.measure_move_test.reviewed,false);
+ const mc=sent.length;assert.equal((await call('/api/appointments/work/visitReschedule',est,vb)).data.duplicate,true);assert.equal(sent.length,mc);
+ assert.equal((await call('/api/appointments/work/visitReview',est,{jobId:'measuremove',event:vb.key})).status,403);assert.equal((await call('/api/appointments/work/visitReview',shopOwner,{jobId:'measuremove',event:vb.key})).status,200);
  }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
