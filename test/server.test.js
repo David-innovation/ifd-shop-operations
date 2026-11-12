@@ -26,6 +26,21 @@ async function boot(extra, o){
   return {app, base, req, cmd, job, texts, clock, shopify, mailbox, twilio, codeFor, signIn, dir, stop:() => { app.close(); if (mailbox) mailbox.close(); fs.rmSync(dir, {recursive:true, force:true}); }};
 }
 const SHOP = {name:'Innovation Flooring Direct', phone:'0141 952 5200', email:'help@example.test', address:'2 South Elgin Place, Clydebank G81 1XP'};
+test('fitter day off blocks shop creation, reassignment, moves and visits without changing existing work',async()=>{
+ const s=await boot();try{
+  s.app.ensureUser('Lennox',FITTER,'fitter');const fitter=await s.signIn(FITTER),shop=await s.signIn(SHOPM);
+  assert.equal((await s.req('POST','/api/my-availability',{start:'2026-11-13',off:true},fitter)).status,200);
+  const put=(id,data,method='update')=>s.req('POST','/api/db/'+method,{path:'jobs/'+id,data},shop);
+  const j=testJob({date:'2026-11-12',diary:true});s.app.store.setDoc(docPath('jobs/offcheck'),j);
+  for(const data of [{date:'2026-11-13'},{date:'2026-11-13',diary:false},{pre:{v:{kind:'measure',status:'booked',who:'Lennox',date:'2026-11-13'}}}]){
+   const r=await put('offcheck',data);assert.equal(r.status,409);assert.match(r.json.error.message,/cannot work/);assert.deepEqual(s.job('offcheck'),j);
+  }
+  assert.equal((await put('new-off',testJob({date:'2026-11-13'}),'set')).status,409);assert.equal(s.app.store.getDoc('jobs/new-off').exists,false);
+  s.app.store.setDoc(docPath('jobs/other-off'),testJob({fitter:'Other',date:'2026-11-13',diary:true}));assert.equal((await put('other-off',{fitter:'Lennox'})).status,409);
+  s.app.store.setDoc(docPath('jobs/existing-off'),testJob({date:'2026-11-13',diary:true}));assert.equal((await put('existing-off',{notes:'Arrange another date'})).status,200);assert.equal((await put('existing-off',{date:'2026-11-14'})).status,200);
+  assert.equal((await s.req('POST','/api/my-availability',{start:'2026-11-13',off:false},fitter)).status,200);assert.equal((await put('offcheck',{date:'2026-11-13'})).status,200);
+ }finally{s.stop();}
+});
 test('customer sign-off enforces assignment, signatures, holds, immutable history and neutral email once',async()=>{
  const s=await boot({}, {messaging:true});try{
   s.app.ensureUser('Lennox',FITTER,'fitter');s.app.ensureUser('Other','07700900004','fitter');
