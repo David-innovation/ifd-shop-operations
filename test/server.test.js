@@ -56,6 +56,7 @@ test('customer sign-off enforces assignment, signatures, holds, immutable histor
   assert.equal((await sign({...b,agreed:false})).status,400);
   assert.equal((await sign({...b,strokes:[[[2,0],[0,0]]]})).status,400);
   assert.equal((await sign({...b,outcome:'issues',note:''})).status,400);
+  s.app.store.updateDoc(docPath('jobs/signed'),{fitterWork:{checks:{bars:{state:'pending'}}}});assert.equal((await sign(b)).status,409);s.app.store.updateDoc(docPath('jobs/signed'),{fitterWork:{checks:{bars:{state:'done'}}}});
   assert.equal((await sign(b)).status,200);assert.equal(s.job('signed').status,'done');
   assert.equal((await sign(b)).json.duplicate,true);assert.equal(Object.keys(s.job('signed').customerSignoffs).length,1);
   assert.equal((await s.req('POST','/api/db/update',{path:'jobs/signed',data:{customerSignoffs:{}}},owner)).status,409);
@@ -479,7 +480,7 @@ test('messages: only the mail server or the text service taking it counts as sen
     assert.deepStrictEqual(got[0].to, ['zed@example.test']); assert.ok(got[0].text.startsWith(body), 'plain alternative retains quote wording'); assert.match(got[0].text,/Review and accept your quote:/); assert.match(got[0].html,/ACCEPT MY QUOTE/); assert.strictEqual(got[0].subject, 'Your quote from Innovation Flooring Direct');
     assert.match(got[0].fromHeader, /Innovation Flooring Direct <shop@example\.test>/); assert.strictEqual(s.mailbox.state.signIns, 1);
     let m = ms('g1')['m' + k(3)];
-    assert.ok(m.state === 'sent' && m.to === 'zed@example.test' && m.body === body && m.rev === 'qa' && m.kind === 'quote' && m.channel === 'email' && m.byName === 'Sam' && m.ref === got[0].id && m.sentAt && Object.keys(m.tries).length === 1, JSON.stringify(m));
+    assert.ok(m.state === 'sent' && m.to === 'zed@example.test' && m.body === body+'\n\n'+require('../lib/customer-signoff').paymentNotice && m.rev === 'qa' && m.kind === 'quote' && m.channel === 'email' && m.byName === 'Sam' && m.ref === got[0].id && m.sentAt && Object.keys(m.tries).length === 1, JSON.stringify(m));
     assert.ok(L.quoteSent(s.job('g1'), Object.assign({k:'qa'}, quote.qa)), 'and now the quote counts as sent');
     assert.match(Object.values(s.job('g1').log).map(x => x.text).join('\n'), /Quote emailed to zed@example\.test by Sam\. Accepted by the mail server, reference </);
     // the same request again is the same message; a fresh request for something already sent is refused unless it is meant
@@ -643,7 +644,7 @@ test('a send whose answer was lost is never sent again blind: it is looked up, o
     // a person checks the Sent folder: it did arrive. That needs saying how they know, and is written on the job
     assert.strictEqual((await s.cmd('msg.resolve', {jobId:'u1', mk:'m' + k(1), went:true, byName:'Sam', note:''}, shop)).status, 400);
     r = await s.cmd('msg.resolve', {jobId:'u1', mk:'m' + k(1), went:true, byName:'Sam', note:'It is in the Sent folder'}, shop); assert.strictEqual(r.json.state, 'sent'); m = ms('u1')['m' + k(1)];
-    assert.ok(m.state === 'sent' && m.confirmed.byName === 'Sam' && m.confirmed.note === 'It is in the Sent folder' && Object.keys(m.tries).length === 1 && m.body === 'Hello Zed, your quote is £200.00'); assert.ok(L.quoteSent(s.job('u1'), {k:'qa'}));
+    assert.ok(m.state === 'sent' && m.confirmed.byName === 'Sam' && m.confirmed.note === 'It is in the Sent folder' && Object.keys(m.tries).length === 1 && m.body === 'Hello Zed, your quote is £200.00\n\n'+require('../lib/customer-signoff').paymentNotice); assert.ok(L.quoteSent(s.job('u1'), {k:'qa'}));
     assert.match(logOf('u1'), /Sam checked and it did arrive \(It is in the Sent folder\)/); assert.strictEqual(s.mailbox.state.got.length, 1); assert.strictEqual(Object.keys(ms('u1')).length, 1);
     assert.strictEqual((await s.cmd('msg.resolve', {jobId:'u1', mk:'m' + k(1), went:false, byName:'Sam'}, shop)).json.error.code, 'invalid_state', 'once settled it cannot be settled again');
     // EMAIL: the line dropped and the message was lost with it. A person checks: it did not arrive. Only then can it be sent again, once
@@ -763,3 +764,28 @@ test('catalogue pricing: each line worked out from the measure, Shopify’s pric
 
 
 
+test('unfinished fitting cannot complete until tasks resolved and customer confirms payment wording',async()=>{
+ const s=await boot({}, {messaging:true});try{
+ s.app.ensureUser('Lennox',FITTER,'fitter');const fitter=await s.signIn(FITTER),owner=await s.signIn(OWNER);
+ const j=testJob({date:'2026-11-10',diary:true,lines:{l1:{title:'Test carpet',unit:'m',qty:31,w:4,state:'allocated',bay:'W4-01',picked:true,checked:true}}});
+ j.fitterWork={profiles:['carpet'],checks:Object.fromEntries(require('../lib/fitter-work').checks(['carpet']).map(c=>[c.id,{state:'done'}]))};
+ s.app.store.setDoc(docPath('jobs/payment-policy'),j);
+ const base={jobId:'payment-policy',date:j.date,key:'policy_issue',outcome:'issues',note:'Door bar still to finish',name:'TEST CUSTOMER',agreed:true,strokes:[[[.1,.2],[.3,.4]]]};
+ const sign=b=>s.req('POST','/api/appointments/signoff',b,fitter);
+ assert.equal((await sign(base)).status,200);
+ let saved=s.job(base.jobId);
+ assert.equal(saved.status,'open');assert.match(saved.fitterWork.shopAttention,/do not collect/);
+ assert.match(saved.customerSignoffs.policy_issue.statement,/outstanding issues/);
+ assert.equal(saved.fitterWork.issues.signoff_policy_issue.state,'open');
+ assert.equal((await sign({...base,key:'policy_early',outcome:'clear',note:''})).status,409);
+ assert.equal((await s.req('POST','/api/db/update',{path:'jobs/'+base.jobId,data:{status:'done'}},owner)).status,409);
+ const rows=(await s.req('GET','/api/appointments',undefined,fitter)).json;
+ assert.ok(JSON.stringify(rows).includes('Resolve outstanding fitter tasks'));
+ const resolved=await s.req('POST','/api/appointments/work/issue',{action:'issue',jobId:base.jobId,date:j.date,version:saved.fitterWork.version,resolve:'signoff_policy_issue',note:'TEST return visit: bar fitted securely'},fitter);
+ assert.equal(resolved.status,200,JSON.stringify(resolved.json));
+ assert.equal((await sign({...base,key:'policy_complete',outcome:'clear',note:''})).status,200);
+ saved=s.job(base.jobId);assert.equal(saved.status,'done');
+ assert.match(saved.customerSignoffs.policy_complete.statement,/happy to pay/);
+ assert.equal(saved.customerSignoffs.policy_complete.version,2);
+ }finally{s.stop();}
+});
