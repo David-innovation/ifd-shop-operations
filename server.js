@@ -230,6 +230,13 @@ function create(opts){
     if (p === '/api/logout' && req.method === 'POST'){ const t = cookieOf(req); if (t) q.dropSession.run(hash(t)); res.setHeader('set-cookie', 'ifd_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' + (secure ? '; Secure' : '')); return send(res, 200, {ok:true}); }
     if (!user && p === '/appointments' && req.method === 'GET') return page(res, pub('login.html'));
     if (!user) return fail(res, 401, 'signed_out', 'Sign in first.');
+    if(p==='/cutting-plan'&&req.method==='GET'){
+      if(!shopUser)return fail(res,403,'forbidden','Only shop staff can print warehouse cutting plans.');
+      const id=url.searchParams.get('job')||'';if(!/^[\w-]+$/.test(id))return fail(res,400,'invalid_job','Choose a job.');
+      const rec=st.getDoc('jobs/'+id);if(!rec.exists)return fail(res,404,'not_found','Job not found.');
+      if(!L.cuttingApproved(rec.data)||!rec.data.cuttingApproval?.plan?.bins?.length)return fail(res,409,'cutting_approval','Approve the current cutting plan before printing warehouse instructions.');
+      return page(res,require('./lib/cutting-print').render({...rec.data,id}));
+    }
     if(p==='/api/my-availability'&&req.method==='POST'){const result=require('./lib/my-availability').save(st,user,await readJson(req),now());broadcast('timeoff');return send(res,200,result);}
     if(p==='/api/my-signin-link'&&req.method==='POST'){
       if(!['owner','shop','fitter','estimator'].includes(user.role))return fail(res,403,'forbidden','This account cannot request a sign-in link.');
