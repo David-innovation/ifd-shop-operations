@@ -1,0 +1,48 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {create}=require('../server'),{docPath}=require('../lib/store'),W=require('../lib/fitter-work');
+test('fitter owns checklist and return scheduling, with privacy, conflicts, approvals, history and once-only notices',async()=>{
+ let uncertain=false;
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ifd-work-')),codes=[],sent=[],emails=[];
+ const app=create({env:{DATA_DIR:dir,INSECURE_COOKIES:'1',SESSION_PEPPER:'test',OWNER_MOBILE:'07700900001'},now:()=>Date.parse('2026-11-12T10:00:00Z'),sendText:async(to,body)=>codes.push(body),texter:{ready:true,send:async(to,body)=>{sent.push({to,body});if(uncertain)throw {unsure:true,message:'TEST lost provider response'};return {ref:'SM'+sent.length};},check:async()=>({state:'delivered'})},mailer:{ready:true,from:'sales@example.test',send:async m=>{emails.push(m);return {ref:'email'+emails.length};}},log:()=>{},pollMs:3600000});
+ await new Promise(r=>app.server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+app.server.address().port;
+ const call=async(url,cookie,body)=>{const r=await fetch(base+url,{method:body?'POST':'GET',headers:{'x-ifd':'1',cookie:cookie||'','content-type':'application/json'},body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json()};};
+ const login=async mobile=>{await call('/api/login/code',null,{mobile});const r=await fetch(base+'/api/login/verify',{method:'POST',headers:{'x-ifd':'1','content-type':'application/json'},body:JSON.stringify({mobile,code:/code: (\d{6})/.exec(codes.at(-1))[1]})});return r.headers.get('set-cookie').split(';')[0];};
+ try{
+ app.ensureUser('Lennox','07700900003','fitter');app.ensureUser('Other','07700900004','fitter');app.ensureUser('Surveyor','07700900005','estimator');const me=await login('07700900003'),other=await login('07700900004'),est=await login('07700900005'),owner=await login('07700900001');
+ app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['07700900555','test@example.test']}});
+ const j={status:'open',type:'Fitting',diary:true,date:'2026-11-12',fitter:'Lennox',ref:'ZZ-WORK',customer:{name:'ZZ TEST',phone:'07700900555',email:'test@example.test'},lines:{a:{title:'Laminate flooring',qty:10}},total:500,fitterDue:100,pay:{sample:{amount:400}},drafts:{d:{id:'unchanged'}}};app.store.setDoc(docPath('jobs/work'),j);app.store.setDoc(docPath('jobs/private'),{...j,fitter:'Other',customer:{name:'PRIVATE CUSTOMER'},ref:'PRIVATE'});
+ const current=()=>app.store.getDoc('jobs/work').data;
+ const run=(action,data={},cookie=me)=>call('/api/appointments/work/'+action,cookie,{jobId:'work',date:current().date,version:current().fitterWork?.version||0,...data});
+ for(const action of ['checklist','issue','schedule','notify','diary','approve'])assert.equal((await run(action,{},other)).status,403);
+ assert.equal((await run('diary',{},est)).status,403);assert.equal((await run('diary')).data.jobs.length,0);
+ assert.equal((await run('checklist',{profiles:['laminate'],checks:{bars:{state:'na',note:''}}})).status,400);
+ assert.equal((await run('checklist',{profiles:['laminate'],checks:Object.fromEntries(W.checks(['laminate']).map(c=>[c.id,{state:'done'}]))})).status,200);
+ assert.equal(W.completionProblems(current()).length,0);
+ assert.equal((await run('checklist',{profiles:['laminate'],version:0})).status,409);
+ assert.equal((await run('issue',{key:'beading_task',reason:'beading',note:'Finish lounge beading'})).status,200);assert.ok(W.completionProblems(current()).length);
+ let b={key:'return_visit',purpose:'return',newDate:'2026-11-13',slot:'8-10am',duration:60,note:'Finish the remaining beading',agreed:true};
+ assert.equal((await run('schedule',{...b,agreed:false})).status,400);
+ app.store.setDoc(docPath('timeoff/lennox'),{name:'Lennox',days:{'2026-11-13':{off:true}}});assert.equal((await run('schedule',b)).status,409);app.store.updateDoc(docPath('timeoff/lennox'),{days:{'2026-11-13':{off:false}}});
+ app.store.setDoc(docPath('jobs/conflict'),{...j,date:b.newDate});assert.equal((await run('schedule',b)).status,409);app.store.updateDoc(docPath('jobs/conflict'),{status:'cancelled'});
+ const result=await run('schedule',b);assert.equal(result.status,200);assert.equal(result.data.state,'sent');assert.equal(result.data.emailState,'sent');assert.equal(sent.length,1);assert.equal(emails.length,1);assert.match(sent[0].body,/finishing visit/);assert.equal(current().date,b.newDate);assert.equal(current().arrival.slot,b.slot);
+ assert.deepEqual(current().lines,j.lines);assert.deepEqual(current().pay,j.pay);assert.deepEqual(current().drafts,j.drafts);assert.equal(current().fitter,'Lennox');
+ assert.equal((await run('schedule',b)).data.duplicate,true);await run('notify',{event:b.key});assert.equal(sent.length,1);assert.equal(emails.length,1);
+ assert.equal((await run('issue',{resolve:'beading_task',note:'Beading fitted and checked'})).status,200);
+ assert.equal((await run('issue',{key:'prep_task',reason:'screed',note:'Smoothing required in lounge',extraCharge:false})).status,200);
+ const prep={...b,key:'prep_visit',newDate:'2026-11-16',purpose:'preparation'};assert.equal((await run('schedule',prep)).status,409);assert.equal((await run('approve',{issueId:'prep_task',note:'Customer agreed extra scope and price'},me)).status,403);assert.equal((await run('approve',{issueId:'prep_task',note:'Customer agreed £100 preparation, materials paid; recorded by shop'},owner)).status,200);
+ assert.equal((await run('schedule',prep)).status,200);assert.ok(W.completionProblems(current()).length);
+ const fit={...prep,key:'fit_visit',newDate:'2026-11-18',purpose:'fitting'};assert.equal((await run('schedule',fit)).status,409);assert.equal((await run('schedule',{...fit,prepReady:true,earliest:'2026-11-19'})).status,409);assert.equal((await run('schedule',{...fit,prepReady:true,earliest:'2026-11-18'})).status,200);
+ assert.equal((await run('issue',{key:'unsafe_task',reason:'safety',note:'Exposed cable requires safe repair'})).status,200);assert.equal((await run('schedule',{...fit,key:'unsafe_visit',newDate:'2026-11-20'})).status,409);
+ assert.equal((await call('/api/db/update',owner,{path:'jobs/work',data:{fitterWork:{version:0}}})).status,409);
+ assert.equal((await call('/api/fitter-access',me,{name:'Intruder',mobile:'07700900009'})).status,403);
+ assert.equal((await call('/api/fitter-access',owner,{name:'Intruder',mobile:'07700900001'})).status,409);
+ assert.equal((await call('/api/fitter-access',owner,{name:'New fitter',mobile:'07700900009'})).status,200);
+ assert.equal((await call('/api/fitter-trial',me,{enabled:true})).status,403);
+ const trialResponse=await call('/api/fitter-trial',owner,{enabled:true});assert.equal(trialResponse.status,200);const trialCookie=owner+'; ifd_trial=1';const trialList=(await call('/api/appointments',trialCookie)).data;assert.equal(trialList.shop,false);assert.equal(trialList.trial,true);assert.equal(trialList.jobs.length,1);assert.match(trialList.jobs[0].name,/David fitter trial/);assert.equal((await call('/api/users',trialCookie)).status,403);assert.equal((await run('diary',{},trialCookie)).status,403);assert.equal((await call('/api/fitter-trial',trialCookie,{enabled:false})).status,200);
+ const newcomer=await login('07700900009');assert.equal((await call('/api/appointments',newcomer)).data.jobs.length,0);
+ await run('issue',{resolve:'unsafe_task',note:'Cable repaired and checked safe'});await run('issue',{resolve:'prep_task',note:'Preparation completed and cured'});
+ uncertain=true;const lost=await run('schedule',{...b,key:'lost_response',newDate:'2026-11-24'});assert.equal(lost.data.state,'unsure');const count=sent.length;await run('notify',{event:'lost_response'});assert.equal(sent.length,count);assert.match(current().fitterWork.notificationIssue,/TEST lost/);
+ app.store.updateDoc(docPath('jobs/work'),{fitter:'Other'});assert.equal((await run('checklist',{profiles:['carpet']})).status,403);
+ }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
+});

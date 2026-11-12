@@ -32,6 +32,7 @@ test('customer sign-off enforces assignment, signatures, holds, immutable histor
   const fitter=await s.signIn(FITTER),other=await s.signIn('07700900004'),owner=await s.signIn(OWNER);
   s.app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['zed@example.test']},words:{reviewUrl:'https://example.test/review'}});
   const j=testJob({date:'2026-11-10',diary:true,lines:{l1:{title:'Test carpet',unit:'m',qty:31,w:4,state:'allocated',bay:'W4-01',picked:true,checked:true}}});
+  j.fitterWork={profiles:['carpet'],checks:Object.fromEntries(require('../lib/fitter-work').checks(['carpet']).map(c=>[c.id,{state:'done'}]))};
   s.app.store.setDoc(docPath('jobs/signed'),j);
   const b={jobId:'signed',date:j.date,key:'customer_sign_1',outcome:'clear',name:'TEST CUSTOMER',agreed:true,strokes:[[[0.1,0.2],[0.3,0.4],[0.5,0.2]]]};
   const sign=(body,cookie=fitter)=>s.req('POST','/api/appointments/signoff',body,cookie);
@@ -256,7 +257,7 @@ test('a fitter’s sign-in cannot reach the shop’s screens, records, Shopify o
     assert.strictEqual((await s.req('GET', '/api/me', undefined, cookie)).json.role, 'fitter');
     for (const [m, u, b] of [['GET', '/api/db/list?coll=jobs'], ['GET', '/api/db/doc?path=jobs/o1'], ['POST', '/api/db/set', {path:'jobs/o1', data:{}}], ['POST', '/api/shopify', {kind:'query', query:'query OpsShop{ shop{ name } }'}], ['GET', '/api/users'], ['GET', up.json.url], ['GET', '/api/events']])
       assert.strictEqual((await s.req(m, u, b, cookie)).status, 403, m + ' ' + u);
-    const home = await s.req('GET', '/', undefined, cookie); assert.match(home.text, /Visit arrival texts/); assert.doesNotMatch(home.text, /IFDLogic|6064/);
+    const home = await s.req('GET', '/', undefined, cookie); assert.match(home.text, /My fitting jobs/); assert.doesNotMatch(home.text, /IFDLogic|6064/);
     // taking someone off cuts them out at once
     s.app.disableUser(fid); assert.strictEqual((await s.req('GET', '/api/me', undefined, cookie)).status, 401);
     await s.req('POST', '/api/login/code', {mobile:FITTER}); assert.strictEqual(s.texts.filter(t => t.to === FITTER).length, 1, 'and no new code is sent to them');

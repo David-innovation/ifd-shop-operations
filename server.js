@@ -90,7 +90,7 @@ function create(opts){
   function broadcast(coll){ const msg = 'event: change\ndata: ' + JSON.stringify({coll:coll}) + '\n\n'; listeners.forEach(r => { try { r.write(msg); } catch (e) {} }); }
   const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, pollMs:opts.pollMs});
   cmds.start();
-  const appointments = require('./lib/appointments').make({st,cmds,users:()=>q.users.all(),now});
+  const appointments = require('./lib/appointments').make({st,cmds,users:()=>q.users.all(),now,L,broadcast});
 
   /* ---------- sign-in by texted code ---------- */
   async function requestCode(req, res){
@@ -192,8 +192,11 @@ function create(opts){
 
   /* ---------- the router ---------- */
   async function handle(req, res){
-    const url = new URL(req.url, 'http://x'), p = url.pathname, user = userOf(req), shopUser = user && SHOP_ROLES.indexOf(user.role) !== -1;
+    const url = new URL(req.url, 'http://x'), p = url.pathname, authUser=userOf(req);
+    const trial=authUser?.role==='owner'&&/(?:^|;\s*)ifd_trial=1(?:;|$)/.test(req.headers.cookie||'');
+    const user=trial?{...authUser,id:'trial_'+authUser.id,name:authUser.name+' - fitter trial',role:'fitter',trial:true}:authUser, shopUser=user&&SHOP_ROLES.includes(user.role);
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
+    if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/shim.js') return send(res, 200, pub('shim.js'), {'content-type':'text/javascript; charset=utf-8'});
     if (req.method === 'GET' && (p === '/' || p === '/login')){
       if (!user) return page(res, pub('login.html'));
@@ -205,14 +208,36 @@ function create(opts){
     if (p === '/api/login/verify' && req.method === 'POST') return verifyCode(req, res);
     if (p === '/api/logout' && req.method === 'POST'){ const t = cookieOf(req); if (t) q.dropSession.run(hash(t)); res.setHeader('set-cookie', 'ifd_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' + (secure ? '; Secure' : '')); return send(res, 200, {ok:true}); }
     if (!user) return fail(res, 401, 'signed_out', 'Sign in first.');
+    if(p==='/api/fitter-trial'&&req.method==='POST'){
+      if(authUser.role!=='owner')return fail(res,403,'forbidden','Only the owner can open their fitter trial.');
+      const b=await readJson(req);if(typeof b.enabled!=='boolean')return fail(res,400,'invalid_argument','Choose the shop or fitter trial.');
+      const id='ZZ-OWNER-FITTER-'+authUser.id,d=store.docPath('jobs/'+id),fitterId='trial_'+authUser.id;
+      if(b.enabled&&!st.getDoc(d.path).exists){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));st.setDoc(d,{test:true,status:'open',type:'Fitting',diary:true,date,fitter:authUser.name+' - fitter trial',fitterId,ref:'ZZ FITTER TRIAL',customer:{name:'ZZ TEST - David fitter trial',phone:authUser.mobile,email:'David@innovationflooringdirect.com',address:'TEST ONLY - no customer appointment'},sizeCheck:'verified',rooms:{lounge:{name:'Trial lounge',len:4,wid:3,area:12,status:'verified',source:'shop',verBy:'TEST ONLY',verRole:'shop',verOn:date}},lines:{floor:{title:'TEST ONLY laminate flooring',qty:4,unit:'packs',hold:'none'},beading:{title:'TEST ONLY beading',qty:6,unit:'lengths',hold:'none'},bars:{title:'TEST ONLY door bar',qty:1,unit:'each',hold:'none'}},total:0,fitterDue:0,notes:'OWNER FITTER TRIAL ONLY. No stock reserved, no real payment or appointment. Messages go to David only.',fitterWork:{profiles:['laminate'],version:0}});broadcast('jobs');}
+      res.setHeader('set-cookie','ifd_trial='+(b.enabled?'1':'0')+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+(b.enabled?86400:0)+(secure?'; Secure':''));return send(res,200,{ok:true,enabled:b.enabled});
+    }
     if (p === '/api/me') return send(res, 200, {id:user.id, name:user.name, role:user.role});
     if (p === '/appointments' && req.method === 'GET') { if (!shopUser && !['fitter','estimator'].includes(user.role)) return fail(res,403,'forbidden','This page is for fitters, estimators and shop staff.'); return page(res,pub('appointments.html')); }
     if (p === '/api/appointments' && req.method === 'GET') return send(res,200,appointments.list(user));
     if (p === '/api/appointments/send' && req.method === 'POST') return send(res,200,await appointments.send(await readJson(req),user));
     if (p === '/api/appointments/signoff' && req.method === 'POST') return send(res,200,appointments.signoff(await readJson(req),user));
+    if (p.startsWith('/api/appointments/work/') && req.method === 'POST') {
+      const action=p.slice('/api/appointments/work/'.length);
+      if(!['checklist','issue','approve','diary','schedule','notify'].includes(action))return fail(res,404,'not_found','Unknown fitting action.');
+      return send(res,200,await appointments.work[action](await readJson(req),user));
+    }
     if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));
     /* everything below is the shop's own screens. A fitter or estimator is refused here, whatever their page asks for. */
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
+    if(p==='/api/fitter-access'&&req.method==='POST'){
+      if(user.role!=='owner')return fail(res,403,'forbidden','Only the owner can manage fitter access.');
+      const b=await readJson(req),name=String(b.name||'').trim(),mobile=sms.normaliseMobile(b.mobile);
+      if(!name||name.length>60||!mobile)return fail(res,400,'invalid_argument','Enter the fitter name used in the diary and their mobile number.');
+      const prior=q.userByMobile.get(mobile);
+      if(prior&&prior.role!=='fitter')return fail(res,409,'forbidden','This number belongs to a different account role. No changes made.');
+      if(q.users.all().some(x=>x.active&&x.role==='fitter'&&x.name===name&&x.id!==prior?.id))return fail(res,409,'duplicate','This fitter already has a sign-in. Use their existing number or ask the owner to review the account.');
+      const id=ensureUser(name,mobile,'fitter');q.setUser.run(name,'fitter',1,id);q.dropSessionsOf.run(id);st.audit(user.id,'fitter access','Enabled fitter '+name+'; existing sessions revoked');
+      return send(res,200,{ok:true,name});
+    }
     if (p === '/api/users') return send(res, 200, {users:q.users.all().map(u => ({id:u.id, name:u.name, role:u.role, active:!!u.active}))});
     if (p.startsWith('/api/db/')) return dbRoute(req, res, url, user, p.slice(8));
     if (p === '/api/cmd' && req.method === 'POST'){ const body = await readJson(req); return send(res, 200, await cmds.run(String(body.cmd || ''), body, user)); }
