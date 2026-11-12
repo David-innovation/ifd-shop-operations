@@ -55,5 +55,11 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  uncertain=true;const lost=await run('schedule',{...b,key:'lost_response',newDate:'2026-11-24'});assert.equal(lost.data.state,'unsure');const count=sent.length;await run('notify',{event:'lost_response'});assert.equal(sent.length,count);assert.match(current().fitterWork.notificationIssue,/TEST lost/);
  app.store.updateDoc(docPath('jobs/work'),{fitter:'Other'});assert.equal((await run('checklist',{profiles:['carpet']})).status,403);
  uncertain=false;assert.equal((await call('/api/my-signin-link',limitedCookie,{to:'+447700999999'})).status,200);assert.equal(sent.at(-1).to,'+447700900001');assert.match(sent.at(-1).body,/\/fitter Enter your mobile/);assert.equal((await call('/api/my-signin-link',limitedCookie,{})).status,429);assert.equal((await call('/api/my-signin-link',null,{})).status,401);
+ const originalJob=app.store.getDoc('jobs/private').data;
+ assert.equal((await call('/api/my-availability',me,{name:'Other',start:'2026-11-13',end:'2026-11-15',off:true,note:'Away'})).status,200);
+ const off=(await call('/api/appointments',me)).data.availability;assert.equal(off['2026-11-14'].off,true);assert.equal((await call('/api/appointments',other)).data.availability['2026-11-14'],undefined);assert.deepEqual(app.store.getDoc('jobs/private').data,originalJob);
+ assert.equal((await call('/api/my-availability',me,{start:'2026-11-14',off:false})).status,200);const remaining=(await call('/api/appointments',me)).data.availability;assert.equal(remaining['2026-11-14'].off,false);assert.equal(remaining['2026-11-13'].off,true);
+ assert.equal((await call('/api/my-availability',me,{start:'2026-11-11',off:true})).status,400);assert.equal((await call('/api/my-availability',me,{start:'2026-11-13',end:'2027-03-01',off:true})).status,400);assert.equal((await call('/api/my-availability',null,{start:'2026-11-13',off:true})).status,401);
+ assert.equal((await call('/api/my-availability',est,{start:'2026-11-14',off:true})).status,200);
  }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
 });

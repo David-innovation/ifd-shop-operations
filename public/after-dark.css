@@ -54,3 +54,4 @@ body.crew-diary::before{top:16px;height:170px}
 @media(min-width:600px){body.crew-diary::before{height:220px;top:0}}
 .crew-diary>#status:not(:empty){display:block;font-size:12px;color:#c9c9d1;margin:8px 0 16px}
 .crew-diary>#status:empty{display:none}
+.crew-diary .date-tile.day-off{border-style:dashed;border-color:#ad6774}.crew-diary .date-tile.day-off span::after{content:' / OFF';font-size:8px}.crew-diary .availability{margin:0 0 16px;padding:12px 0;border-bottom:1px solid #303035}.crew-diary .availability>strong{color:#ff8598;font-size:14px}.crew-diary .availability p{font-size:12px}.crew-diary .availability>button{background:transparent;font-size:12px;min-height:40px}.crew-diary .availability form{padding:14px;background:#141417;border:1px solid #35353c;border-radius:12px;margin-top:10px}.crew-diary .availability form button{margin-right:8px}.crew-diary .availability form button[type=submit]{background:#c90022;border-color:#e92444}
