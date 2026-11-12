@@ -242,7 +242,7 @@ function create(opts){
     if(p==='/api/fitter-practice'&&req.method==='POST'){
       const owner=user.role==='owner'?user:user.id.startsWith('trial_')?q.userById.get(user.id.slice(6)):null;
       if(!owner||owner.role!=='owner'||!owner.active)return fail(res,403,'forbidden','Practice jobs are only available for the owner trial.');
-      const result=require('./lib/fitter-practice')(st,owner,now());st.audit(owner.id,'created fitter practice jobs','');broadcast('jobs');return send(res,200,result);
+      const result=require('./lib/fitter-practice')(st,owner,now(),(await readJson(req)).scenario);st.audit(owner.id,'created fitter practice jobs','');broadcast('jobs');return send(res,200,result);
     }
     if(p==='/api/fitter-trial'&&req.method==='POST'){
       if(authUser.role!=='owner')return fail(res,403,'forbidden','Only the owner can open their fitter trial.');
