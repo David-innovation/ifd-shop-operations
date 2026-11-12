@@ -1,0 +1,7 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const L=require('../lib/rules').load(fs.readFileSync(path.join(__dirname,'../app/ifd-shop-operations.html'),'utf8')),D=require('../lib/fitter-details');
+test('job sheet preserves room and shared quantities, missing facts and estimator limitations',()=>{
+ const j={type:'Fitting',total:500,fitterDue:200,customer:{name:'TEST',address:'TEST ADDRESS',postcode:'G81 1DX',phone:'TEST'},rooms:{a:{name:'Lounge',len:6,wid:3,area:18,spec:{old:true,uplift:false,furniture:false}},b:{name:'Hall',len:2,wid:2,area:4}},lines:{f:{title:'TEST flooring',qty:7,unit:'packs',rooms:'Lounge'},s:{title:'Shared flooring',qty:4,unit:'packs',rooms:'Lounge, Hall'},u:{title:'Foam underlay',qty:2,unit:'rolls',acc:{need:22,unit:'m²'}}},pre:{v:{notes:'Customer will clear room',sub:{findings:'Could not check subfloor: old carpet down'}}}};
+ const d=D.details(j,L);assert.equal(d.customer.postcode,'G81 1DX');assert.equal(d.fitterDue,200);assert.equal(d.rooms[0].items[0].qty,7);assert.equal(d.rooms[1].items.length,0);assert.equal(d.rooms[0].sharedItems[0].qty,4);assert.equal(d.rooms[1].sharedItems[0].rooms,'Lounge, Hall');assert.equal(d.unallocatedItems[0].needQty,22);assert.match(d.visits[0].sub.findings,/old carpet/);assert.match(d.rooms[0].responsibilities.furniture,/not recorded separately/);assert.equal(D.details({},L).fitterDue,null);
+});
