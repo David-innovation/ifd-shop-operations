@@ -1311,7 +1311,7 @@ window.IFDLogic = (function(){
      text service accepted it, the text service reports it delivered, or a member of staff records that they sent it themselves. */
   var MSG_STATE = {prepared:'Prepared, not sent', queued:'Sending', sent:'Sent', delivered:'Delivered', failed:'Did not send', unsure:'Not known if it went', manual:'Sent by hand'};
   var MSG_TONE = {prepared:'warn', queued:'info', sent:'ok', delivered:'ok', failed:'bad', unsure:'bad', manual:'ok'};
-  var MSG_KIND = {quote:'Quote', confirm:'Fitting confirmation', receipt:'Receipt', other:'Message'};
+  var MSG_KIND = {quote:'Quote', confirm:'Fitting confirmation', receipt:'Receipt', invoice:'Invoice', other:'Message'};
   function msgsOf(job){ var o = (job && job.msgs) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
   function msgWent(m){ return !!m && (m.state === 'sent' || m.state === 'delivered' || m.state === 'manual'); }
   function msgWhen(m){ return String((m && (m.sentAt || m.at)) || ''); }
@@ -1402,6 +1402,7 @@ window.IFDLogic = (function(){
   function chasesOf(job){ var o = (job && job.chase) || {}; return Object.keys(o).map(function(k){ return Object.assign({k:k}, o[k]); }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }); }
   function quoteWait(job, today){
     var q = quoteOf(job); if (!q) return null;
+    if(job.customerAcceptance&&job.customerAcceptance.rev===q.k&&!job.accepted)return {state:'yes',days:0,ringOn:'',last:null,sentAt:job.customerAcceptance.at,sentOn:stampDay(job.customerAcceptance.at),calls:0};
     var sent = quoteSent(job, q);
     if (!sent){
       var mine = msgsFor(job, 'quote', q.k), has = function(st){ return mine.some(function(m){ return m.state === st; }); };
@@ -1979,6 +1980,7 @@ function startDb(){
   db.collection('jobs').onSnapshot(snap => {
     const before = S.jobs, fresh = new Map(snap.docs.map(d => [d.id, Object.assign({id:d.id}, d.data())]));
     if (S.db.state === 'ok' && !S.fitterMode) fresh.forEach((j, id) => {
+      if(j.customerAcceptance?.at && j.customerAcceptance.at!==before.get(id)?.customerAcceptance?.at)toast(((j.customer||{}).name||'A customer')+' accepted their quote online. Open Today to arrange the order.',true);
       const b = L.backOpen(j), was = L.backOpen(before.get(id));
       if (b && (!was || was.k !== b.k)) toast((b.fitter || 'A fitter') + ' has sent ' + ((j.customer || {}).name || 'a job') + ' back to the shop. See Act now on Today.', true);
     });
@@ -2030,11 +2032,31 @@ function learnNames(ids){
 /* ---------- shell ---------- */
 const TABS = [
   {id:'today', label:'Today'}, {id:'jobs', label:'Jobs'}, {id:'sale', label:'New sale', cls:'only-phone sale'},
-  {id:'diary', label:'Diary'}, {id:'catalogue',label:'Catalogue',cls:'only-desk'}, {id:'measures', label:'Measures', cls:'only-desk'}, {id:'stock', label:'Stock'}, {id:'cut', label:'Cutting', cls:'only-desk'}, {id:'deliveries', label:'Deliveries', cls:'only-desk'},
+  {id:'diary', label:'Diary'}, {id:'documents',label:'Quotes & invoices',cls:'only-desk'}, {id:'catalogue',label:'Catalogue',cls:'only-desk'}, {id:'measures', label:'Measures', cls:'only-desk'}, {id:'stock', label:'Stock'}, {id:'cut', label:'Cutting', cls:'only-desk'}, {id:'deliveries', label:'Deliveries', cls:'only-desk'},
   {id:'tasks', label:'Tasks', cls:'only-desk'}, {id:'activity', label:'Activity', cls:'only-desk'}, {id:'setup', label:'Setup', cls:'only-desk'},
   {id:'more', label:'More', cls:'only-phone'}
 ];
 const VIEWS = {};
+VIEWS.documents=function(){
+ const body=h('div',{class:'sec'}),search=h('input',{class:'in',type:'search',placeholder:'Find a customer or reference','aria-label':'Find quote or invoice'});let mode='quotes',showTests=false;
+ function draw(){
+  const term=search.value.trim().toLowerCase(),test=j=>j.test===true||/\bZZ[ -]?TEST\b/i.test(j.customer?.name||'')||/^ZZ[- ]/i.test(j.ref||''),jobs=jobsArr().filter(j=>j.status!=='cancelled'&&(showTests||!test(j))&&(!term||((j.customer?.name||'')+' '+(j.ref||'')+' '+(j.invoice?.number||'')).toLowerCase().includes(term))).filter(j=>mode==='quotes'?!!L.quoteOf(j):!!j.accepted||!!j.invoice);
+  body.replaceChildren();add(body,[h('h1',{text:'Quotes & invoices'}),h('p',{text:'Send professional emails from sales@. Quotes carry the agreed items automatically; invoices cover the shop’s materials and services only.'}),h('div',{class:'bar'},btn('Quotes',()=>{mode='quotes';draw();},mode==='quotes'?'pri':''),btn('Invoices',()=>{mode='invoices';draw();},mode==='invoices'?'pri':''),btn('New quote',()=>go('catalogue'),'sm')),search,h('label',{},h('input',{type:'checkbox',checked:showTests,onchange:e=>{showTests=e.target.checked;draw();}}),' Show test jobs')]);
+  if(!jobs.length)add(body,h('p',{text:mode==='quotes'?'No saved quotes match.':'No confirmed orders match. Confirm an accepted quote before issuing its invoice.'}));
+  jobs.forEach(j=>{const q=L.quoteOf(j),invoice=j.invoice,kind=mode==='quotes'?'quote':'invoice',rev=kind==='quote'?q.k:invoice?.number,ms=L.msgsFor(j,kind,rev||''),last=ms.at(-1),isAccepted=j.customerAcceptance?.rev===q?.k||j.accepted?.q===q?.k;
+   add(body,h('div',{class:'card'},h('h2',{text:(j.customer?.name||'Customer')+' · '+(kind==='invoice'&&invoice?invoice.number:j.ref)}),h('p',{text:kind==='quote'?L.money(L.quoteTotal(q))+(isAccepted?' · Customer accepted':''):invoice?L.money(invoice.total)+' · Shop only · Balance '+L.money(L.balanceOf(j)):'Ready to create from the accepted order'}),h('p',{class:'small',text:last?'Last email: '+last.state+' · '+whenText(last.sentAt||last.at):'Not emailed yet'}),h('div',{class:'bar'},btn('Open job',()=>openSheet(j.id),'sm'),kind==='quote'||invoice?h('a',{class:'btn sm',href:'/document?job='+encodeURIComponent(j.id)+'&kind='+kind,target:'_blank',rel:'noopener',text:'Preview email'}):null,kind==='quote'?btn('Send quote',()=>sendQuoteDialog(j,q),'pri'):invoice?btn('Send invoice',()=>sendInvoiceDialog(j),'pri'):btn('Create invoice',()=>createInvoiceDialog(j),'pri'),kind==='quote'&&isAccepted&&!j.accepted?btn('Arrange order',()=>acceptDialog(j),'sm'):null)));
+  });
+ }
+ search.oninput=()=>{const start=search.selectionStart;draw();search.focus();search.setSelectionRange(start,start);};draw();return {nodes:[body],refresh:draw};
+};
+function createInvoiceDialog(job){
+ const supply=h('input',{class:'in',type:'date'}),due=h('input',{class:'in',type:'date',value:L.todayISO()}),s=sayer();let busy=false;
+ openModal(dlg('Create invoice',h('div',{class:'sec'},h('p',{text:'Uses the accepted order, excluding fitting paid directly to the fitter. Prices include 20% VAT. VAT number 450 3845 03.'}),h('p',{text:'Check the billing address on the job first. Issued invoices are retained and cannot be overwritten.'}),field('Actual supply / tax-point date',supply),field('Payment due date',due),s.box),[btn('Cancel',closeModal),btn('Create invoice',async()=>{if(busy)return;busy=true;try{const r=await runCmd('invoice.create',{jobId:job.id,supplyDate:supply.value,dueDate:due.value});closeModal();sendInvoiceDialog({...job,invoice:r.invoice});}catch(e){s.say(e.message||'Could not create invoice.');}finally{busy=false;}},'pri')]));
+}
+function sendInvoiceDialog(job){
+ const i=job.invoice;if(!i)return;const paid=L.paidOf(job),body=['Hello '+L.firstName(job.customer?.name)+',','Invoice '+i.number,'Invoice total: '+L.money(i.total),'Payments recorded: '+L.money(paid),'Balance: '+L.money(L.round2(i.total-paid)),'Fitting is excluded and paid directly to the fitter.'].join('\n');
+ messageDialog(job,{title:'Send invoice',kind:'invoice',rev:i.number,head:i.number,subject:'Your invoice '+i.number+' from Innovation Flooring Direct',email:()=>body,sms:()=>''});
+}
 /* what the day rules need: every job, the shop's limits, and where each postcode district is */
 function dayCtx(){ return {jobs:jobsArr(), limits:S.limits, geo:S.geo, areas:S.areas}; }
 /* find out where these postcode districts are, once each, then redraw */
@@ -2387,20 +2409,22 @@ VIEWS.today = function(){
   function draw(){
     const t=L.todayISO(),isTest=j=>j.test===true||/\bZZ[ -]?TEST\b/i.test((j.customer||{}).name||'')||/^ZZ[- ]/i.test(j.ref||j.id||''), visible=j=>S.ui.showTestJobs||!isTest(j),filter=xs=>xs.filter(visible),open=filter(openJobs());
     const price=filter(toPriceJobs()),quotes=filter(quotedJobs()),unsent=quotes.filter(j=>L.quoteWait(j,t).state==='unsent'),waiting=quotes.filter(j=>L.quoteWait(j,t).state!=='unsent'),chase=waiting.filter(j=>L.quoteWait(j,t).state!=='waiting');
+    const online=open.filter(j=>j.customerAcceptance?.pending&&j.customerAcceptance.rev===L.quoteOf(j)?.k&&j.accepted?.q!==j.customerAcceptance.rev);
     const moves=fitterMoves().filter(x=>visible(x.job));
     const fitterIssues=open.filter(j=>j.fitterWork&&(j.fitterWork.shopAttention||j.fitterWork.notificationIssue||j.ret==='needed'));
     const emailIssues=filter(jobsArr()).filter(j=>j.status!=='cancelled'&&j.thankYouIssue);
     const conf=filter(confirmJobs()),failed=failedMsgs().filter(x=>visible(x.job)),act=filter(actNowJobs()),att=filter(attentionJobs()),inbox=inboxList(),toOrd=filter(toOrderJobs()),onOrd=filter(onOrderJobs()),cuts=cutAll().filter(x=>visible(x.job));
     const held=open.filter(j=>L.checksOutstanding(j).length),ready=open.filter(j=>!j.diary&&L.stockLines(j).length&&L.allAllocated(j)&&!L.checksOutstanding(j).length),noOrder=open.filter(j=>!L.linesOf(j).length&&L.preOf(j).length&&L.preOf(j).every(v=>v.status==='done')&&!L.toPrice(j)&&!L.quoted(j));
     const ring=contactItems(['overdue','soon']).filter(x=>visible(x.job)),tasks=S.tasks.filter(x=>!x.done&&(!x.due||x.due<=t)),owed=filter(jobsArr()).filter(j=>j.status!=='cancelled'&&L.balanceOf(j)>0);
-    const attentionIds=new Set([...moves.map(x=>x.job),...fitterIssues,...act,...att,...held,...ready,...toOrd,...onOrd,...owed,...failed.map(x=>x.job),...cuts.map(x=>x.job)].map(j=>j.id)),attentionCount=attentionIds.size+inbox.length+tasks.length;
+    const attentionIds=new Set([...online,...moves.map(x=>x.job),...fitterIssues,...act,...att,...held,...ready,...toOrd,...onOrd,...owed,...failed.map(x=>x.job),...cuts.map(x=>x.job)].map(j=>j.id)),attentionCount=attentionIds.size+inbox.length+tasks.length;
     const urgent=new Set([...moves.map(x=>x.job),...act,...att,...failed.map(x=>x.job)].map(j=>j.id)).size;
     const todayJobs=open.filter(j=>j.diary&&j.date===t),visits=[];open.forEach(j=>L.preOf(j).filter(v=>v.status==='booked'&&v.date===t).forEach(v=>visits.push({job:j,v})));
     const section=(title,rows,render,id)=>rows.length?h('section',{class:'sec',id},h('h2',{text:title+' · '+rows.length}),h('div',{class:'list'},rows.map(render))):null;
-    const groups={price:[section('Measured jobs to price',price,priceRow,'priceSec')],send:[section('Thank-you emails needing attention',emailIssues,jobRow,'thanksSec'),section('Quotes to send',unsent,quotedRow,'quotedSec'),section('Booking confirmations',conf,confirmRow,'confirmSec'),section('Failed or uncertain messages',failed,failedRow,'failedSec')],follow:[section('Quotes needing a call or action',chase,quotedRow,'chaseSec'),section('Arrival times to arrange',ring,ringRow,'ringSec'),section('Visited, no sizes or order yet',noOrder,jobRow,'noOrderSec'),waiting.length>chase.length?h('details',{},h('summary',{text:'Quotes waiting for a reply · '+(waiting.length-chase.length)}),section('Not due a follow-up yet',waiting.filter(j=>L.quoteWait(j,t).state==='waiting'),quotedRow,'waitingSec')):null],attention:[section('Fitter / estimator diary changes',moves,x=>h('div',{class:'row'},h('div',{},h('b',{text:(x.job.customer||{}).name+' · '+x.e.byName}),h('p',{text:L.fmtDay(x.e.from)+' → '+L.fmtDay(x.e.date)+' · '+x.e.slot}),h('p',{text:'Reason: '+(x.e.reason||x.e.note)}),h('small',{text:x.e.at})),h('div',{class:'bar'},btn('Open job',()=>openSheet(x.job.id),'sm'),btn('Mark reviewed',async()=>{try{await S.cap.work(x.visit?'visitReview':'reviewMove',{jobId:x.job.id,event:x.id});}catch(e){dbFail(e);}},'sm'))),'fitterMovesSec'),section('Fitter tasks and approvals',fitterIssues,jobRow,'fitterTasksSec'),section('Failed or uncertain messages',failed,failedRow,'attentionFailedSec'),section('Sent back from site',act,actRow,'actSec'),h('section',{class:'sec',id:'inboxSec'},h('h2',{},'New from website · '+inbox.length,btn('Check now',refreshInbox,'sm')),S.inbox.state==='error'?h('p',{text:S.inbox.msg}):null,listOf(inbox.map(inboxRow),S.inbox.state==='loading'?'Checking website orders':'No website orders waiting','')),section('Jobs needing attention',att,jobRow,'attentionSec'),section('Checks outstanding',held,checkRow,'checksSec'),section('Ready to book in',ready,jobRow,'readySec'),section('To order',toOrd,orderRow,'orderSec'),section('On order / arrivals to check',onOrd,onOrderRow,'onOrderSec'),section('Warehouse cutting',cuts,x=>cutRow(x,true),'cutSec'),section('Payments outstanding',owed,jobRow,'owedSec'),section('Tasks due',tasks,taskRow,'tasksSec')]};
+    const groups={price:[section('Measured jobs to price',price,priceRow,'priceSec')],send:[section('Thank-you emails needing attention',emailIssues,jobRow,'thanksSec'),section('Quotes to send',unsent,quotedRow,'quotedSec'),section('Booking confirmations',conf,confirmRow,'confirmSec'),section('Failed or uncertain messages',failed,failedRow,'failedSec')],follow:[section('Quotes needing a call or action',chase,quotedRow,'chaseSec'),section('Arrival times to arrange',ring,ringRow,'ringSec'),section('Visited, no sizes or order yet',noOrder,jobRow,'noOrderSec'),waiting.length>chase.length?h('details',{},h('summary',{text:'Quotes waiting for a reply · '+(waiting.length-chase.length)}),section('Not due a follow-up yet',waiting.filter(j=>L.quoteWait(j,t).state==='waiting'),quotedRow,'waitingSec')):null],attention:[section('Quotes accepted online — sales to arrange',online,j=>h('div',{class:'row'},h('div',{},h('b',{text:(j.customer||{}).name+' · '+L.quoteRef(j,L.quoteOf(j))}),h('p',{text:'Accepted '+whenText(j.customerAcceptance.at)+' · '+L.money(j.customerAcceptance.total)}),h('small',{text:'Confirm the order and materials payment before booking fitting.'})),h('div',{class:'bar'},btn('Arrange order',()=>acceptDialog(j),'sm pri'),btn('Open job',()=>openSheet(j.id),'sm'))),'onlineAcceptedSec'),section('Fitter / estimator diary changes',moves,x=>h('div',{class:'row'},h('div',{},h('b',{text:(x.job.customer||{}).name+' · '+x.e.byName}),h('p',{text:L.fmtDay(x.e.from)+' → '+L.fmtDay(x.e.date)+' · '+x.e.slot}),h('p',{text:'Reason: '+(x.e.reason||x.e.note)}),h('small',{text:x.e.at})),h('div',{class:'bar'},btn('Open job',()=>openSheet(x.job.id),'sm'),btn('Mark reviewed',async()=>{try{await S.cap.work(x.visit?'visitReview':'reviewMove',{jobId:x.job.id,event:x.id});}catch(e){dbFail(e);}},'sm'))),'fitterMovesSec'),section('Fitter tasks and approvals',fitterIssues,jobRow,'fitterTasksSec'),section('Failed or uncertain messages',failed,failedRow,'attentionFailedSec'),section('Sent back from site',act,actRow,'actSec'),h('section',{class:'sec',id:'inboxSec'},h('h2',{},'New from website · '+inbox.length,btn('Check now',refreshInbox,'sm')),S.inbox.state==='error'?h('p',{text:S.inbox.msg}):null,listOf(inbox.map(inboxRow),S.inbox.state==='loading'?'Checking website orders':'No website orders waiting','')),section('Jobs needing attention',att,jobRow,'attentionSec'),section('Checks outstanding',held,checkRow,'checksSec'),section('Ready to book in',ready,jobRow,'readySec'),section('To order',toOrd,orderRow,'orderSec'),section('On order / arrivals to check',onOrd,onOrderRow,'onOrderSec'),section('Warehouse cutting',cuts,x=>cutRow(x,true),'cutSec'),section('Payments outstanding',owed,jobRow,'owedSec'),section('Tasks due',tasks,taskRow,'tasksSec')]};
     const specs=[['price',price.length,'To price','Measured jobs ready for a quote','Open pricing list'],['send',unsent.length+conf.length+failed.length+emailIssues.length,'To send','Quotes, confirmations and message issues','Send messages'],['follow',chase.length+ring.length+noOrder.length,'Follow up','Customers due a call or next step','View follow-ups'],['attention',attentionCount,'Needs attention','Orders, checks, bookings and payments','Review work']];
     const select=k=>{selected=k;draw();body.querySelector('#workList')?.scrollIntoView({behavior:'smooth',block:'start'});};
     body.replaceChildren();add(body,[h('div',{class:'head'},h('div',{},h('h1',{text:'What needs doing today?'}),h('p',{text:L.fmtDay(t)}),S.me?.role==='owner'?btn('My fitter trial / team access',()=>{location.href='/appointments';},'sm'):null),h('div',{class:'bar'},btn('New quote',()=>go('catalogue'),'pri'),btn('Book a measure',measureDialog,'pri'),btn('New sale',saleDialog,'pri'))),banners(),
+      online.length?h('div',{class:'simple-alert'},h('b',{text:online.length+' quotes accepted online — ready for sales'}),btn('View accepted quotes',()=>{selected='attention';draw();},'sm pri')):null,
       urgent?h('div',{class:'simple-alert'},h('b',{text:urgent+' jobs have urgent issues'}),btn('Review urgent issues',()=>{selected='attention';draw();},'sm')):null,
       h('div',{class:'simple-grid'},specs.map(([key,n,title,desc,label])=>h('button',{type:'button',class:'simple-work'+(selected===key?' chosen':''),'aria-expanded':String(selected===key),'aria-controls':'workList',onclick:()=>select(key)},h('b',{class:'simple-count',text:String(n)}),h('div',{},h('h2',{text:title}),h('p',{text:desc}),h('span',{class:'simple-action',text:label+' →'}))))),
       selected?h('div',{id:'workList',tabindex:'-1'},h('div',{class:'head'},h('h2',{text:specs.find(x=>x[0]===selected)[2]}),btn('Close list',()=>{selected='';draw();},'sm')),groups[selected].filter(Boolean).length?groups[selected]:h('p',{text:'Nothing waiting in this section.'})):null,
@@ -2877,7 +2901,7 @@ VIEWS.cut = function(){
 };
 VIEWS.more = function(){
   return {nodes:[h('div', {class:'head'}, h('h1', {text:'More'})),
-    h('div', {class:'sec'}, btn('Product catalogue',()=>go('catalogue'),'block'), btn('Fitter’s page', () => go('fitter'), 'block'), btn('Measures', () => go('measures'), 'block'), btn('Cutting list', () => go('cut'), 'block'), btn('Deliveries', () => go('deliveries'), 'block'), btn('Opening stocktake', () => go('stocktake'), 'block'), btn('Tasks', () => go('tasks'), 'block'), btn('Activity', () => go('activity'), 'block'), btn('Setup', () => go('setup'), 'block'))], refresh:null};
+    h('div', {class:'sec'}, btn('Product catalogue',()=>go('catalogue'),'block'),btn('Quotes & invoices',()=>go('documents'),'block'), btn('Fitter’s page', () => go('fitter'), 'block'), btn('Measures', () => go('measures'), 'block'), btn('Cutting list', () => go('cut'), 'block'), btn('Deliveries', () => go('deliveries'), 'block'), btn('Opening stocktake', () => go('stocktake'), 'block'), btn('Tasks', () => go('tasks'), 'block'), btn('Activity', () => go('activity'), 'block'), btn('Setup', () => go('setup'), 'block'))], refresh:null};
 };
 
 /* ---------- the job sheet ---------- */
@@ -3083,11 +3107,12 @@ function drawSheet(){
   const qChip = !qw ? null : qw.state === 'unsent' ? chip(qw.why === 'unsure' ? 'Check if it went' : qw.why === 'failed' ? 'Did not send' : qw.why === 'prepared' ? 'Prepared, not sent' : qw.why === 'sending' ? 'Sending' : 'Not sent yet', 'bad')
     : chip(qw.state === 'ring' ? 'Ring them' : qw.state === 'yes' ? 'Said yes' : qw.state === 'change' ? 'Wants it changed' : 'Waiting on the customer', qw.state === 'waiting' ? 'warn' : 'bad');
   const priceQuoteCard = pq ? h('div', {class:'card', id:'quoteCard'}, h('h3', {}, 'Quote', chip(L.money(L.quoteTotal(pq)), 'info'), acc ? chip('Accepted', 'ok') : job.lost ? chip('Not taken') : qChip),
+    job.customerAcceptance?.rev===pq.k?h('p',{class:'banner ok',text:'Customer accepted this quote online '+whenText(job.customerAcceptance.at)+'. '+(acc?'Order already arranged.':'Sales: confirm the order and materials payment before booking fitting.')}):null,
     quoteLineRows(pq, true),
     h('div', {class:'qtotal'}, h('span', {text:'Total'}), h('b', {class:'num', text:L.money(L.quoteTotal(pq))})),
     h('p', {class:'small muted', text:'Saved by ' + (pq.byName || 'someone') + ' ' + whenText(pq.at) + '.' + (qmsgs.some(L.msgWent) ? ' ' + qs0(qmsgs) : ' The customer has not been sent it.')}),
     qs ? h('p', {id:'quoteNext', style:qw.state !== 'waiting' ? 'font-weight:700;color:var(--bad)' : 'font-weight:600', text:qs.text + '.'}) : null,
-    calls.length ? h('div', {class:'log', id:'quoteCalls'}, calls.map(x => h('div', {text:whenText(x.at) + '  ' + (x.byName || 'Someone') + ' rang. ' + (L.CHASE_OUT[x.outcome] || x.outcome) + (x.note ? ': ' + x.note : '')}))) : null,
+    calls.length ? h('div', {class:'log', id:'quoteCalls'}, calls.map(x => h('div', {text:whenText(x.at) + '  ' + (x.byName || 'Someone') + (x.by==='customer'?' accepted online. ':' rang. ') + (L.CHASE_OUT[x.outcome] || x.outcome) + (x.note ? ': ' + x.note : '')}))) : null,
     acc ? h('p', {class:'small', id:'quoteAccepted', text:'The customer said yes ' + whenText(acc.at) + '. Taken by ' + (acc.byName || 'someone') + '.'}) : null,
     job.lost ? h('p', {class:'small', text:'Not going ahead: ' + (job.lost.why || 'no reason given') + '.'}) : null,
     open && qw ? h('div', {class:'bar'}, btn('Customer said yes', () => acceptDialog(job), 'pri'), btn('Rang them', () => chaseDialog(job), 'sm'),
@@ -3710,11 +3735,12 @@ function messageDialog(job, o){
   const lastOf = sms => { const x = prior.filter(m => (m.channel === 'sms') === sms && m.body); return x.length ? x[x.length - 1] : null; };
   const who = h('input', {class:'in', id:'msgBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
   const msg = h('textarea', {class:'in qmsg', id:'msgBody'}), txt = h('textarea', {class:'in', id:'msgSms'}), parts = h('p', {class:'small muted', id:'msgSmsCount'}); let busy = false; const token = {email:uid(), sms:uid()};
-  msg.value = o.kind === 'confirm' ? o.email() : lastOf(false) ? lastOf(false).body : o.email(); txt.value = o.kind === 'confirm' ? o.sms() : lastOf(true) ? lastOf(true).body : o.sms();
+  msg.value = ['confirm','quote','invoice'].includes(o.kind) ? o.email() : lastOf(false) ? lastOf(false).body : o.email(); txt.value = o.kind === 'confirm' ? o.sms() : lastOf(true) ? lastOf(true).body : o.sms();
+  if(['quote','invoice'].includes(o.kind)){msg.readOnly=true;msg.title='Quote emails use the saved quote in the black-and-gold design, with an acceptance button.';}
   const email = h('input', {class:'in', id:'msgEmail', type:'email', value:c.email || '', placeholder:'Customer’s email'}), phone = h('input', {class:'in', id:'msgPhone', type:'tel', value:c.phone || '', placeholder:'Customer’s mobile'});
   const warn = h('p', {class:'small', id:'msgWarn', style:'color:var(--bad);font-weight:700', hidden:true}), setup = h('p', {class:'small', id:'msgSetup', style:'font-weight:600'});
   const result = h('div', {id:'msgResult'}), list = h('div', {id:'msgList'});
-  const bMail = btn('Send by email', () => send('email'), 'pri'), bText = btn('Send by text', () => send('sms'), 'pri'); bMail.id = 'msgSendEmail'; bText.id = 'msgSendText';
+  const bMail = btn('Send by email', () => send('email'), 'pri'), bText = btn('Send by text', () => send('sms'), 'pri'); bMail.id = 'msgSendEmail'; bText.id = 'msgSendText'; if(o.kind==='invoice')bText.hidden=true;
   const okMail = () => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim()), okText = () => phone.value.replace(/[^\d+]/g, '').length >= 10;
   const wordsFor = channel => (channel === 'sms' ? txt.value : msg.value);
   function ok(channel){
@@ -3795,7 +3821,7 @@ function messageDialog(job, o){
   msg.addEventListener('input', () => { ok('email'); }); txt.addEventListener('input', () => { ok('sms'); paint(); });
   [email, phone, who].forEach(el => el.addEventListener('input', paint));
   openModal(dlg(o.title, h('div', {class:'sec', id:'msgForm'},
-    h('p', {}, o.head ? h('b', {text:o.head + ' '}) : null, 'This is what the customer gets, signed ' + SHOP.name + '. Change the wording if you want to.'),
+    h('p', {}, o.head ? h('b', {text:o.head + ' '}) : null, ['quote','invoice'].includes(o.kind)?'The email uses the black-and-gold design with the saved figures below. Quotes include an Accept my quote button.':'This is what the customer gets, signed ' + SHOP.name + '. Change the wording if you want to.'),
     h('p', {class:'small muted', id:'msgSubject', text:'Email subject: ' + o.subject}),
     field('The email', msg), field('The text message, kept short', txt), parts, warn,
     field('Your name. Kept on the job, not shown to the customer', who),

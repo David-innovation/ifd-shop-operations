@@ -476,7 +476,7 @@ test('messages: only the mail server or the text service taking it counts as sen
     r = await send({key:k(3)});
     assert.strictEqual(r.status, 200); assert.strictEqual(r.json.ok, true);
     let got = s.mailbox.state.got; assert.strictEqual(got.length, 1);
-    assert.deepStrictEqual(got[0].to, ['zed@example.test']); assert.strictEqual(got[0].text, body, 'the customer gets exactly the words on the screen'); assert.strictEqual(got[0].subject, 'Your quote from Innovation Flooring Direct');
+    assert.deepStrictEqual(got[0].to, ['zed@example.test']); assert.ok(got[0].text.startsWith(body), 'plain alternative retains quote wording'); assert.match(got[0].text,/Review and accept your quote:/); assert.match(got[0].html,/ACCEPT MY QUOTE/); assert.strictEqual(got[0].subject, 'Your quote from Innovation Flooring Direct');
     assert.match(got[0].fromHeader, /Innovation Flooring Direct <shop@example\.test>/); assert.strictEqual(s.mailbox.state.signIns, 1);
     let m = ms('g1')['m' + k(3)];
     assert.ok(m.state === 'sent' && m.to === 'zed@example.test' && m.body === body && m.rev === 'qa' && m.kind === 'quote' && m.channel === 'email' && m.byName === 'Sam' && m.ref === got[0].id && m.sentAt && Object.keys(m.tries).length === 1, JSON.stringify(m));
@@ -487,6 +487,7 @@ test('messages: only the mail server or the text service taking it counts as sen
     r = await send({key:k(4)}); assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'already_sent'); assert.strictEqual(s.mailbox.state.got.length, 1); assert.strictEqual(Object.keys(ms('g1')).length, 1);
     r = await send({key:k(4), again:true}); assert.strictEqual(r.json.ok, true); assert.strictEqual(s.mailbox.state.got.length, 2);
     // a send that fails: recorded as not sent, with the reason, and it does not count as sent
+    s.app.store.updateDoc(docPath('jobs/g1'),{quotes:{qb:{...quote.qa,at:'2026-11-10T10:00:00Z'}}});
     s.mailbox.state.refuse['zed@example.test'] = 1;
     r = await send({key:k(5), rev:'qb'});
     assert.strictEqual(r.status, 200); assert.strictEqual(r.json.ok, false); m = ms('g1')['m' + k(5)];
@@ -501,6 +502,7 @@ test('messages: only the mail server or the text service taking it counts as sen
     assert.strictEqual((await s.cmd('msg.retry', {jobId:'g1', mk:'m' + k(5), byName:'Sam'}, shop)).json.error.code, 'invalid_state', 'a message that went is not sent again by retrying');
     assert.strictEqual(s.mailbox.state.got.length, 3); assert.strictEqual(L.msgFailed(s.job('g1')).length, 0);
     // the mail server being down, or refusing the sign-in, is a failure with a plain reason
+    s.app.store.updateDoc(docPath('jobs/g1'),{quotes:{qc:{...quote.qa,at:'2026-11-10T11:00:00Z'}}});
     s.mailbox.state.badAuth = true; r = await send({key:k(6), rev:'qc'});
     assert.strictEqual(r.json.ok, false); assert.match(ms('g1')['m' + k(6)].err, /refused the sign-in/); s.mailbox.state.badAuth = false;
     // texts: accepted is "sent"; "delivered" only once the text service says the handset has it

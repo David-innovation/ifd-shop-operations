@@ -55,7 +55,7 @@ function create(opts){
   /* ---------- small helpers ---------- */
   const ipSends = new Map(), listeners = new Set();
   function send(res, status, body, headers){
-    const h = Object.assign({'cache-control':'no-store', 'x-content-type-options':'nosniff', 'referrer-policy':'same-origin', 'x-frame-options':'DENY'}, headers || {});
+    const h = Object.assign({'cache-control':'no-store', 'x-content-type-options':'nosniff', 'referrer-policy':res.getHeader('referrer-policy')||'same-origin', 'x-frame-options':'DENY'}, headers || {});
     if (typeof body === 'object' && !Buffer.isBuffer(body)){ body = JSON.stringify(body); h['content-type'] = 'application/json; charset=utf-8'; }
     res.writeHead(status, h); res.end(body);
   }
@@ -97,7 +97,8 @@ function create(opts){
     try { return new URL(o).host === req.headers.host; } catch (e){ return false; }
   }
   function broadcast(coll){ const msg = 'event: change\ndata: ' + JSON.stringify({coll:coll}) + '\n\n'; listeners.forEach(r => { try { r.write(msg); } catch (e) {} }); }
-  const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, pollMs:opts.pollMs});
+  const quoteAcceptance=require('./lib/quote-acceptance').make({st,L,now,broadcast,baseUrl:env.PUBLIC_URL||env.RENDER_EXTERNAL_URL||'https://ifd-shop-operations.onrender.com'});
+  const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, quoteAcceptance, pollMs:opts.pollMs});
   cmds.start();
   const appointments = require('./lib/appointments').make({st,cmds,users:()=>q.users.all(),now,L,broadcast});
 
@@ -208,6 +209,20 @@ function create(opts){
     const url = new URL(req.url, 'http://x'), p = url.pathname, authUser=userOf(req);
     const trial=authUser?.role==='owner'&&/(?:^|;\s*)ifd_trial=1(?:;|$)/.test(req.headers.cookie||'');
     const user=trial?{...authUser,id:'trial_'+authUser.id,name:authUser.name+' - fitter trial',role:'fitter',trial:true}:authUser, shopUser=user&&SHOP_ROLES.includes(user.role);
+    if(p.startsWith('/quote/')){
+      res.setHeader('referrer-policy','no-referrer');
+      const token=p.slice(7);
+      try{
+        if(req.method==='POST'){
+          if(req.headers.origin&&req.headers.origin!=='null'&&new URL(req.headers.origin).host!==req.headers.host)return fail(res,403,'forbidden','Please open the quote link and confirm there.');
+          const form=new URLSearchParams((await readBody(req,2048)).toString('utf8'));
+          if(form.get('confirm')!=='yes')return fail(res,400,'confirmation_required','Please tick the confirmation box.');
+          quoteAcceptance.accept(token);res.writeHead(303,{location:'/quote/'+token,'cache-control':'no-store','referrer-policy':'no-referrer'});return res.end();
+        }
+        if(req.method!=='GET')return fail(res,405,'method','Method not allowed.');
+        return page(res,quoteAcceptance.page(token));
+      }catch(e){return page(res,'<html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font:18px/1.6 Arial;max-width:600px;margin:60px auto;padding:24px"><h1>Innovation Flooring Direct</h1><p>'+require('./lib/quote-email').esc(e.message||'Please contact the shop.')+'</p><a href="mailto:sales@innovationflooringdirect.com">Contact our sales team</a></body></html>',e.status||500);}
+    }
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
     if (p === '/reschedule.js') return send(res,200,pub('reschedule.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/estimator-details.js') return send(res,200,pub('estimator-details.js'),{'content-type':'text/javascript; charset=utf-8'});
@@ -230,6 +245,17 @@ function create(opts){
     if (p === '/api/logout' && req.method === 'POST'){ const t = cookieOf(req); if (t) q.dropSession.run(hash(t)); res.setHeader('set-cookie', 'ifd_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' + (secure ? '; Secure' : '')); return send(res, 200, {ok:true}); }
     if (!user && p === '/appointments' && req.method === 'GET') return page(res, pub('login.html'));
     if (!user) return fail(res, 401, 'signed_out', 'Sign in first.');
+    if(p==='/document'&&req.method==='GET'){
+      if(!shopUser)return fail(res,403,'forbidden','Only shop staff can view quotes and invoices.');
+      const id=url.searchParams.get('job')||'';if(!/^[\w-]+$/.test(id))return fail(res,400,'job','Choose a job.');
+      const job=st.getDoc('jobs/'+id).data;if(!job)return fail(res,404,'job','Job not found.');
+      if(url.searchParams.get('kind')==='invoice'){
+        const inv=require('./lib/invoice').make({st,L,now,broadcast}).get(job);return page(res,require('./lib/invoice').html(inv,job,L));
+      }
+      const q=L.quoteOf(job);if(!q)return fail(res,404,'quote','No saved quote.');
+      const shop={name:'Innovation Flooring Direct',email:'sales@innovationflooringdirect.com',phone:'0141 952 5200',words:st.getDoc('settings/main').data?.words||{}};
+      return page(res,require('./lib/quote-email').html({job,q,L,body:L.quoteMessage(job,q,shop),action:'<p style="text-align:center">Preview only — sending the email adds the customer’s secure Accept my quote button.</p>'}));
+    }
     if(p==='/cutting-plan'&&req.method==='GET'){
       if(!shopUser)return fail(res,403,'forbidden','Only shop staff can print warehouse cutting plans.');
       const id=url.searchParams.get('job')||'';if(!/^[\w-]+$/.test(id))return fail(res,400,'invalid_job','Choose a job.');
