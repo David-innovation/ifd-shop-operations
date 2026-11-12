@@ -87,6 +87,12 @@ test('accepted jobs enter diary only after preparation and checking, and explici
     await s.req('POST','/api/cmd',{cmd:'cut',jobId:'journey-diary',lineK:'l1',byName:'David',bay:'W4-01'},owner);
     assert.equal(s.app.store.getDoc('jobs/journey-diary').data.diary,false);
     assert.equal((await change({lines:{l1:{checked:true}}})).status,200);
+    assert.equal(s.app.store.getDoc('jobs/journey-diary').data.diary,false,'prepared stock must not bypass payment');
+    assert.equal((await change({diary:true})).status,409);
+    assert.equal((await s.req('POST','/api/db/set',{path:'jobs/unpaid-new',data:testJob({date,diary:true})},owner)).status,409);
+    await s.cmd('pay',{jobId:'journey-diary',kind:'payment',amount:200,method:'Bank transfer',byName:'David',key:'partial_test_1'},owner);
+    assert.equal(s.app.store.getDoc('jobs/journey-diary').data.diary,false);
+    await s.cmd('pay',{jobId:'journey-diary',kind:'payment',amount:27.4,method:'Bank transfer',byName:'David',key:'balance_test_1'},owner);
     assert.equal(s.app.store.getDoc('jobs/journey-diary').data.diary,true);
     await change({diary:false});await change({notes:'Further edit'});
     assert.equal(s.app.store.getDoc('jobs/journey-diary').data.diary,false);
@@ -97,7 +103,7 @@ test('accepted jobs enter diary only after preparation and checking, and explici
 test('pack quotes combine identical variants, preserve exact quantities and gate automatic diary handover', async () => {
   const s=await boot();try{
     const L=s.app.rules, owner=await s.signIn(OWNER), variant='gid://shopify/ProductVariant/701';
-    const job=testJob({date:'2026-11-20',diaryAuto:true,brief:{choices:[{k:'a',title:'Oak laminate',variantId:variant},{k:'b',title:'Oak laminate',variantId:variant}]},rooms:{a:{name:'Bedroom',area:12,want:'a',status:'verified',spec:{floor:'flooring'}},b:{name:'Hall',area:8,want:'b',status:'verified',spec:{floor:'flooring'}}},lines:{}});
+    const job=testJob({date:'2026-11-20',diaryAuto:true,pay:{p:{amount:227.4}},brief:{choices:[{k:'a',title:'Oak laminate',variantId:variant},{k:'b',title:'Oak laminate',variantId:variant}]},rooms:{a:{name:'Bedroom',area:12,want:'a',status:'verified',spec:{floor:'flooring'}},b:{name:'Hall',area:8,want:'b',status:'verified',spec:{floor:'flooring'}}},lines:{}});
     const goods={a:{cov:1.836,pack:20.18},b:{cov:1.836,pack:20.18}}, plan=L.packPlan(job,goods,{});
     assert.equal(plan.groups.length,1);assert.equal(plan.groups[0].packs,12);assert.equal(plan.groups[0].required,22);
     assert.equal(L.catalogue(job,{},goods,{}).flooring.amount,242.16);
@@ -118,7 +124,7 @@ test('pack quotes combine identical variants, preserve exact quantities and gate
 test('fitting sheets email once per booking revision, omit sizes, and keep SMS separate', async()=>{
  const s=await boot({}, {messaging:true});try{
   s.app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['zed@example.test']}});
-  const j=testJob({date:'2026-11-20',diary:true,fittingSheetRequired:true,lines:{p:{title:'Meadow Oak 8mm',unit:'packs',qty:12,price:240},g:{title:'Full-spread glue',unit:'m²',qty:20,price:60},prep:{title:'Floor preparation',price:280}},total:1080,fitterDue:500});
+  const j=testJob({date:'2026-11-20',diary:true,fittingSheetRequired:true,lines:{p:{title:'Meadow Oak 8mm',unit:'packs',qty:12,price:240},g:{title:'Full-spread glue',unit:'m²',qty:20,price:60},prep:{title:'Floor preparation',price:280}},total:1080,fitterDue:500,pay:{p:{amount:580}}});
   s.app.store.setDoc(docPath('jobs/sheet'),j);await Promise.all([s.app.commands.poll(),s.app.commands.poll()]);await s.app.commands.poll();
   assert.equal(s.mailbox.state.got.length,1);const first=s.mailbox.state.got[0];assert.match(first.text,/Your job confirmation/);assert.match(first.text,/Meadow Oak/);assert.doesNotMatch(first.text,/8mm|20 m²|12 packs|3\.00|3\.80/);assert.match(first.html,/font-size:14px/);assert.match(first.html,/statutory consumer rights/);assert.equal(s.app.rules.confirmState(s.job('sheet')),'sent');
   s.app.store.updateDoc(docPath('jobs/sheet'),{date:'2026-11-21'});await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,2);assert.match(s.mailbox.state.got[1].text,/replaces our earlier confirmation/);
@@ -498,11 +504,12 @@ test('messages: only the mail server or the text service taking it counts as sen
     s.mailbox.state.badAuth = true; r = await send({key:k(6), rev:'qc'});
     assert.strictEqual(r.json.ok, false); assert.match(ms('g1')['m' + k(6)].err, /refused the sign-in/); s.mailbox.state.badAuth = false;
     // texts: accepted is "sent"; "delivered" only once the text service says the handset has it
+    s.app.store.updateDoc(docPath('jobs/g2'),{pay:{p:{amount:227.4}}});
     const snap = L.bookingSnap(s.job('g2')), text = L.confirmText(s.job('g2'), SHOP), rev1 = L.bookingRev(snap);
     const sms = (extra) => s.cmd('msg.send', Object.assign({jobId:'g2', kind:'confirm', channel:'sms', to:'07700 900555', body:text, rev:rev1, snap:snap, byName:'Sam'}, extra), shop);
     r = await sms({key:k(7)}); assert.strictEqual(r.json.ok, true); m = ms('g2')['m' + k(7)];
     assert.ok(m.state === 'sent' && m.to === '+447700900555' && /^SM[0-9a-f]{32}$/.test(m.ref) && m.snap.fitter === 'Lennox' && m.snap.date === '2026-11-20' && !m.deliveredAt);
-    assert.strictEqual(s.twilio.state.sent[0].body, text); assert.strictEqual(s.twilio.state.sent[0].to, '+447700900555'); assert.match(text, /^Innovation Flooring Direct: your fitting is booked for Fri 20 Nov with Lennox, ref #T9\. £150\.00 for fitting is paid straight to your fitter on the day\. Still to pay the shop: £227\.40\. Any changes ring 0141 952 5200\.$/);
+    assert.strictEqual(s.twilio.state.sent[0].body, text); assert.strictEqual(s.twilio.state.sent[0].to, '+447700900555'); assert.match(text, /^Innovation Flooring Direct: your fitting is booked for Fri 20 Nov with Lennox, ref #T9\. £150\.00 for fitting is paid straight to your fitter on the day\. Any changes ring 0141 952 5200\.$/);
     assert.strictEqual(m.revNo, 1, 'the first set of booking details the customer is told is revision 1');
     assert.strictEqual(L.confirmState(s.job('g2')), 'sent');
     await s.app.commands.poll(); m = ms('g2')['m' + k(7)];

@@ -571,8 +571,8 @@ window.IFDLogic = (function(){
   var ROOM_STATUS = {unverified:'Unverified', check:'Check required', verified:'Verified'};
   var ROOM_TONE = {unverified:'warn', check:'bad', verified:'ok'};
   var PRE_KINDS = {measure:'Measure / size check', subfloor:'Subfloor inspection', both:'Measure and subfloor inspection'};
-  var OUTCOMES = {suitable:'Suitable', prep:'Preparation required', further:'Further assessment required'};
-  var OUTCOME_TONE = {suitable:'ok', prep:'warn', further:'bad'};
+  var OUTCOMES = {ok:'Suitable', not_checked:'Could not check', suitable:'Suitable', prep:'Preparation required', further:'Further assessment required'};
+  var OUTCOME_TONE = {ok:'ok', not_checked:'bad', suitable:'ok', prep:'warn', further:'bad'};
   var SPARE = 0.10; /* the guide allowance for cuts and waste. It is only ever shown, never saved into a room. */
   function num(v){ var n = Number(v); return isFinite(n) && n > 0 ? n : 0; }
   function fmtM(n){ return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2); }
@@ -690,7 +690,7 @@ window.IFDLogic = (function(){
     booked.forEach(function(v){ out.push(PRE_KINDS[v.kind] + (validISO(v.date) ? ' booked for ' + fmtDay(v.date) + (v.who ? ' with ' + v.who : '') : ' still to be arranged' + (v.who ? ' by ' + v.who : '')) + '. Findings not in yet.'); });
     /* a visit having happened is not a pass: only a recorded outcome of suitable, or preparation the shop has reviewed, clears it */
     var insp = latestInspection(job), oc = insp && insp.sub ? insp.sub.outcome : '';
-    if (insp && oc === 'further') out.push('The subfloor needs further assessment.');
+    if (insp && (oc === 'further' || oc === 'not_checked')) out.push('The subfloor needs further assessment.');
     else if (insp && !OUTCOMES[oc]) out.push('The subfloor inspection has no outcome recorded.');
     if (job.review && job.review.on) out.push('The shop has to review a change before this goes ahead.');
     shortages(job).forEach(function(t){ out.push(t); });
@@ -762,6 +762,7 @@ window.IFDLogic = (function(){
   /* the diary lock: a job only goes in the diary when every item is in a numbered bay and its checks are done */
   function canConfirmDiary(job, off, ctx){
     var why = [], bo = backOpen(job), hc = hslClash(job, ctx);
+    if (balanceOf(job) > 0.004) why.push('Materials must be paid in full before booking. Still to pay the shop: ' + money(balanceOf(job)) + '.');
     why=why.concat(packAllocationProblems(job));
     if (hc) why.push(hslWhy(hc, job.fitter, job.date));
     if (bo) why.push('Sent back to the shop by ' + (bo.fitter || 'the fitter') + '. Deal with that first.');
@@ -4844,7 +4845,7 @@ function findingsDialog(job, v){
     nextBox.append(h('label', {class:'radio'}, h('input', {type:'radio', name:'findNext', value:x[0], onchange:() => { next = x[0]; }}), h('span', {text:x[1]}))));
   const draw = () => {
     roleSeg.replaceChildren(); [['shop', 'Shop'], ['estimator', 'Estimator'], ['fitter', 'Fitter']].forEach(x => roleSeg.append(h('button', {type:'button', class:role === x[0] ? 'on' : '', onclick:() => { role = x[0]; draw(); }}, x[1])));
-    outSeg.replaceChildren(); Object.keys(L.OUTCOMES).forEach(k => outSeg.append(h('button', {type:'button', class:outcome === k ? 'on' : '', onclick:() => { outcome = k; draw(); }}, L.OUTCOMES[k])));
+    outSeg.replaceChildren(); Object.keys(L.OUTCOMES).filter(k => k !== 'ok').forEach(k => outSeg.append(h('button', {type:'button', class:outcome === k ? 'on' : '', onclick:() => { outcome = k; draw(); }}, L.OUTCOMES[k])));
   };
   draw();
   const go = btn('Submit findings', async () => {
