@@ -29,7 +29,7 @@ button.link{background:none;border:0;color:var(--ink);text-decoration:underline;
     try { mobile = $('#mobile').value; await post('/api/login/code', {mobile:mobile}); $('#sent').textContent = 'If ' + mobile + ' is set up for this system, a code is on its way. It lasts 10 minutes.'; $('#f1').hidden = true; $('#f2').hidden = false; $('#code').focus(); }
     catch (x){ say(x.message); } $('#b1').disabled = false; });
   $('#f2').addEventListener('submit', async e => { e.preventDefault(); say(''); $('#b2').disabled = true;
-    try { await post('/api/login/verify', {mobile:mobile, code:$('#code').value}); location.href = '/'; } catch (x){ say(x.message); $('#b2').disabled = false; } });
+    try { await post('/api/login/verify', {mobile:mobile, code:$('#code').value}); location.href = location.pathname === '/appointments' ? '/appointments' : '/'; } catch (x){ say(x.message); $('#b2').disabled = false; } });
   $('#again').addEventListener('click', () => { say(''); $('#f2').hidden = true; $('#f1').hidden = false; $('#code').value = ''; $('#mobile').focus(); });
 })();
 </script></body></html>

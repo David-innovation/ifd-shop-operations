@@ -207,6 +207,7 @@ function create(opts){
     if (p === '/api/login/code' && req.method === 'POST') return requestCode(req, res);
     if (p === '/api/login/verify' && req.method === 'POST') return verifyCode(req, res);
     if (p === '/api/logout' && req.method === 'POST'){ const t = cookieOf(req); if (t) q.dropSession.run(hash(t)); res.setHeader('set-cookie', 'ifd_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' + (secure ? '; Secure' : '')); return send(res, 200, {ok:true}); }
+    if (!user && p === '/appointments' && req.method === 'GET') return page(res, pub('login.html'));
     if (!user) return fail(res, 401, 'signed_out', 'Sign in first.');
     if(p==='/api/fitter-trial'&&req.method==='POST'){
       if(authUser.role!=='owner')return fail(res,403,'forbidden','Only the owner can open their fitter trial.');
