@@ -576,6 +576,12 @@ window.IFDLogic = (function(){
   var SPARE = 0.10; /* the guide allowance for cuts and waste. It is only ever shown, never saved into a room. */
   function num(v){ var n = Number(v); return isFinite(n) && n > 0 ? n : 0; }
   function fmtM(n){ return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2); }
+  function underlayArea(r){
+    var h=hslOf(r),t=r&&r.takeoff||{};
+    if(h){if(typeof t.underlayM2==='number')return round2(t.underlayM2);var hall=hslPart(h,'hall'),land=hslPart(h,'landing'),st=hslPart(h,'stairs');return round2((hall?num(hall.len)*num(hall.wid):0)+(land?num(land.len)*num(land.wid):0)+(st?num(st.wid)*(num(st.n)*num(st.tread)+num(st.winders)*num(st.wdepth))/100:0));}
+    return num(r&&r.len)>0&&num(r&&r.wid)>0?round2(num(r.len)*num(r.wid)):roomArea(r);
+  }
+  function cutSize(len,w){return Number(len).toFixed(1)+' × '+Number(w).toFixed(1)+'m';}
   function roomArea(r){ var x = hslOf(r); if (x) return hslArea(x); var a = num(r && r.area); return a ? round2(a) : round2(num(r && r.len) * num(r && r.wid)); }
   function roomSize(r){
     var l = num(r && r.len), w = num(r && r.wid), a = roomArea(r);
@@ -964,7 +970,7 @@ window.IFDLogic = (function(){
     var out = {rooms:0, unasked:[], flooringArea:0, flooringRooms:[], carpets:[], stairs:[], underlayCarpet:0, underlayFlooring:0, gripper:0, beading:0, bars:{cc:0, cf:0, ff:0}, uplift:[], upliftArea:0, disposal:[], disposalArea:0, exactGripper:0, exactBeading:0, gripperExact:true, beadingExact:true, oldLeft:[], furniture:[], byHand:[]};
     roomsOf(job).forEach(function(r){
       var s = specOf(r), nm = r.name || 'Room'; if (!s){ out.unasked.push(nm); return; }
-      var a = roomArea(r), e = roomEdge(r), tk=r.takeoff||{}, ua=typeof tk.underlayM2==='number'?tk.underlayM2:a; out.rooms++;
+      var a = roomArea(r), e = roomEdge(r), tk=r.takeoff||{}, ua=underlayArea(r); out.rooms++;
       if(s.gripper){if(typeof tk.gripperLengths==='number')out.exactGripper+=tk.gripperLengths;else out.gripperExact=false;}
       if(s.beading){if(typeof tk.beadingLengths==='number')out.exactBeading+=tk.beadingLengths;else out.beadingExact=false;}
       if (s.floor === 'flooring'){
@@ -1067,7 +1073,7 @@ window.IFDLogic = (function(){
   function quoteRows(job, goods){
     var p = pricingOf(job), out = [], rooms = roomsOf(job).filter(function(r){ return specOf(r); });
     var supply = supplyPlan(job);
-    if (p.carpets.length || p.stairs.length) out.push({key:'carpet', label:'Carpet', note:supply.groups.map(function(g){return fmtM(g.cut)+' m off the '+g.w+' m roll, including '+g.names.join(', ');}).concat(supply.problems).join('; ')});
+    if (p.carpets.length || p.stairs.length) out.push({key:'carpet', label:'Carpet', note:supply.groups.map(function(g){return cutSize(g.cut,g.w)+', including '+g.names.join(', ');}).concat(supply.problems).join('; ')});
     if (p.flooringRooms.length) out.push({key:'flooring', label:'Flooring', note:fmtM(p.flooringArea) + ' m² of floor as measured, nothing added for wastage'});
     if (p.underlayCarpet || p.underlayFlooring) out.push({key:'underlay', label:'Underlay', note:[p.underlayCarpet ? fmtM(p.underlayCarpet) + ' m² under carpet' : '', p.underlayFlooring ? fmtM(p.underlayFlooring) + ' m² under flooring' : ''].filter(Boolean).join(', ')});
     var gh = p.byHand.filter(function(x){ return x.indexOf('gripper') === 0; }), bh = p.byHand.filter(function(x){ return x.indexOf('beading') === 0; });
@@ -1693,7 +1699,7 @@ window.IFDLogic = (function(){
     extractGraphQL:extractGraphQL, parseEmbeddedJson:parseEmbeddedJson, userErrorsOf:userErrorsOf,
     levelFigures:levelFigures, isRoll:isRoll, unitFor:unitFor, fmtQty:fmtQty, ppmOf:ppmOf, rollPrice:rollPrice,
     linesOf:linesOf, stockLines:stockLines, payList:payList, paidOf:paidOf, balanceOf:balanceOf, shopTotal:shopTotal, creditOf:creditOf, fitterPaid:fitterPaid, fitterOwed:fitterOwed, owedText:owedText, receiptMessage:receiptMessage, fitterDue:fitterDue, quoteFitting:quoteFitting, longDay:longDay,
-    MSG_STATE:MSG_STATE, MSG_TONE:MSG_TONE, MSG_KIND:MSG_KIND, msgsOf:msgsOf, msgWent:msgWent, msgWhen:msgWhen, msgsFor:msgsFor, msgFailed:msgFailed, msgText:msgText, bookingSnap:bookingSnap, confirmLast:confirmLast, confirmChanges:confirmChanges, confirmState:confirmState, confirmMessage:confirmMessage, confirmText:confirmText, confirmSubject:confirmSubject, confirmRevNo:confirmRevNo, bookingRev:bookingRev, snapChanges:snapChanges, prepNotes:prepNotes, subfloorNotice:subfloorNotice, arrivalLine:arrivalLine, receiptSubject:receiptSubject, receiptText:receiptText, accUnits:accUnits, accUnit:accUnit,
+    MSG_STATE:MSG_STATE, MSG_TONE:MSG_TONE, MSG_KIND:MSG_KIND, msgsOf:msgsOf, msgWent:msgWent, msgWhen:msgWhen, msgsFor:msgsFor, msgFailed:msgFailed, msgText:msgText, bookingSnap:bookingSnap, confirmLast:confirmLast, confirmChanges:confirmChanges, confirmState:confirmState, confirmMessage:confirmMessage, confirmText:confirmText, confirmSubject:confirmSubject, confirmRevNo:confirmRevNo, bookingRev:bookingRev, snapChanges:snapChanges, underlayArea:underlayArea, cutSize:cutSize, prepNotes:prepNotes, subfloorNotice:subfloorNotice, arrivalLine:arrivalLine, receiptSubject:receiptSubject, receiptText:receiptText, accUnits:accUnits, accUnit:accUnit,
     shortages:shortages, goodsMissing:goodsMissing, cutBlocks:cutBlocks, isService:isService, quoteNeeds:quoteNeeds, closeOff:closeOff, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
@@ -3489,7 +3495,7 @@ function pricingBlock(job, titles, edit){
           const v = e.target.value, pr = {rooms:{}}; pr.rooms[c.k] = {spec:{dir:v}};
           patchJob(job.id, pr, 'Carpet in ' + c.name + ': ' + (v === 'any' ? 'can run either way' : 'has to run along the ' + L.fmtM(v === 'len' ? pl.len : pl.wid) + ' m side')).catch(dbFail);
         }}, [['any', 'Carpet can run either way'], ['len', 'Has to run along the ' + L.fmtM(pl.len) + ' m side'], ['wid', 'Has to run along the ' + L.fmtM(pl.wid) + ' m side']].map(o => h('option', {value:o[0], text:o[1], selected:pl.dir === o[0]}))) : null),
-      h('b', {class:'num', text:bt ? L.fmtM(bt.cut) + ' m off the ' + bt.rollW + ' m roll, ' + L.fmtM(bt.sq) + ' m²' : 'Work out by hand'}))); });
+      h('b', {class:'num', text:bt ? L.cutSize(bt.cut,bt.rollW) + ', ' + L.fmtM(bt.sq) + ' m²' : 'Work out by hand'}))); });
   p.stairs.forEach(z => rows.push(h('div', {class:'pline'}, h('span', {}, 'Stairs: ' + z.name, h('small', {class:'psub', text:z.text + '.'}), h('span', {class:'meta'}, chip('Work the cut out by hand', 'warn'))),
     h('b', {class:'num', text:'Run ' + L.fmtM(z.run) + ' m, ' + L.fmtM(z.wid) + ' m wide'}))));
   if (p.carpets.length > 1) p.rolls.forEach(g => rows.push(row('Carpet ordered in all, ' + g.w + ' m roll', L.fmtM(g.cut) + ' m, ' + L.fmtM(g.sq) + ' m²')));
