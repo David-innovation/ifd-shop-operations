@@ -27,6 +27,9 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  app.store.setDoc(docPath('timeoff/lennox'),{name:'Lennox',days:{'2026-11-13':{off:true}}});assert.equal((await run('schedule',b)).status,409);app.store.updateDoc(docPath('timeoff/lennox'),{days:{'2026-11-13':{off:false}}});
  app.store.setDoc(docPath('jobs/conflict'),{...j,date:b.newDate});assert.equal((await run('schedule',b)).status,409);app.store.updateDoc(docPath('jobs/conflict'),{status:'cancelled'});
  const result=await run('schedule',b);assert.equal(result.status,200);assert.equal(result.data.state,'sent');assert.equal(result.data.emailState,'sent');assert.equal(sent.length,1);assert.equal(emails.length,1);assert.match(sent[0].body,/finishing visit/);assert.equal(current().date,b.newDate);assert.equal(current().arrival.slot,b.slot);
+ assert.equal(current().fitterWork.events[b.key].byRole,'fitter');assert.equal(current().fitterWork.events[b.key].reviewed,false);
+ assert.equal((await run('reviewMove',{event:b.key},me)).status,403);
+ assert.equal((await run('reviewMove',{event:b.key},owner)).status,200);assert.equal(current().fitterWork.events[b.key].reviewed,true);
  assert.deepEqual(current().lines,j.lines);assert.deepEqual(current().pay,j.pay);assert.deepEqual(current().drafts,j.drafts);assert.equal(current().fitter,'Lennox');
  assert.equal((await run('schedule',b)).data.duplicate,true);await run('notify',{event:b.key});assert.equal(sent.length,1);assert.equal(emails.length,1);
  assert.equal((await run('issue',{resolve:'beading_task',note:'Beading fitted and checked'})).status,200);
@@ -55,6 +58,15 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  uncertain=true;const lost=await run('schedule',{...b,key:'lost_response',newDate:'2026-11-24'});assert.equal(lost.data.state,'unsure');const count=sent.length;await run('notify',{event:'lost_response'});assert.equal(sent.length,count);assert.match(current().fitterWork.notificationIssue,/TEST lost/);
  app.store.updateDoc(docPath('jobs/work'),{fitter:'Other'});assert.equal((await run('checklist',{profiles:['carpet']})).status,403);
  uncertain=false;assert.equal((await call('/api/my-signin-link',limitedCookie,{to:'+447700999999'})).status,200);assert.equal(sent.at(-1).to,'+447700900001');assert.match(sent.at(-1).body,/\/fitter Enter your mobile/);assert.equal((await call('/api/my-signin-link',limitedCookie,{})).status,429);assert.equal((await call('/api/my-signin-link',null,{})).status,401);
+ const shopOwner=await login('07700900001');
+ const moving={...b,key:'simple_move',newDate:'2026-11-26',reason:'Fitter illness / emergency',note:'INTERNAL ONLY'};
+ assert.equal((await run('reschedule',moving,me)).status,403);
+ assert.equal((await run('reschedule',{...moving,reason:''},other)).status,400);
+ assert.equal((await run('reschedule',{...moving,reason:'Other',note:''},other)).status,400);
+ assert.equal((await run('reschedule',moving,other)).status,200);assert.equal(current().date,moving.newDate);assert.equal(current().fitterWork.events.simple_move.byRole,'fitter');assert.equal(current().fitterWork.events.simple_move.reviewed,false);assert.ok(!JSON.stringify(emails.at(-1)).includes('INTERNAL ONLY'));assert.ok(!sent.at(-1).body.includes('illness'));
+ const messages=sent.length;assert.equal((await run('reschedule',moving,other)).data.duplicate,true);assert.equal(sent.length,messages);
+ assert.equal((await run('reschedule',{...moving,key:'shop_move',newDate:'2026-11-27',reason:'Customer requested a change'},shopOwner)).status,200);assert.equal(current().fitterWork.events.shop_move.byRole,'owner');
+ assert.deepEqual(current().lines,j.lines);assert.deepEqual(current().pay,j.pay);assert.deepEqual(current().drafts,j.drafts);
  const originalJob=app.store.getDoc('jobs/private').data;
  assert.equal((await call('/api/my-availability',me,{name:'Other',start:'2026-11-13',end:'2026-11-15',off:true,note:'Away'})).status,200);
  const off=(await call('/api/appointments',me)).data.availability;assert.equal(off['2026-11-14'].off,true);assert.equal((await call('/api/appointments',other)).data.availability['2026-11-14'],undefined);assert.deepEqual(app.store.getDoc('jobs/private').data,originalJob);

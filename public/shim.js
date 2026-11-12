@@ -121,7 +121,7 @@
   /* changes the server checks against the shop's rules before it makes them: cutting, money, messages */
   const cmd = { run: (name, body) => call('POST', '/api/cmd', Object.assign({cmd:name}, body || {})), status: () => call('GET', '/api/status') };
   const geo = { lookup: codes => call('GET', '/api/geo?codes=' + encodeURIComponent((codes || []).join(','))).then(r => r.codes || {}) };
-  const caps = {db:db, mcp:mcp, user:user, downloads:downloads, assets:assets, geo:geo, cmd:cmd};
+  const caps = {work:(action,body)=>call('POST','/api/appointments/work/'+action,body),db:db, mcp:mcp, user:user, downloads:downloads, assets:assets, geo:geo, cmd:cmd};
   window.claude = {use: async name => caps[name] || null};
   /* a way out, since the shop's screen is shared. This file can arrive late, after the page is already drawn */
   const wayOut = () => {

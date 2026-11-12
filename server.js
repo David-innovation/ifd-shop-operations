@@ -24,7 +24,7 @@ function create(opts){
   const appBody = fs.readFileSync(path.join(__dirname, 'app', 'ifd-shop-operations.html'), 'utf8');
   /* which build of the screens this is, so a screen left open can tell when it has been replaced */
   const VERSION = crypto.createHash('sha256').update(appBody + pub('shim.js')).digest('hex').slice(0, 12);
-  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/shim.js"></script></head><body>' + appBody + '</body></html>';
+  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/shim.js"></script><script src="/reschedule.js"></script></head><body>' + appBody + '</body></html>';
   const db = st.db;
   /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
   const L = rules.load(appBody);
@@ -209,6 +209,7 @@ function create(opts){
     const trial=authUser?.role==='owner'&&/(?:^|;\s*)ifd_trial=1(?:;|$)/.test(req.headers.cookie||'');
     const user=trial?{...authUser,id:'trial_'+authUser.id,name:authUser.name+' - fitter trial',role:'fitter',trial:true}:authUser, shopUser=user&&SHOP_ROLES.includes(user.role);
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
+    if (p === '/reschedule.js') return send(res,200,pub('reschedule.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-diary.js') return send(res,200,pub('fitter-diary.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/crew-style.css') return send(res,200,pub('crew-style.css'),{'content-type':'text/css; charset=utf-8'});
@@ -259,7 +260,7 @@ function create(opts){
     if (p === '/api/appointments/signoff' && req.method === 'POST') return send(res,200,appointments.signoff(await readJson(req),user));
     if (p.startsWith('/api/appointments/work/') && req.method === 'POST') {
       const action=p.slice('/api/appointments/work/'.length);
-      if(!['checklist','issue','approve','diary','schedule','notify'].includes(action))return fail(res,404,'not_found','Unknown fitting action.');
+      if(!['checklist','issue','approve','diary','schedule','notify','reschedule','reviewMove'].includes(action))return fail(res,404,'not_found','Unknown fitting action.');
       return send(res,200,await appointments.work[action](await readJson(req),user));
     }
     if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));

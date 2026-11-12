@@ -17,6 +17,7 @@ function addFitterWork(card,j,shop){
  const select=(options,value)=>{const s=el('select');for(const [v,t] of options){const o=el('option',t);o.value=v;s.append(o);}s.value=value||options[0][0];return s;};
  const post=async(action,body)=>api('/api/appointments/work/'+action,{jobId:j.id,date:j.date,version:w.version,...body});
  const act=(button,fn)=>{button.onclick=async()=>{if(busy)return;busy=true;button.disabled=true;result.textContent='Saving...';try{const r=await fn();busy=false;await load();status.textContent=r.booked?'Visit booked. Text: '+r.state+(r.error?' — '+r.error:''):'Saved.';}catch(e){result.textContent=e.message;busy=false;button.disabled=false;}};};
+ const move=details('Reschedule job');move.append(window.IFDReschedule.form({id:j.id,date:j.date,version:w.version,slot:w.slot,duration:w.duration},async body=>post('reschedule',body),async r=>{await load();status.textContent='Job rescheduled. Text: '+r.state+(r.error?' — '+r.error:'');}));
  if(w.shopAttention)section.append(el('p','Shop action needed: '+w.shopAttention));
  const spec=details('Flooring and rooms on this job');for(const x of w.items||[])spec.append(el('p',x.title+(x.qty?' · '+x.qty+' '+(x.unit||'units'):'')));for(const x of w.rooms||[])spec.append(el('p',x.name+(x.len&&x.wid?' · '+x.len+' × '+x.wid+' m':'')));
  const checklist=details('Fitting checklist · '+w.checks.filter(c=>['done','na'].includes(c.state)).length+'/'+w.checks.length+' checked'),types=el('div'),typeInputs=[];
