@@ -12,15 +12,15 @@ input{font:inherit;font-size:20px;color:var(--ink);background:var(--surface);bor
 button{font:inherit;font-weight:600;border-radius:8px;min-height:50px;padding:10px 14px;cursor:pointer;border:1.5px solid var(--ink);background:var(--ink);color:var(--surface)}
 button.link{background:none;border:0;color:var(--ink);text-decoration:underline;min-height:40px}button[disabled]{opacity:.5}
 .err{background:var(--bad-bg);color:var(--bad);border:1.5px solid var(--bad);border-radius:8px;padding:10px 12px}[hidden]{display:none!important}:focus-visible{outline:3px solid #1b5683;outline-offset:2px}
-</style></head><body><main>
-<div><small class="b">Innovation Flooring Direct</small><h1>Shop Operations</h1></div>
+</style><link rel="stylesheet" href="/crew-style.css"></head><body class="crew crew-auth"><main><header class="brand" aria-label="Innovation Flooring Direct"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">INNOVATION</span><span class="brand-sub">FLOORING DIRECT</span><span class="brand-caption">The team behind every floor</span></header>
+<div class="auth-title"><small class="b">Innovation Flooring Direct</small><h1>Shop Operations</h1></div>
 <form id="f1"><p>Enter your mobile number and we will text you a code.</p>
   <label>Mobile number<input id="mobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="07700 900123" required></label><br><button id="b1" type="submit">Text me a code</button></form>
 <form id="f2" hidden><p id="sent"></p>
   <label>Code from the text<input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 digits" required></label><br><button id="b2" type="submit">Sign in</button>
   <button class="link" id="again" type="button">Use a different number</button></form>
 <div class="err" id="err" hidden role="alert"></div>
-</main><script>
+<p class="auth-foot">Your day. Your jobs. All in one place.</p></main><script>
 (function(){
   const $ = s => document.querySelector(s), err = $('#err'); let mobile = '';
   const fitterLogin=['/fitter','/appointments'].includes(location.pathname);
