@@ -77,9 +77,3 @@ body.crew{background:#08090b;color:#f7f7f8;font-family:Inter,'Segoe UI',system-u
 .crew-diary #diaryBack{color:#e7e7ed;background:transparent;border-color:#383944}
 @media(min-width:650px){.crew-diary{padding-top:36px}.crew-diary #diaryView .diary-day{padding:20px}.crew-diary .brand-name{font-size:34px}}
 @media(prefers-reduced-motion:reduce){.crew *, .crew *::before{animation:none!important;transition:none!important}}
-/* Red neon edges distinguish each interactive panel on the black background. */
-.crew-auth input:not([type=checkbox]),.crew-diary article,.crew-diary #diaryView .diary-day,.crew-diary #diaryView .diary-job,.crew-diary #diaryView .diary-controls,.crew-diary article summary,.crew-diary article .preview,.crew-diary input:not([type=checkbox]),.crew-diary select,.crew-diary textarea{border-color:#d72646;box-shadow:0 0 0 1px #ed193a20,0 0 12px #ed193a26,inset 0 0 8px #ed193a08}
-.crew button,.crew-diary #diaryView .diary-controls button,.crew-diary nav button,.crew-diary #out,.crew-diary #practiceJobs,.crew-diary #diaryBack{border:1px solid #b9233e;box-shadow:0 0 8px #ed193a20}
-.crew-diary #diaryView .diary-today{border-color:#ff4866;box-shadow:0 0 0 1px #ff345550,0 0 20px #ed193a40,inset 0 0 16px #ed193a0d}
-.crew-diary #diaryView .diary-job:hover,.crew button:hover:not(:disabled),.crew input:not([type=checkbox]):focus,.crew textarea:focus,.crew select:focus{border-color:#ff6680;box-shadow:0 0 14px #ed193a55}
-.crew-auth button.link{border:0;box-shadow:none}

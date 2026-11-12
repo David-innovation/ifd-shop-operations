@@ -1,0 +1,56 @@
+body.crew-diary{max-width:620px;background:#050506;padding:0 20px 110px;position:relative;isolation:isolate}
+body.crew-diary::before{content:'';position:absolute;z-index:-1;left:0;right:0;top:42px;height:225px;background:url('/after-dark-wave.svg') center/cover no-repeat;pointer-events:none;animation:brand-arrive 1.2s both}
+.crew-diary>.brand{height:170px;border:0;margin:0;padding:32px 0 0;display:flex;flex-direction:column;align-items:flex-start}
+.crew-diary .brand-mark{position:absolute;left:3px;top:34px;width:3px;height:61px;background:#e9002b;box-shadow:none;transform:skew(-13deg);margin:0}
+.crew-diary .brand-name,.crew-diary .brand-sub{margin:0 0 0 20px;font-size:15px;font-weight:500;line-height:1.5;letter-spacing:3px}
+.crew-diary .brand-sub{width:150px;max-width:150px;white-space:normal}
+.crew-diary .brand-caption{display:none}
+.crew-diary>h1{font-size:clamp(56px,15vw,88px);font-weight:500;letter-spacing:-3.5px;line-height:1.08;margin:0 0 30px}
+.crew-diary>nav:not(#crewBottom),.crew-diary>p,.crew-diary>#fitterAccess{display:none}
+.crew-diary.profile-open>nav:not(#crewBottom),.crew-diary.profile-open>#fitterAccess{display:flex}
+.crew-diary.profile-open>#status{display:block}
+.crew-diary #diaryView{animation:none}
+.crew-diary #diaryView h2{font-size:23px;font-weight:650;letter-spacing:-.7px;margin:20px 0 17px;line-height:1.25}
+.crew-diary #diaryView h3{font-size:16px}
+.crew-diary .date-strip{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:1px 0 4px;position:relative}
+.crew-diary .date-strip::-webkit-scrollbar{display:none}
+.crew-diary .date-tile{flex:0 0 calc((100% - 24px)/4);min-width:68px;display:flex;flex-direction:column;align-items:center;justify-content:center;height:88px;border:1px solid #303035;border-radius:11px;background:linear-gradient(135deg,#202022,#101012);color:#e7e7e9;box-shadow:inset 0 1px #ffffff08;padding:8px}
+.crew-diary .date-tile span{text-transform:uppercase;font-size:12px;font-weight:450;letter-spacing:.2px}
+.crew-diary .date-tile strong{font-size:29px;font-weight:600;line-height:1.25}
+.crew-diary .date-tile[aria-pressed=true]{background:linear-gradient(135deg,#e70021,#a80012);border-color:#f93249;color:#fff;box-shadow:0 5px 20px #c8001b17}
+.crew-diary .date-tile i{height:3px;width:3px;border-radius:50%;margin-top:4px;background:transparent}
+.crew-diary .date-tile .has-jobs{background:currentColor}
+.crew-diary .week-controls{display:flex;justify-content:space-between;gap:5px;margin:5px 0 8px}
+.crew-diary .week-controls button{font-size:10px;min-height:32px;border:0;background:transparent;color:#a6a6af;padding:4px;box-shadow:none}
+.crew-diary #diaryView .diary-job{display:flex;flex-direction:column;align-items:stretch;width:100%;margin:0 0 12px;text-align:left;gap:9px;background:linear-gradient(125deg,#1e1e21,#131315);border:1px solid #303035;border-radius:13px;padding:18px;box-shadow:inset 0 1px #ffffff04;color:#fff}
+.crew-diary #diaryView .diary-job:hover{border-color:#666;background:linear-gradient(125deg,#27272c,#19191c)}
+.crew-diary #diaryView .diary-job .job-top{display:flex;align-items:center;justify-content:space-between;gap:8px;color:white}
+.crew-diary #diaryView .job-top b{border-left:3px solid #f0002e;padding-left:9px;font-size:20px;line-height:1.2;font-weight:600}
+.crew-diary #diaryView .job-top>span{font-size:12px;color:#dedee4;font-weight:400;margin:0;white-space:nowrap}
+.crew-diary #diaryView .diary-job>strong{font-size:23px;font-weight:650;line-height:1.2;letter-spacing:-.5px}
+.crew-diary #diaryView .diary-job .job-type{display:flex;align-items:center;gap:12px;color:#c8c8d0;font-size:14px;font-weight:400;margin:0}
+.crew-diary .job-type svg{width:24px;height:24px;flex-shrink:0}
+.crew-diary #diaryView .job-type>span{font-size:14px;color:#c8c8d0;font-weight:400;margin:0}
+.crew-diary .next-booked{width:100%;font-size:11px;background:transparent;border:0;color:#bbb;min-height:40px;padding:8px}
+.crew-diary .empty-day,.crew-diary .profile-card{background:#141417;border:1px solid #303035;padding:22px;border-radius:14px}
+.crew-diary .empty-day h3{margin-top:0}
+.crew-diary #crewBottom{display:flex;position:fixed;z-index:30;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:620px;gap:0;margin:0;padding:12px 12px max(12px,env(safe-area-inset-bottom));background:linear-gradient(#151517f7,#09090bf7);backdrop-filter:blur(16px);border-top:1px solid #323237;justify-content:space-around}
+.crew-diary #crewBottom button{display:flex;flex:1;flex-direction:column;align-items:center;gap:5px;background:none;border:0;border-radius:0;color:#bdbdc5;font-size:12px;font-weight:450;min-height:54px;padding:0 10px 7px;box-shadow:none;position:relative}
+.crew-diary #crewBottom svg{width:25px;height:25px}
+.crew-diary #crewBottom button[aria-pressed=true]{color:#fff;font-weight:650}
+.crew-diary #crewBottom button[aria-pressed=true] svg{color:#ff314c}
+.crew-diary #crewBottom button[aria-pressed=true]::after{content:'';position:absolute;bottom:0;width:48px;height:2px;background:#ef1237}
+.crew-diary.job-open>.brand{height:115px}.crew-diary.job-open>h1{font-size:44px;margin-bottom:18px}.crew-diary.job-open::before{height:150px;opacity:.6}
+.crew-diary #diaryBack{margin:0;border:0;background:none;padding:10px 0;color:#c4c4cc}
+.crew-diary article{border-color:#303035;box-shadow:none;background:#131315;margin-top:10px}
+.crew-diary article summary,.crew-diary article .preview{box-shadow:none;border-color:#33333b}
+@media(min-width:600px){.crew-diary .date-tile{flex-basis:calc((100% - 48px)/7)}body.crew-diary{padding-left:28px;padding-right:28px}.crew-diary>.brand{height:190px}body.crew-diary::before{height:270px}.crew-diary>h1{margin-bottom:32px}}
+body.crew-auth{background:#050506 url('/after-dark-wave.svg') center 15%/min(900px,160vw) auto no-repeat}
+.crew-auth .brand{padding-bottom:50px}.crew-auth .brand-caption{display:none}
+@media(prefers-reduced-motion:reduce){body.crew-diary::before{animation:none}}
+/* Keep the light above the headline and all four visible date tiles aligned. */
+body.crew-diary::before{top:16px;height:170px}
+.crew-diary #diaryView .diary-job>.job-type{color:#c8c8d0}
+@media(min-width:600px){body.crew-diary::before{height:220px;top:0}}
+.crew-diary>#status:not(:empty){display:block;font-size:12px;color:#c9c9d1;margin:8px 0 16px}
+.crew-diary>#status:empty{display:none}
