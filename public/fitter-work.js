@@ -1,5 +1,6 @@
 'use strict';
 function fitterAccess(owner,trial){
+ let practice=document.getElementById('practiceJobs');if(!practice){practice=el('button','Add my practice jobs');practice.id='practiceJobs';practice.hidden=true;document.querySelector('nav').append(practice);api('/api/me').then(u=>{practice.hidden=!(u.role==='owner'||u.id.startsWith('trial_'));});practice.onclick=async()=>{practice.disabled=true;try{await api('/api/fitter-practice',{});await load();}catch(e){alert(e.message);}finally{practice.disabled=false;}};}
  let switcher=document.getElementById("trialSwitch");if(switcher)switcher.remove();if(owner||trial){switcher=el("button",trial?"Return to my owner / shop view":"Open my private fitter trial");switcher.id="trialSwitch";switcher.onclick=async()=>{await api("/api/fitter-trial",{enabled:!trial});location.href=trial?"/":"/appointments";};document.querySelector("nav").append(switcher);}
  let box=document.getElementById('fitterAccess');if(box)box.remove();if(!owner)return;
  box=el('details');box.id='fitterAccess';box.append(el('summary','Owner: fitter sign-ins'));

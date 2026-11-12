@@ -47,6 +47,9 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  const limited=await fetch(base+'/api/login/verify',{method:'POST',headers:{'x-ifd':'1','content-type':'application/json'},body:JSON.stringify({mobile:'07700900001',code,mode:'fitter'})});assert.equal(limited.status,200);const limitedCookie=limited.headers.get('set-cookie').split(';')[0];
  for(const url of ['/api/users','/api/db/list?coll=jobs','/api/db/doc?path=settings/main'])assert.equal((await call(url,limitedCookie)).status,403);
  assert.equal((await call('/api/fitter-trial',limitedCookie,{enabled:false})).status,403);assert.equal((await call('/api/appointments',limitedCookie)).data.jobs.length,1);
+ assert.equal((await call('/api/fitter-practice',me,{})).status,403);
+ assert.equal((await call('/api/fitter-practice',limitedCookie,{})).status,200);assert.equal((await call('/api/fitter-practice',limitedCookie,{})).status,200);
+ const practice=(await call('/api/appointments',limitedCookie)).data.jobs;assert.equal(practice.length,4);for(const j of practice.filter(j=>j.ref.startsWith('ZZ PRACTICE'))){const p=app.store.getDoc('jobs/'+j.id).data;assert.equal(p.total,0);assert.equal(p.lines.floor.hold,'none');assert.equal(p.customer.phone,'+447700900001');}
  const home=await fetch(base+'/',{headers:{cookie:limitedCookie}});assert.match(await home.text(),/My jobs &amp; visits|My jobs & visits/);
  await run('issue',{resolve:'unsafe_task',note:'Cable repaired and checked safe'});await run('issue',{resolve:'prep_task',note:'Preparation completed and cured'});
  uncertain=true;const lost=await run('schedule',{...b,key:'lost_response',newDate:'2026-11-24'});assert.equal(lost.data.state,'unsure');const count=sent.length;await run('notify',{event:'lost_response'});assert.equal(sent.length,count);assert.match(current().fitterWork.notificationIssue,/TEST lost/);
