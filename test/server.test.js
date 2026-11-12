@@ -65,7 +65,7 @@ test('customer sign-off enforces assignment, signatures, holds, immutable histor
   s.app.store.setDoc(docPath('jobs/issues'),j);
   assert.equal((await sign({...b,jobId:'issues',key:'customer_issues',outcome:'issues',note:'TEST: trim needs attention'})).status,200);
   assert.equal(s.job('issues').status,'open');assert.equal(s.job('issues').ret,'needed');
-  await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,2);assert.match(s.mailbox.state.got[1].text,/trim needs attention/);assert.match(s.mailbox.state.got[1].text,/https:\/\/example.test\/review/);
+  await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,2);assert.match(s.mailbox.state.got[1].text,/trim needs attention/);assert.match(s.mailbox.state.got[1].text,/Please only pay your fitter once all agreed fitting work is complete/);assert.match(s.mailbox.state.got[1].text,/https:\/\/example.test\/review/);
   s.app.store.setDoc(docPath('jobs/heldsign'),testJob({date:j.date,diary:true}));assert.equal((await sign({...b,jobId:'heldsign'})).status,409);
   assert.equal((await s.req('POST','/api/db/update',{path:'jobs/heldsign',data:{status:'done'}},owner)).status,409);
   s.app.store.setDoc(docPath('jobs/absent'),j);assert.equal((await sign({...b,jobId:'absent',strokes:[],reason:'Customer had to leave'})).status,200);assert.equal(s.job('absent').status,'open');
