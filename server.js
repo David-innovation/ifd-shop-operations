@@ -213,6 +213,7 @@ function create(opts){
     if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-diary.js') return send(res,200,pub('fitter-diary.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/crew-style.css') return send(res,200,pub('crew-style.css'),{'content-type':'text/css; charset=utf-8'});
+    if (p === '/shop-after-dark.css') return send(res,200,pub('shop-after-dark.css'),{'content-type':'text/css; charset=utf-8'});
     if (p === '/after-dark.css') return send(res,200,pub('after-dark.css'),{'content-type':'text/css; charset=utf-8'});
     if (p === '/after-dark-wave.svg') return send(res,200,pub('after-dark-wave.svg'),{'content-type':'image/svg+xml'});
     if (p === '/shim.js') return send(res, 200, pub('shim.js'), {'content-type':'text/javascript; charset=utf-8'});
