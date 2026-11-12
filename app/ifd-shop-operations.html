@@ -5026,6 +5026,7 @@ function roomBlock(job, r){
     r.status === 'verified' ? h('p', {class:'small muted', text:'Verified by ' + (r.verBy || 'someone') + (L.SOURCES[r.verRole] ? ' (' + L.SOURCES[r.verRole].toLowerCase() + ')' : '') + (L.validISO(r.verOn) ? ' on ' + L.fmtDay(r.verOn) : '') + (r.verAt ? '. Recorded ' + whenText(r.verAt) + ' by ' + nameOf(r.verById) : '') + '.'}) : null,
     r.status === 'check' && r.checkWhy ? h('p', {class:'small', text:'To check: ' + r.checkWhy}) : null,
     r.takeoff ? h('p',{text:'Measured materials: underlay '+(r.takeoff.underlayM2??'not recorded')+' m²; gripper '+(r.takeoff.gripperLengths??'not recorded')+' lengths; beading '+(r.takeoff.beadingLengths??'not recorded')+' lengths.'}) : null,
+    r.surveySummary ? h('p',{style:'white-space:pre-wrap',text:r.surveySummary}) : null,
     r.requirements ? h('p',{text:'Estimator product / accessory requirements: '+r.requirements}) : null,
     r.responsibility ? h('p',{text:'Preparation agreement — furniture: '+r.responsibility.furniture+'; uplift: '+r.responsibility.uplift+'; disposal: '+r.responsibility.disposal+'. '+(r.responsibility.note||'')}) : null,
     r.note ? h('p', {class:'small muted', text:r.note}) : null,
