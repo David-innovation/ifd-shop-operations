@@ -231,6 +231,7 @@ function create(opts){
     if (p === '/estimator-tools.js') return send(res,200,pub('estimator-tools.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/room-drawing-model.js') return send(res,200,fs.readFileSync(path.join(__dirname,'lib/room-drawing.js')),{"content-type":"text/javascript; charset=utf-8"});
     if (p === '/room-drawing-editor.js') return send(res,200,pub('room-drawing-editor.js'),{"content-type":"text/javascript; charset=utf-8"});
+    if (p === '/estimator-handover.js') return send(res,200,pub('estimator-handover.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/room-drawing.css') return send(res,200,pub('room-drawing.css'),{"content-type":"text/css; charset=utf-8"});
     if (p === '/room-survey.js') return send(res,200,pub('room-survey.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/estimator-details.js') return send(res,200,pub('estimator-details.js'),{'content-type':'text/javascript; charset=utf-8'});
@@ -313,7 +314,7 @@ function create(opts){
       return send(res,200,await appointments.work[action](await readJson(req),user));
     }
     if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));
-    if(p.startsWith('/api/appointments/estimator/')&&req.method==='POST'){const action=p.split('/').pop();if(!['catalogue','selectProduct','attachment','drawing'].includes(action))return fail(res,404,'not_found','Unknown estimator action.');return send(res,200,await estimatorTools[action](await readJson(req),user));}
+    if(p.startsWith('/api/appointments/estimator/')&&req.method==='POST'){const action=p.split('/').pop();if(!['catalogue','selectProduct','attachment','drawing','configureMeasure','submitMeasure','measureExample'].includes(action))return fail(res,404,'not_found','Unknown estimator action.');return send(res,200,await estimatorTools[action](await readJson(req),user));}
     if(p.startsWith('/api/appointments/drawing/')&&req.method==='GET'){
       const bits=p.slice('/api/appointments/drawing/'.length).split('/'),jobId=decodeURIComponent(bits[0]||''),roomKey=decodeURIComponent(bits[1]||''),j=st.getDoc('jobs/'+jobId).data;
       if(!j||!(appointments.allowed(j,user)||Object.keys(j.pre||{}).some(k=>{const v=appointments.visitJob(j,k);return v&&appointments.allowed(v,user);})))return fail(res,403,'forbidden','This is not your assigned job.');
