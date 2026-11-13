@@ -24,7 +24,7 @@ function create(opts){
   const appBody = fs.readFileSync(path.join(__dirname, 'app', 'ifd-shop-operations.html'), 'utf8');
   /* which build of the screens this is, so a screen left open can tell when it has been replaced */
   const VERSION = crypto.createHash('sha256').update(appBody + pub('shim.js')).digest('hex').slice(0, 12);
-  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/walkin-measures.js"></script><script src="/shim.js"></script><script src="/reschedule.js"></script><script src="/slot-alerts.js" defer></script><script src="/trade-link.js" defer></script></head><body>' + appBody + '</body></html>';
+  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/walkin-measures.js"></script><script src="/walkin-stairs-core.js"></script><script src="/walkin-stairs.js"></script><script src="/shim.js"></script><script src="/reschedule.js"></script><script src="/slot-alerts.js" defer></script><script src="/trade-link.js" defer></script></head><body>' + appBody + '</body></html>';
   const db = st.db;
   /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
   const L = rules.load(appBody);
@@ -376,6 +376,8 @@ function create(opts){
     if(p==='/still-to-pay'&&req.method==='GET')return page(res,pub('still-to-pay.html'));
     if(p==='/api/still-to-pay'&&req.method==='GET'){const channel=url.searchParams.get('channel'),tests=user.role==='owner'&&url.searchParams.get('tests')==='1';if(!['trade','retail'].includes(channel))return fail(res,400,'channel','Choose retail or trade.');return send(res,200,{channel,owner:user.role==='owner',rows:channel==='trade'?trade.outstanding(user,tests):outstanding.list(user,tests)});}
     if(p==='/api/still-to-pay'&&req.method==='POST'){const b=await readJson(req);if(b.channel==='retail')return send(res,200,await outstanding.action(user,b));if(b.channel!=='trade')return fail(res,400,'channel','Choose retail or trade.');const methods={preview:'reminderPreview',send:'reminderSend',resolve:'reminderResolve',pay:'payment',void:'voidPayment'};if(!methods[b.action])return fail(res,400,'action','Choose a payment action.');return send(res,200,await trade[methods[b.action]](user,b));}
+    if(p==='/walkin-stairs-core.js'&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(__dirname,'lib','walkin-stairs.js')),{'content-type':'application/javascript'});
+    if(p==='/walkin-stairs.js'&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(__dirname,'public','walkin-stairs.js')),{'content-type':'application/javascript'});
     if(p==='/walkin-measures.js'&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(__dirname,'lib','walkin-measures.js')),{'content-type':'application/javascript'});
     if(p==='/trade'&&req.method==='GET')return page(res,pub('trade.html'));
     if(p==='/trade-link.js'&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(__dirname,'public','trade-link.js')),{"content-type":"application/javascript"});
