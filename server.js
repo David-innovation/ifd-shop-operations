@@ -103,6 +103,7 @@ function create(opts){
   const quoteAcceptance=require('./lib/quote-acceptance').make({st,L,now,broadcast,baseUrl:env.PUBLIC_URL||env.RENDER_EXTERNAL_URL||'https://ifd-shop-operations.onrender.com'});
   const feedback=require('./lib/fitter-feedback').make({st,now,broadcast,baseUrl:env.PUBLIC_URL||env.RENDER_EXTERNAL_URL||'https://ifd-shop-operations.onrender.com'});
   const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, quoteAcceptance, feedback, pollMs:opts.pollMs});
+  const outstanding=require('./lib/retail-outstanding').make({st,L,cmds,mailer,now,broadcast});
   cmds.start();
   const supplierMail=require('./lib/supplier-mail').make({st,L,env,now,broadcast});supplierMail.start();
   const fitterMessages=require('./lib/fitter-messages').make({st,users:()=>q.users.all(),now,broadcast});
@@ -372,6 +373,9 @@ function create(opts){
     }
     /* everything below is the shop's own screens. A fitter or estimator is refused here, whatever their page asks for. */
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
+    if(p==='/still-to-pay'&&req.method==='GET')return page(res,pub('still-to-pay.html'));
+    if(p==='/api/still-to-pay'&&req.method==='GET'){const channel=url.searchParams.get('channel'),tests=user.role==='owner'&&url.searchParams.get('tests')==='1';if(!['trade','retail'].includes(channel))return fail(res,400,'channel','Choose retail or trade.');return send(res,200,{channel,owner:user.role==='owner',rows:channel==='trade'?trade.outstanding(user,tests):outstanding.list(user,tests)});}
+    if(p==='/api/still-to-pay'&&req.method==='POST'){const b=await readJson(req);if(b.channel==='retail')return send(res,200,await outstanding.action(user,b));if(b.channel!=='trade')return fail(res,400,'channel','Choose retail or trade.');const methods={preview:'reminderPreview',send:'reminderSend',resolve:'reminderResolve',pay:'payment',void:'voidPayment'};if(!methods[b.action])return fail(res,400,'action','Choose a payment action.');return send(res,200,await trade[methods[b.action]](user,b));}
     if(p==='/trade'&&req.method==='GET')return page(res,pub('trade.html'));
     if(p==='/trade-link.js'&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(__dirname,'public','trade-link.js')),{"content-type":"application/javascript"});
     if(p==='/api/trade/due'&&req.method==='GET')return send(res,200,trade.due(user,user.role==='owner'&&url.searchParams.get('tests')==='1'));
