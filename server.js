@@ -104,6 +104,8 @@ function create(opts){
   const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, quoteAcceptance, feedback, pollMs:opts.pollMs});
   cmds.start();
   const supplierMail=require('./lib/supplier-mail').make({st,L,env,now,broadcast});supplierMail.start();
+  const fitterMessages=require('./lib/fitter-messages').make({st,users:()=>q.users.all(),now,broadcast});
+  const performance=require('./lib/fitter-performance').make({st,users:()=>q.users.all(),now,mailer,broadcast});performance.start();
   const appointments = require('./lib/appointments').make({st,cmds,users:()=>q.users.all(),now,L,broadcast});
 
   const estimatorTools=require('./lib/estimator-tools').make({st,L,shop,now,broadcast,allowed:appointments.allowed,visitJob:appointments.visitJob,saveAsset:(id,type,buf,u,at)=>{fs.writeFileSync(path.join(dataDir,'assets',id),buf);q.addAsset.run(id,type,buf.length,u.id,at);}});
@@ -252,6 +254,7 @@ function create(opts){
     if (p === '/room-survey.js') return send(res,200,pub('room-survey.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/estimator-details.js') return send(res,200,pub('estimator-details.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
+    if (p === '/fitter-ratings.js') return send(res,200,pub('fitter-ratings.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-diary.js') return send(res,200,pub('fitter-diary.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/crew-style.css') return send(res,200,pub('crew-style.css'),{'content-type':'text/css; charset=utf-8'});
     if (p === '/shop-after-dark.css') return send(res,200,pub('shop-after-dark.css'),{'content-type':'text/css; charset=utf-8'});
@@ -321,6 +324,14 @@ function create(opts){
     }
     if (p === '/api/me') return send(res, 200, {id:user.id, name:user.name, role:user.role});
     if (p === '/appointments' && req.method === 'GET') { if (!shopUser && !['fitter','estimator'].includes(user.role)) return fail(res,403,'forbidden','This page is for fitters, estimators and shop staff.'); return page(res,pub('appointments.html')); }
+    if(p==='/api/my-messages'&&req.method==='GET')return send(res,200,fitterMessages.own(user));
+    if(p==='/api/my-messages/action'&&req.method==='POST')return send(res,200,fitterMessages.action(user,await readJson(req)));
+    if(p==='/api/fitter-messages/admin'&&req.method==='GET')return send(res,200,fitterMessages.admin(user,url.searchParams.get('fitterId')||''));
+    if(p==='/api/fitter-messages/send'&&req.method==='POST')return send(res,200,fitterMessages.send(user,await readJson(req)));
+    if(p==='/api/fitter-messages/review'&&req.method==='POST')return send(res,200,fitterMessages.review(user,await readJson(req)));
+    if(p==='/api/my-ratings'&&req.method==='GET')return send(res,200,performance.own(user,url.searchParams.get('month')||undefined));
+    if(p==='/api/fitter-performance'&&req.method==='GET')return send(res,200,performance.admin(user));
+    if(p==='/api/fitter-performance/contact'&&req.method==='POST')return send(res,200,performance.contact(user,await readJson(req)));
     if (p === '/api/appointments' && req.method === 'GET') return send(res,200,appointments.list(user));
     if (p === '/api/appointments/send' && req.method === 'POST') return send(res,200,await appointments.send(await readJson(req),user));
     if (p === '/api/appointments/signoff' && req.method === 'POST') return send(res,200,appointments.signoff(await readJson(req),user));
@@ -383,7 +394,7 @@ function create(opts){
     handle(req, res).catch(e => { if (res.headersSent) return res.end(); if (e && e.status) return send(res, e.status, {error:Object.assign({code:e.code, message:e.message}, e.more || {})}); log('ERROR ' + (e && e.stack || e)); fail(res, 500, 'server_error', 'Something went wrong on the server.'); });
   });
   const beat = setInterval(() => listeners.forEach(r => { try { r.write(': keep\n\n'); } catch (e) {} }), 25000); beat.unref();
-  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ clearInterval(beat); cmds.stop(); supplierMail.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
+  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ clearInterval(beat); cmds.stop(); supplierMail.stop(); performance.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
     /* for the owner's tools and the tests */
     disableUser(id){ const u = q.userById.get(id); if (u){ q.setUser.run(u.name, u.role, 0, id); q.dropSessionsOf.run(id); } } };
 }

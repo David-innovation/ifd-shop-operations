@@ -14,6 +14,11 @@ test('fitter slot API enforces assignments, fixed wording, dates, test mode and 
  app.store.setDoc(docPath('jobs/slot'),j);app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['07700900555']}});
  assert.equal((await call('/api/appointments')).status,401);
  assert.equal((await call('/api/appointments',other)).data.jobs.length,0);
+ assert.equal((await call('/api/my-ratings')).status,401);
+ assert.equal((await call('/api/my-ratings?fitterId=other',user)).data.allTime.count,0);
+ assert.equal((await call('/api/fitter-messages/admin',user)).status,403);
+ assert.equal((await call('/api/fitter-performance',user)).status,403);
+ assert.deepEqual((await call('/api/my-messages?fitterId=other',user)).data.messages,[]);
  const listing=(await call('/api/appointments',user)).data;assert.equal(listing.slots.length,6);assert.equal(listing.jobs.length,1);assert.equal(listing.jobs[0].total,undefined);
  for(const p of listing.jobs[0].previews){assert.ok(p.length<=160);assert.match(p,/STAFF TEST/);assert.doesNotMatch(p,/£|payment|total/i);}
  const body={jobId:'slot',date:j.date,slot:'8-10am',key:'slot_test_123'};
