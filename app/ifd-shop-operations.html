@@ -2952,6 +2952,7 @@ function supplyMsg(job, date){
   const late = L.onOrder(job).filter(l => l.due > date).sort((a, b) => b.due.localeCompare(a.due))[0];
   return late ? late.title + ' is not due in until ' + L.fmtDay(late.due) + '. Pick that day or a later one.' : '';
 }
+window.addEventListener('ifd-open-job',e=>{if(typeof e.detail==='string'&&S.jobs.has(e.detail))openSheet(e.detail);});
 function openSheet(id){
   S.fitterSheet = null; S.openDelivery = null; S.openJob = id; S.live = {}; $('#sheet').hidden = false; drawSheet();
   const od = contactItems(['overdue']).filter(x => x.job.id === id);

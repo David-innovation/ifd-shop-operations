@@ -18,3 +18,5 @@ test('only accepted SMS for the current visit clears the warning; pending failed
  assert.equal(check({...job,msgs:{a:m,b:{...m,at:'2026-11-13T11:00:00Z',state:'failed'}}},now).sent,false);
  assert.equal(check({...job,status:'done'},now),null);assert.equal(check({...job,diary:false},now),null);assert.equal(check({...job,visitId:'measure'},now),null);
 });
+
+test('shop escalation matches fitter deadlines, clears on sending and filters tests',()=>{const {shopList}=require('../lib/slot-deadline'),now=Date.parse('2026-11-13T12:00:00Z'),rows=[{id:'real',data:{...job,ref:'JOB-1',fitter:'Team',customer:{name:'Customer',phone:'123'}}},{id:'test',data:{...job,test:true}}],st={list:()=>rows};assert.equal(shopList(st,now-1).length,0);assert.equal(shopList(st,now).length,1);assert.equal(shopList(st,now,true).length,2);rows[0].data.msgs={a:{rev:'fit-slot:x',channel:'sms',state:'sent',snap:{date:job.date,slot:'11am-1pm'}}};assert.equal(shopList(st,now).length,0);});

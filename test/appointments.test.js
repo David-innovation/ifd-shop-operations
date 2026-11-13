@@ -13,6 +13,10 @@ test('fitter slot API enforces assignments, fixed wording, dates, test mode and 
  const j={status:'open',type:'Fitting',diary:true,date:'2026-11-12',fitter:'Lennox',ref:'ZZ-SLOT',customer:{name:'ZZ TEST slot',phone:'07700900555',address:'Test shop'},total:900,fitterDue:200};
  app.store.setDoc(docPath('jobs/slot'),j);app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['07700900555']}});
  assert.equal((await call('/api/appointments')).status,401);
+ assert.equal((await call('/api/slot-deadlines',user)).status,403);
+ const ownerSession=await login('07700900001');
+ assert.equal((await call('/api/slot-deadlines',ownerSession)).data.jobs.length,0);
+ assert.equal((await call('/api/slot-deadlines?tests=1',ownerSession)).data.jobs[0].id,'slot');
  assert.equal((await call('/api/appointments',other)).data.jobs.length,0);
  assert.equal((await call('/api/my-ratings')).status,401);
  assert.equal((await call('/api/my-ratings?fitterId=other',user)).data.allTime.count,0);

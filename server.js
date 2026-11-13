@@ -24,7 +24,7 @@ function create(opts){
   const appBody = fs.readFileSync(path.join(__dirname, 'app', 'ifd-shop-operations.html'), 'utf8');
   /* which build of the screens this is, so a screen left open can tell when it has been replaced */
   const VERSION = crypto.createHash('sha256').update(appBody + pub('shim.js')).digest('hex').slice(0, 12);
-  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/shim.js"></script><script src="/reschedule.js"></script></head><body>' + appBody + '</body></html>';
+  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/shim.js"></script><script src="/reschedule.js"></script><script src="/slot-alerts.js" defer></script></head><body>' + appBody + '</body></html>';
   const db = st.db;
   /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
   const L = rules.load(appBody);
@@ -255,6 +255,7 @@ function create(opts){
     if (p === '/estimator-details.js') return send(res,200,pub('estimator-details.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-work.js') return send(res,200,pub('fitter-work.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-ratings.js') return send(res,200,pub('fitter-ratings.js'),{'content-type':'text/javascript; charset=utf-8'});
+    if (p === '/slot-alerts.js') return send(res,200,pub('slot-alerts.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/fitter-diary.js') return send(res,200,pub('fitter-diary.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/crew-style.css') return send(res,200,pub('crew-style.css'),{'content-type':'text/css; charset=utf-8'});
     if (p === '/shop-after-dark.css') return send(res,200,pub('shop-after-dark.css'),{'content-type':'text/css; charset=utf-8'});
@@ -329,6 +330,7 @@ function create(opts){
     if(p==='/api/fitter-messages/admin'&&req.method==='GET')return send(res,200,fitterMessages.admin(user,url.searchParams.get('fitterId')||''));
     if(p==='/api/fitter-messages/send'&&req.method==='POST')return send(res,200,fitterMessages.send(user,await readJson(req)));
     if(p==='/api/fitter-messages/review'&&req.method==='POST')return send(res,200,fitterMessages.review(user,await readJson(req)));
+    if(p==='/api/slot-deadlines'&&req.method==='GET'){if(!shopUser)return fail(res,403,'forbidden','Only shop staff can see all fitter deadlines.');return send(res,200,{jobs:require('./lib/slot-deadline').shopList(st,now(),url.searchParams.get('tests')==='1'),checkedAt:iso()});}
     if(p==='/api/my-ratings'&&req.method==='GET')return send(res,200,performance.own(user,url.searchParams.get('month')||undefined));
     if(p==='/api/fitter-performance'&&req.method==='GET')return send(res,200,performance.admin(user));
     if(p==='/api/fitter-performance/contact'&&req.method==='POST')return send(res,200,performance.contact(user,await readJson(req)));

@@ -12,9 +12,11 @@ function addAvailability(view,d,day){
 }
 let slotWarningTimer;
 function drawSlotWarning(d){
- document.getElementById('slotDeadlineWarning')?.remove();if(d.role!=='fitter')return;
+ document.getElementById('slotDeadlineWarning')?.remove();document.getElementById('slotDeadlinePersistent')?.remove();if(d.role!=='fitter')return;
  const box=el('section');box.id='slotDeadlineWarning';box.setAttribute('aria-label','Customer time-slot deadline');const pending=d.jobs.filter(j=>j.slotDeadline&&!j.slotDeadline.sent).sort((a,b)=>a.date.localeCompare(b.date));
  const overdue=pending.filter(j=>j.slotDeadline.overdue).length;
+ if(overdue){const pin=el('button',overdue+' OVERDUE CUSTOMER TIME SLOT'+(overdue===1?'':'S')+' — ACT NOW');pin.id='slotDeadlinePersistent';pin.setAttribute('aria-label','Overdue customer time slots — open required actions');pin.style.cssText='position:sticky;top:0;z-index:900;display:block;width:100%;background:#b40927;color:white;border:2px solid #ff7085;border-radius:0;min-height:54px;padding:12px;font-weight:800;box-shadow:0 5px 24px #0008';pin.onclick=()=>document.getElementById('slotDeadlineWarning')?.scrollIntoView({behavior:'smooth',block:'center'});document.body.prepend(pin);}
+
  box.style.cssText='border:2px solid '+(overdue?'#ff3c56':'#d2a74c')+';border-radius:14px;padding:18px;margin:18px 0;background:'+(overdue?'#3d101a':'#231b10')+';color:white;box-shadow:0 0 22px #d9193528';
  const title=el('h2',overdue?'ACTION REQUIRED — '+overdue+' overdue time slot'+(overdue===1?'':'s'):'Customer time slots — 12 noon deadline');title.style.cssText='font-size:21px;line-height:1.3;color:#fff;margin:0 0 10px';box.append(title,el('p','You must send every customer their arrival time slot by 12 noon the day before fitting. Selecting a slot is not enough — press Send time slot.'));
  if(!pending.length)box.append(el('strong','All booked customers have been sent their time slot.'));
