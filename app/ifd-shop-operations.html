@@ -2228,7 +2228,7 @@ function confirmRow(job){
 }
 /* the customer has said yes and something has to be ordered in: nothing more happens to the job until the order details are in */
 function toOrderJobs(){ return openJobs().filter(j => L.orderNeeded(j).length).sort((a, b) => String((a.accepted || {}).at || '').localeCompare(String((b.accepted || {}).at || ''))); }
-function orderDetailsFor(job){ const l = L.orderNeeded(job)[0]; if (!l) return; if (l.unit === 'm') orderDetailsDialog(job, l); else orderDialog({jobId:job.id, lineK:l.k}); }
+function orderDetailsFor(job){ const l = L.orderNeeded(job)[0]; if (!l) return; orderDialog({jobId:job.id, lineK:l.k}); }
 function orderRow(job){
   const c = job.customer || {};
   return h('div', {class:'row static act'},
@@ -2965,7 +2965,7 @@ function lineBlock(job, l){
     l.acc ? h('p', {class:'small muted', text:'For ' + String(l.acc.label).toLowerCase() + ': ' + L.fmtQty(l.acc.need, l.acc.unit) + ' needed. Reserved on the Shopify draft. It comes off Shopify stock when the order is fulfilled in Shopify, not when it is ticked here.'}) : null,
     needs && (sp.got > 0 || l.deliveryId) ? h('p', {class:'small muted', text:'Arrived ' + L.fmtQty(sp.got, l.unit) + ' of ' + L.fmtQty(l.qty, l.unit) + (sp.put ? ', ' + L.fmtQty(sp.put, l.unit) + ' put away' + (sp.bay ? ' in ' + sp.bay : '') : '') + (sp.waiting ? ', ' + L.fmtQty(sp.waiting, l.unit) + ' in GOODS-IN' : '') + (sp.outstanding ? ', ' + L.fmtQty(sp.outstanding, l.unit) + ' still to come' : '') + '.'}) : null,
     needs && open ? h('div', {class:'bar'},
-      rollIn && l.state !== 'allocated' ? [hasEta ? btn('It has arrived: book it in', () => allocDialog(job, l, 'bay'), 'sm pri') : null, btn(hasEta ? 'Change the order details' : 'Enter order details', () => orderDetailsDialog(job, l), 'sm' + (hasEta ? '' : ' pri'))]
+      rollIn && l.state !== 'allocated' ? [hasEta ? btn('It has arrived: book it in', () => allocDialog(job, l, 'bay'), 'sm pri') : null, btn(hasEta ? 'Change the order details' : 'Enter order details', () => orderDetailsFor(job, l), 'sm' + (hasEta ? '' : ' pri'))]
         : viaDelivery && l.state !== 'allocated' ? (l.deliveryId && S.deliveries.has(l.deliveryId) ? btn('Open the delivery', () => openDelivery(l.deliveryId), 'sm pri') : btn('Order it or book it in', () => orderDialog({jobId:job.id, lineK:l.k}), 'sm pri')) : null,
       toCutLine && l.state !== 'allocated' ? btn('Cut done', () => cutDialog(job, l), 'sm pri') : null,
       (!viaDelivery && !(toCutLine && l.state !== 'allocated')) || (l.state === 'allocated' && !l.rx) ? btn(l.state === 'allocated' ? 'Move' : 'Put in a bay', () => allocDialog(job, l, 'bay'), 'sm' + (l.state === 'allocated' ? '' : ' pri')) : null,
@@ -3957,6 +3957,7 @@ function dayDialog(job){
 function acceptDialog(job){
   if (!needShop() || !needDb()) return;
   const q = L.quoteOf(job); if (!q) return;
+  if(job.test===true&&job.id==='ZZ-MEASURE-COMBINED-esttrial_'+S.me.id&&!job.accepted){openModal(dlg('Stock-free trial order',h('p',{text:'This accepts only your fictional job, records a clearly labelled simulated materials payment, and passes its approved cuts and accessories to warehouse preparation. No real stock or money changes.'}),[btn('Cancel',closeModal),btn('Continue stock-free trial',async()=>{try{await runCmd('trial.accept',{jobId:job.id});closeModal();openSheet(job.id);}catch(e){toast(explain(e),true);}},'pri')]));return;}
   const s = sayer(), c = job.customer || {}, b = L.briefOf(job), rooms = L.roomsOf(job), runs = L.pricingOf(job).stairs;
   const F = {type:'', busy:false, saved:null}, items = [], covered = {};
   const plan = q.supply || L.supplyPlan(job);
@@ -6026,7 +6027,7 @@ const DSTATE = {due:['Expected', 'info'], part:['Part received', 'warn'], receiv
 const Q_STOCKED = 'query OpsStocked($after:String){ shop{myshopifyDomain} products(first:50, after:$after, query:"status:active AND inventory_total:>0"){ pageInfo{hasNextPage endCursor} nodes{ id title productType coverage: metafield(namespace:"custom", key:"coverage_per_pack"){value} variants(first:10){ nodes{ id title inventoryQuantity inventoryItem{ tracked } rollWidth: metafield(namespace:"custom", key:"roll_width_m"){value} } } } } }';
 function deliveryAlerts(){
   const t = L.todayISO(); let n = 0;
-  S.deliveries.forEach(d => { const st = L.deliveryState(d); if (L.deliveryTrouble(d) || ((st === 'due' || st === 'part') && L.validISO(d.expected) && d.expected < t)) n++; });
+  S.deliveries.forEach(d => { const st = L.deliveryState(d); if (d.replyNeedsReview || L.deliveryTrouble(d) || ((st === 'due' || st === 'part') && L.validISO(d.expected) && d.expected < t)) n++; });
   return n;
 }
 function onOpenDelivery(jobId, lineK){
@@ -6034,7 +6035,7 @@ function onOpenDelivery(jobId, lineK){
   S.deliveries.forEach(d => { if (d.status === 'closed') return; L.dLines(d).forEach(l => { if (l.jobId === jobId && l.jobLine === lineK && L.dOutstanding(l) > 0) hit = true; }); });
   return hit;
 }
-function openNeeds(){ return L.needsSupply(jobsArr()).filter(nd => nd.line.unit !== 'm' && !onOpenDelivery(nd.job.id, nd.line.k)); }
+function openNeeds(){ return L.needsSupply(jobsArr()).filter(nd => !onOpenDelivery(nd.job.id, nd.line.k)); }
 function productFinder(id, onPick, allow){
   const res = h('div', {class:'results'});
   const input = h('input', {class:'in', id:id, type:'search', placeholder:'Search a product or roll number, then press Enter', onkeydown:e => { if (e.key === 'Enter'){ e.preventDefault(); run(); } }});
@@ -6057,12 +6058,15 @@ function productFinder(id, onPick, allow){
   return {input:input, results:res};
 }
 VIEWS.deliveries = function(){
-  const body = h('div', {style:'display:contents'});
+  const search=h('input',{class:'in',type:'search',placeholder:'Enter order reference, job reference or customer name','aria-label':'Find delivery reference'}),mailStatus=h('p',{class:'small'}),body = h('div', {style:'display:contents'});
+  search.oninput=()=>draw();
+  async function mailCheck(action){mailStatus.textContent='Checking supplier mailbox…';try{const r=await supplierRequest({action,enabled:true});mailStatus.textContent=r.ok?'Supplier mailbox connected. '+r.matched+' new replies matched.':r.enabled===false?'Supplier-reply monitoring is off.':r.error||'Mailbox check is already running.';}catch(e){mailStatus.textContent=e.message;}}
+  S.cap.db.doc('settings/supplierMailStatus').get().then(r=>{if(r.exists){const d=r.data();mailStatus.textContent=d.ok?'Supplier mailbox last checked '+whenText(d.at):d.error;}}).catch(()=>{});
   function row(d){
     const st = L.deliveryState(d), live = st === 'due' || st === 'part', late = live && L.validISO(d.expected) && d.expected < L.todayISO(), trouble = L.deliveryTrouble(d), ls = L.dLines(d), forJobs = ls.filter(l => l.jobId).length;
     return h('button', {type:'button', class:'row', onclick:() => openDelivery(d.id)},
       dateBlock({date:d.expected, status:live ? 'open' : 'done'}),
-      h('div', {class:'grow'}, h('div', {class:'who', text:d.supplier + (d.ref ? '  ' + d.ref : '')}),
+      h('div', {class:'grow'}, h('div', {class:'who', text:d.supplier + ' · '+(d.orderRef||d.ref||'Reference pending')+(d.replyNeedsReview?' · Supplier reply needs review':'')}),
         h('div', {class:'sub', text:ls.length + (ls.length === 1 ? ' line' : ' lines') + (forJobs ? ', ' + forJobs + ' for customer jobs' : ', all shop stock')}),
         h('div', {class:'meta'}, late ? chip('Overdue', 'bad') : null, trouble ? chip(trouble + (trouble === 1 ? ' Shopify update' : ' Shopify updates') + ' not confirmed', 'bad') : null)),
       h('div', {class:'end'}, chip(DSTATE[st][0], DSTATE[st][1])));
@@ -6074,20 +6078,20 @@ VIEWS.deliveries = function(){
       h('div', {class:'bar'}, btn('Order it', () => orderDialog({jobId:nd.job.id, lineK:nd.line.k}), 'sm pri'), btn('Open job', () => openSheet(nd.job.id), 'sm')));
   }
   function draw(){
-    const all = Array.from(S.deliveries.values());
-    const live = all.filter(d => { const st = L.deliveryState(d); return st === 'due' || st === 'part' || L.deliveryTrouble(d) > 0; }).sort((a, b) => String(a.expected).localeCompare(String(b.expected)));
-    const past = all.filter(d => live.indexOf(d) === -1).sort((a, b) => String(b.expected).localeCompare(String(a.expected))).slice(0, 20), needs = openNeeds();
+    const term=search.value.trim().toLowerCase(),all = Array.from(S.deliveries.values()).filter(d=>!term||[d.supplier,d.ref,d.orderRef,...L.dLines(d).flatMap(l=>[l.jobRef,l.jobName,l.title])].join(' ').toLowerCase().includes(term));
+    const live = all.filter(d => { const st = L.deliveryState(d); return st === 'due' || st === 'part' || d.replyNeedsReview || L.deliveryTrouble(d) > 0; }).sort((a, b) => String(a.expected).localeCompare(String(b.expected)));
+    const past = all.filter(d => live.indexOf(d) === -1).sort((a, b) => String(b.expected).localeCompare(String(a.expected))).slice(0, search.value?1000:20), needs = openNeeds().filter(nd=>!term||[nd.job.ref,nd.job.customer?.name,nd.line.title].join(' ').toLowerCase().includes(term));
     body.replaceChildren(
       h('section', {class:'sec'}, h('h2', {}, 'Waiting to be ordered', h('span', {text:String(needs.length)})), listOf(needs.map(needRow), 'Nothing waiting', 'Job items that need ordering show here until they are on a supplier order.')),
       h('section', {class:'sec'}, h('h2', {}, 'Expected', h('span', {text:String(live.length)})), listOf(live.map(row), 'No deliveries expected', 'Record each supplier order here, then check it off line by line when it arrives.')),
       past.length ? h('section', {class:'sec'}, h('h2', {}, 'Received and closed'), listOf(past.map(row), '', '')) : null);
   }
-  return {nodes:[h('div', {class:'head'}, h('div', {}, h('h1', {text:'Deliveries'}), h('p', {text:'What is on order, what has arrived and where it was put.'})), btn('New supplier order', () => orderDialog(), 'pri')), body], refresh:draw};
+  return {nodes:[h('div', {class:'head'}, h('div', {}, h('h1', {text:'Deliveries'}), h('p', {text:'What is on order, what has arrived and where it was put.'})), btn('New supplier order', () => orderDialog(), 'pri')),search,h('div',{class:'bar'},S.me.role==='owner'?btn('Enable supplier-reply monitoring',()=>mailCheck('enable'),'sm'):null,btn('Check supplier replies now',()=>mailCheck('check'),'sm')),mailStatus,body], refresh:draw};
 };
 function orderDialog(pre){
   if (!needDb()) return;
   const s = sayer(), stock = [];
-  const picks = openNeeds().map(nd => ({nd:nd, on:!!(pre && pre.jobId === nd.job.id && pre.lineK === nd.line.k), qty:String(nd.outstanding)}));
+  const picks = openNeeds().map(nd => ({nd:nd, on:!!(pre && pre.jobId === nd.job.id && pre.lineK === nd.line.k), qty:String(nd.line.unit==='m'?nd.outstanding/10:nd.outstanding)}));
   const first = picks.find(pk => pk.on);
   const sup = h('input', {class:'in', id:'poSupplier', type:'text', placeholder:'Supplier', value:first ? (first.nd.line.supplier || '') : ''});
   const ref = h('input', {class:'in', id:'poRef', type:'text', placeholder:'Their order or delivery note number'});
@@ -6102,14 +6106,14 @@ function orderDialog(pre){
   const finder = productFinder('poFind', (p, v) => { stock.push({key:uid(), variantId:v.id, title:variantTitle(p, v), unit:L.unitFor(v, p), qty:''}); drawStock(); }, (p, v) => !L.isRoll(v, p));
   const jobsBox = h('div', {class:'sec'}, picks.length ? picks.map((pk, i) => h('div', {class:'bar'},
     h('label', {class:'tick grow'}, h('input', {type:'checkbox', id:'po-j-' + i, checked:pk.on, onchange:e => { pk.on = e.target.checked; }}), ((pk.nd.job.customer || {}).name || 'No name') + ' ' + (pk.nd.job.ref || '') + ': ' + pk.nd.line.title),
-    h('div', {style:'width:120px'}, h('input', {class:'in sm', id:'po-jq-' + i, type:'number', min:'1', max:String(pk.nd.outstanding), step:'1', inputmode:'numeric', value:pk.qty, oninput:e => { pk.qty = e.target.value; }}))))
+    h('div', {style:'width:120px'}, h('input', {class:'in sm', id:'po-jq-' + i, type:'number', min:'1', max:String(pk.nd.line.unit==='m'?pk.nd.outstanding/10:pk.nd.outstanding), step:pk.nd.line.unit==='m'?'0.1':'1','aria-label':pk.nd.line.unit==='m'?'Metres to order':'Quantity to order', inputmode:'numeric', value:pk.qty, oninput:e => { pk.qty = e.target.value; }}))))
     : h('p', {class:'muted', text:'No job is waiting for goods right now.'}));
   const go = btn('Save the supplier order', async () => {
     const supplier = sup.value.trim(), lines = {}, chosen = picks.filter(pk => pk.on); let n = 0;
     if (!supplier){ s.say('Enter the supplier.', true); return; }
-    if (!L.validISO(exp.value)){ s.say('Enter the date it is expected.', true); return; }
+    if (exp.value&&!L.validISO(exp.value)){ s.say('Check the expected date, or leave it blank while waiting for confirmation.', true); return; }
     for (const pk of chosen){
-      const q = Math.min(parseInt(pk.qty, 10) || 0, pk.nd.outstanding), l = pk.nd.line, j = pk.nd.job;
+      const q = Math.min(pk.nd.line.unit==='m'?Math.round(Number(pk.qty)*10):parseInt(pk.qty,10)||0, pk.nd.outstanding), l = pk.nd.line, j = pk.nd.job;
       if (!(q > 0)){ s.say('Enter how many are on order for ' + l.title + '.', true); return; }
       pk.n = q; n++;
       lines['a' + n] = {n:n, variantId:l.variantId || '', title:l.title, sub:l.sub || '', unit:l.unit || 'items', qty:q, jobId:j.id, jobLine:l.k, jobRef:j.ref || '', jobName:(j.customer || {}).name || '', kind:(l.hold === 'supplier' || l.hold === 'reserved') ? 'reserved' : 'available'};
@@ -6138,6 +6142,8 @@ function orderDialog(pre){
     h('div', {class:'card'}, h('h3', {}, 'For shop stock'), finder.input, finder.results, stockBox, h('p', {class:'small muted', text:'Carpet rolls are not ordered here yet. Each roll has to be received on its own.'})),
     s.box), [btn('Cancel', closeModal), go]));
 }
+async function supplierRequest(body){const r=await fetch('/api/supplier-mail',{method:'POST',headers:{'Content-Type':'application/json','X-IFD':'1'},body:JSON.stringify(body)}),out=await r.json();if(!r.ok)throw new Error(out.message||out.error?.message||'Supplier action failed');return out;}
+function supplierDraftDialog(d){const email=h('input',{class:'in',type:'email',value:d.supplierEmail||'','aria-label':'Supplier email'}),status=sayer(),names=L.dLines(d).map(l=>({key:l.k,input:h('input',{class:'in',value:l.orderingName||l.title,'aria-label':'Supplier product name for '+l.title})}));openModal(dlg('Prepare supplier email',h('div',{},h('p',{text:'Check the real supplier product names and quantities. This prepares an order email; it does not send or place an order.'}),field('Supplier email',email),...names.map(n=>field('Supplier ordering name',n.input)),status.box),[btn('Cancel',closeModal),btn('Prepare email',async()=>{try{const r=await supplierRequest({action:'draft',id:d.id,email:email.value,names:Object.fromEntries(names.map(n=>[n.key,n.input.value]))});openModal(dlg('Supplier order email prepared',h('div',{},h('p',{text:r.to+' · '+r.subject}),h('textarea',{class:'in',readOnly:true,rows:16,value:r.body}),h('a',{class:'btn pri',href:'mailto:'+encodeURIComponent(r.to)+'?subject='+encodeURIComponent(r.subject)+'&body='+encodeURIComponent(r.body),text:'Open in shop email'})),[btn('Done',closeModal)]));}catch(e){status.say(e.message,true);}},'pri')]));}
 function openDelivery(id){ S.openJob = null; S.openDelivery = id; $('#sheet').hidden = false; drawDelivery(); }
 function drawDelivery(){
   const s = $('#sheet'), d = S.deliveries.get(S.openDelivery);
@@ -6149,7 +6155,7 @@ function drawDelivery(){
   const cards = L.dLines(d).map(l => {
     const got = L.dGot(l), out = L.dOutstanding(l), dr = draft[l.k] || (draft[l.k] = {good:'', bad:'', note:'', bay:''});
     const bay = bayPicker('rcv-b-' + l.k, dr.bay, 'Choose where'); bay.addEventListener('change', e => { dr.bay = e.target.value; });
-    const num = (id, key) => h('input', {class:'in', id:id, type:'number', min:'0', step:'1', inputmode:'numeric', value:dr[key], oninput:e => { dr[key] = e.target.value; }});
+    const num = (id, key) => h('input', {class:'in', id:id, type:'number', min:'0', step:l.unit==='m'?'0.1':'1', inputmode:'decimal',value:dr[key]===''?'':Number(dr[key])/(l.unit==='m'?10:1),oninput:e=>{dr[key]=Number(e.target.value)*(l.unit==='m'?10:1);}});
     const matches = !l.jobId && l.variantId && out > 0 ? needs.filter(nd => L.gidNum(nd.line.variantId) === L.gidNum(l.variantId)) : [];
     const recs = L.dRecs(l).map(r => {
       const bad = r.shop === 'error' || r.shop === 'check', wait = r.shop === 'new' || r.shop === 'sending' || r.shop === 'pending', busy = wait && !stuck(r);
@@ -6171,7 +6177,7 @@ function drawDelivery(){
       recs,
       matches.map(nd => h('div', {class:'banner info'}, h('p', {class:'grow', text:((nd.job.customer || {}).name || 'A job') + ' ' + (nd.job.ref || '') + ' is waiting for ' + L.fmtQty(nd.outstanding, nd.line.unit) + ' of this. It is not given to them unless you say so.'}), btn('Use ' + L.fmtQty(Math.min(nd.outstanding, out), l.unit) + ' for this job', () => useForJob(d, l, nd), 'sm'))),
       open && out > 0 ? h('div', {class:'sec'},
-        h('div', {class:'grid3'}, field('Arrived, usable', num('rcv-g-' + l.k, 'good')), field('Damaged', num('rcv-d-' + l.k, 'bad')), field('Where it is now', bay)),
+        h('div', {class:'grid3'}, field(l.unit==='m'?'Arrived, usable metres':'Arrived, usable', num('rcv-g-' + l.k, 'good')), field(l.unit==='m'?'Damaged metres':'Damaged', num('rcv-d-' + l.k, 'bad')), field('Where it is now', bay)),
         field('Wrong item, shortage or damage note', h('input', {class:'in', id:'rcv-n-' + l.k, type:'text', value:dr.note, oninput:e => { dr.note = e.target.value; }}))) : null);
   });
   const go = btn('Confirm what arrived', () => confirmArrival(d, msg, go), 'pri');
@@ -6183,6 +6189,7 @@ function drawDelivery(){
     h('div', {class:'panel-body'},
       S.take && S.take.status === 'counting' ? h('div', {class:'banner warn'}, h('p', {text:'The opening stocktake is in progress. If these goods were already counted on the shelf, do not receive them again here.'})) : null,
       open ? h('div', {class:'banner info'}, h('p', {text:'Enter only what you can see. Nothing is assumed to have arrived. GOODS-IN means it is here but not put away, and it does not make a job ready.'})) : null,
+      h('div',{class:'bar'},btn('Prepare supplier order email',()=>supplierDraftDialog(d),'pri')),d.replyNeedsReview?h('div',{class:'banner warn'},h('p',{text:'Supplier reply needs shop review. No stock has been marked arrived.'}),...Object.values(d.mailReplies||{}).filter(r=>r.state==='review').map(r=>h('pre',{style:'white-space:pre-wrap',text:r.excerpt}))):null,
       cards,
       open ? h('div', {class:'card'}, msg.box, h('div', {class:'bar'}, go, btn('Nothing more is coming', () => closeDeliveryDialog(d), 'sm'))) : null));
   s.replaceChildren(panel);

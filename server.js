@@ -102,6 +102,7 @@ function create(opts){
   const quoteAcceptance=require('./lib/quote-acceptance').make({st,L,now,broadcast,baseUrl:env.PUBLIC_URL||env.RENDER_EXTERNAL_URL||'https://ifd-shop-operations.onrender.com'});
   const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, quoteAcceptance, pollMs:opts.pollMs});
   cmds.start();
+  const supplierMail=require('./lib/supplier-mail').make({st,L,env,now,broadcast});supplierMail.start();
   const appointments = require('./lib/appointments').make({st,cmds,users:()=>q.users.all(),now,L,broadcast});
 
   const estimatorTools=require('./lib/estimator-tools').make({st,L,shop,now,broadcast,allowed:appointments.allowed,visitJob:appointments.visitJob,saveAsset:(id,type,buf,u,at)=>{fs.writeFileSync(path.join(dataDir,'assets',id),buf);q.addAsset.run(id,type,buf.length,u.id,at);}});
@@ -158,6 +159,7 @@ function create(opts){
     const d = store.docPath(body.path); if (!d) return fail(res, 400, 'invalid_argument', 'Bad path.');
     if (what === 'delete'){ st.deleteDoc(d.path); st.audit(user.id, 'delete', d.path); broadcast(d.coll); return send(res, 200, {ok:true}); }
     if (!body.data || typeof body.data !== 'object' || Array.isArray(body.data)) return fail(res, 400, 'invalid_argument', 'Nothing to save.');
+    if(['settings/supplierMail','settings/supplierMailStatus'].includes(d.path))return fail(res,403,'use_command','Use the supplier mailbox controls.');
     /* money, messages and cutting have rules of their own, so these plain routes may not change them */
     if ((what === 'set' || what === 'update') && d.coll === 'jobs') cmds.guardJobWrite(d, body.data, what === 'set', user);
     if ((what === 'set' || what === 'update') && d.path === 'settings/main') cmds.guardSettings(d, body.data, what === 'set', user);
@@ -291,14 +293,14 @@ function create(opts){
     if(p==='/api/estimator-trial'&&req.method==='POST'){
       if(authUser.role!=='owner')return fail(res,403,'forbidden','Only the owner can open their estimator trial.');
       const id='ZZ-OWNER-ESTIMATOR-'+authUser.id,d=store.docPath('jobs/'+id),whoId='esttrial_'+authUser.id;
-      if(!st.getDoc(d.path).exists){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));st.setDoc(d,{test:true,status:'open',type:'Fitting',diary:false,ref:'ZZ ESTIMATOR TRIAL',customer:{name:'ZZ TEST - David estimator trial',phone:authUser.mobile,email:'David@innovationflooringdirect.com',address:'64 King Street - TEST ONLY',postcode:'G81 1DX'},brief:{rooms:'Living room and bedroom',note:'TEST ONLY - measure rooms, accessories, preparation and concealed subfloor. No real order or stock.'},rooms:{},lines:{},total:0,notes:'OWNER ESTIMATOR TRIAL ONLY. No real appointment, stock or payment.',pre:{trial:{kind:'both',status:'booked',date,who:authUser.name+' - estimator trial',whoId,duration:60}}});broadcast('jobs');}
+      if(!st.getDoc(d.path).exists){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));st.setDoc(d,{test:true,status:'open',type:'Fitting',diary:false,ref:'ZZ ESTIMATOR TRIAL',customer:{name:'ZZ TEST - David estimator trial',phone:authUser.mobile,email:env.TEST_CUSTOMER_EMAIL||'',address:'TEST ONLY - no customer appointment',postcode:''},brief:{rooms:'Living room and bedroom',note:'TEST ONLY - measure rooms, accessories, preparation and concealed subfloor. No real order or stock.'},rooms:{},lines:{},total:0,notes:'OWNER ESTIMATOR TRIAL ONLY. No real appointment, stock or payment.',pre:{trial:{kind:'both',status:'booked',date,who:authUser.name+' - estimator trial',whoId,duration:60}}});broadcast('jobs');}
       q.dropSession.run(hash(cookieOf(req)));setSession(res,{...authUser,id:whoId,role:'estimator'});return send(res,200,{ok:true});
     }
     if(p==='/api/fitter-trial'&&req.method==='POST'){
       if(authUser.role!=='owner')return fail(res,403,'forbidden','Only the owner can open their fitter trial.');
       const b=await readJson(req);if(typeof b.enabled!=='boolean')return fail(res,400,'invalid_argument','Choose the shop or fitter trial.');
       const id='ZZ-OWNER-FITTER-'+authUser.id,d=store.docPath('jobs/'+id),fitterId='trial_'+authUser.id;
-      if(b.enabled&&!st.getDoc(d.path).exists){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));st.setDoc(d,{test:true,status:'open',type:'Fitting',diary:true,date,fitter:authUser.name+' - fitter trial',fitterId,ref:'ZZ FITTER TRIAL',customer:{name:'ZZ TEST - David fitter trial',phone:authUser.mobile,email:'David@innovationflooringdirect.com',address:'TEST ONLY - no customer appointment'},sizeCheck:'verified',rooms:{lounge:{name:'Trial lounge',len:4,wid:3,area:12,status:'verified',source:'shop',verBy:'TEST ONLY',verRole:'shop',verOn:date}},lines:{floor:{title:'TEST ONLY laminate flooring',qty:4,unit:'packs',hold:'none'},beading:{title:'TEST ONLY beading',qty:6,unit:'lengths',hold:'none'},bars:{title:'TEST ONLY door bar',qty:1,unit:'each',hold:'none'}},total:0,fitterDue:0,notes:'OWNER FITTER TRIAL ONLY. No stock reserved, no real payment or appointment. Messages go to David only.',fitterWork:{profiles:['laminate'],version:0}});broadcast('jobs');}
+      if(b.enabled&&!st.getDoc(d.path).exists){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));st.setDoc(d,{test:true,status:'open',type:'Fitting',diary:true,date,fitter:authUser.name+' - fitter trial',fitterId,ref:'ZZ FITTER TRIAL',customer:{name:'ZZ TEST - David fitter trial',phone:authUser.mobile,email:env.TEST_CUSTOMER_EMAIL||'',address:'TEST ONLY - no customer appointment'},sizeCheck:'verified',rooms:{lounge:{name:'Trial lounge',len:4,wid:3,area:12,status:'verified',source:'shop',verBy:'TEST ONLY',verRole:'shop',verOn:date}},lines:{floor:{title:'TEST ONLY laminate flooring',qty:4,unit:'packs',hold:'none'},beading:{title:'TEST ONLY beading',qty:6,unit:'lengths',hold:'none'},bars:{title:'TEST ONLY door bar',qty:1,unit:'each',hold:'none'}},total:0,fitterDue:0,notes:'OWNER FITTER TRIAL ONLY. No stock reserved, no real payment or appointment. Messages go to David only.',fitterWork:{profiles:['laminate'],version:0}});broadcast('jobs');}
       if(!b.enabled)return fail(res,403,'forbidden','Sign out and sign in separately for owner access.');
       q.dropSession.run(hash(cookieOf(req)));setSession(res,{...authUser,id:fitterId,role:'fitter'});
       res.setHeader('set-cookie',[res.getHeader('set-cookie'),'ifd_trial=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(secure?'; Secure':'')]);return send(res,200,{ok:true,enabled:true});
@@ -328,6 +330,7 @@ function create(opts){
     }
     /* everything below is the shop's own screens. A fitter or estimator is refused here, whatever their page asks for. */
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
+    if(p==='/api/supplier-mail'&&req.method==='POST'){const b=await readJson(req);if(b.action==='draft')return send(res,200,supplierMail.draft(b,user));if(b.action==='enable')return send(res,200,await supplierMail.enable(b,user));if(b.action==='check')return send(res,200,await supplierMail.poll());return fail(res,400,'invalid_argument','Unknown supplier action.');}
     if(p==='/api/fitter-access'&&req.method==='POST'){
       if(user.role!=='owner')return fail(res,403,'forbidden','Only the owner can manage fitter access.');
       const b=await readJson(req),name=String(b.name||'').trim(),mobile=sms.normaliseMobile(b.mobile);
@@ -366,7 +369,7 @@ function create(opts){
     handle(req, res).catch(e => { if (res.headersSent) return res.end(); if (e && e.status) return send(res, e.status, {error:Object.assign({code:e.code, message:e.message}, e.more || {})}); log('ERROR ' + (e && e.stack || e)); fail(res, 500, 'server_error', 'Something went wrong on the server.'); });
   });
   const beat = setInterval(() => listeners.forEach(r => { try { r.write(': keep\n\n'); } catch (e) {} }), 25000); beat.unref();
-  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ clearInterval(beat); cmds.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
+  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ clearInterval(beat); cmds.stop(); supplierMail.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
     /* for the owner's tools and the tests */
     disableUser(id){ const u = q.userById.get(id); if (u){ q.setUser.run(u.name, u.role, 0, id); q.dropSessionsOf.run(id); } } };
 }
