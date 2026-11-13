@@ -12,23 +12,23 @@ function addAvailability(view,d,day){
 }
 let slotWarningTimer;
 function drawSlotWarning(d){
- document.getElementById('slotDeadlineWarning')?.remove();document.getElementById('slotDeadlinePersistent')?.remove();if(d.role!=='fitter')return;
+ document.getElementById('slotDeadlineWarning')?.remove();document.getElementById('slotDeadlinePersistent')?.remove();if(!['fitter','estimator'].includes(d.role))return;
  const box=el('section');box.id='slotDeadlineWarning';box.setAttribute('aria-label','Customer time-slot deadline');const pending=d.jobs.filter(j=>j.slotDeadline&&!j.slotDeadline.sent).sort((a,b)=>a.date.localeCompare(b.date));
  const overdue=pending.filter(j=>j.slotDeadline.overdue).length;
  if(overdue){const pin=el('button',overdue+' OVERDUE CUSTOMER TIME SLOT'+(overdue===1?'':'S')+' — ACT NOW');pin.id='slotDeadlinePersistent';pin.setAttribute('aria-label','Overdue customer time slots — open required actions');pin.style.cssText='position:sticky;top:0;z-index:900;display:block;width:100%;background:#b40927;color:white;border:2px solid #ff7085;border-radius:0;min-height:54px;padding:12px;font-weight:800;box-shadow:0 5px 24px #0008';pin.onclick=()=>document.getElementById('slotDeadlineWarning')?.scrollIntoView({behavior:'smooth',block:'center'});document.body.prepend(pin);}
 
  box.style.cssText='border:2px solid '+(overdue?'#ff3c56':'#d2a74c')+';border-radius:14px;padding:18px;margin:18px 0;background:'+(overdue?'#3d101a':'#231b10')+';color:white;box-shadow:0 0 22px #d9193528';
- const title=el('h2',overdue?'ACTION REQUIRED — '+overdue+' overdue time slot'+(overdue===1?'':'s'):'Customer time slots — 12 noon deadline');title.style.cssText='font-size:21px;line-height:1.3;color:#fff;margin:0 0 10px';box.append(title,el('p','You must send every customer their arrival time slot by 12 noon the day before fitting. Selecting a slot is not enough — press Send time slot.'));
+ const title=el('h2',overdue?'ACTION REQUIRED — '+overdue+' overdue time slot'+(overdue===1?'':'s'):'Customer time slots — 12 noon deadline');title.style.cssText='font-size:21px;line-height:1.3;color:#fff;margin:0 0 10px';box.append(title,el('p','You must send every customer their arrival time slot by 12 noon the day before '+(d.role==='estimator'?'your visit':'fitting')+'. Selecting a slot is not enough — press Send time slot.'));
  if(!pending.length)box.append(el('strong','All booked customers have been sent their time slot.'));
- for(const j of pending){const row=el('div'),rule=j.slotDeadline,b=el('button','Open job & send time slot');row.style.cssText='border-top:1px solid #a54855;padding:12px 0';row.append(el('strong',j.name+' · '+j.ref),el('p','Fitting: '+diaryDate(j.date)+' · Deadline: '+diaryDate(rule.deadline)+' at 12 noon'+(rule.overdue?' — OVERDUE':rule.dueToday?' — TODAY':'')));
+ for(const j of pending){const row=el('div'),rule=j.slotDeadline,b=el('button','Open job & send time slot');row.style.cssText='border-top:1px solid #a54855;padding:12px 0';row.append(el('strong',j.name+' · '+j.ref),el('p',(j.visitId?'Estimator visit: ':'Fitting: ')+diaryDate(j.date)+' · Deadline: '+diaryDate(rule.deadline)+' at 12 noon'+(rule.overdue?' — OVERDUE':rule.dueToday?' — TODAY':'')));
  if(rule.past){b.textContent='Open overdue job';row.append(el('p','This visit date has passed. Arrange the outstanding work or contact the shop.'));}else if(rule.missingPhone)row.append(el('p','No customer mobile recorded. Contact the shop now to correct it.'));
  if(['queued','unsure','failed'].includes(rule.state))row.append(el('p',rule.state==='queued'?'Text is still sending — this warning stays until sending is confirmed.':rule.state==='unsure'?'Delivery is uncertain. Ask the shop to check before resending.':'The text failed. Contact the shop to resolve it; the deadline still applies.'));
- b.onclick=()=>{diarySelected=j.id+':';diaryTab='Diary';renderDiary(diaryData);document.getElementById('jobs')?.scrollIntoView({behavior:'smooth'});};row.append(b);box.append(row);}
+ b.onclick=()=>{diarySelected=j.id+':'+(j.visitId||'');diaryTab='Diary';renderDiary(diaryData);document.getElementById('jobs')?.scrollIntoView({behavior:'smooth'});};row.append(b);box.append(row);}
  document.querySelector('body>h1').before(box);
 }
 async function refreshSlotDeadline(){try{const fresh=await api('/api/appointments');if(diaryData)for(const j of diaryData.jobs){const f=fresh.jobs.find(x=>x.id===j.id&&x.visitId===j.visitId);j.slotDeadline=f?.slotDeadline||null;}drawSlotWarning(fresh);}catch(e){const box=document.getElementById('slotDeadlineWarning');if(box&&!box.querySelector('[data-connection]')){const note=el('p','Unable to refresh time-slot status. Check your connection and refresh before assuming a message has sent.');note.dataset.connection='1';box.append(note);}}}
 function renderDiary(d){
- clearInterval(slotWarningTimer);drawSlotWarning(d);if(d.role==='fitter')slotWarningTimer=setInterval(refreshSlotDeadline,60000);
+ clearInterval(slotWarningTimer);drawSlotWarning(d);if(['fitter','estimator'].includes(d.role))slotWarningTimer=setInterval(refreshSlotDeadline,60000);
 
  diaryData=d;if(!diaryDay)diaryDay=d.today;if(!diaryWeek)diaryWeek=diaryMonday(diaryDay);
  for(const id of ['diaryView','diaryBack','crewBottom'])document.getElementById(id)?.remove();

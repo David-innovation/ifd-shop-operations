@@ -20,3 +20,10 @@ test('only accepted SMS for the current visit clears the warning; pending failed
 });
 
 test('shop escalation matches fitter deadlines, clears on sending and filters tests',()=>{const {shopList}=require('../lib/slot-deadline'),now=Date.parse('2026-11-13T12:00:00Z'),rows=[{id:'real',data:{...job,ref:'JOB-1',fitter:'Team',customer:{name:'Customer',phone:'123'}}},{id:'test',data:{...job,test:true}}],st={list:()=>rows};assert.equal(shopList(st,now-1).length,0);assert.equal(shopList(st,now).length,1);assert.equal(shopList(st,now,true).length,2);rows[0].data.msgs={a:{rev:'fit-slot:x',channel:'sms',state:'sent',snap:{date:job.date,slot:'11am-1pm'}}};assert.equal(shopList(st,now).length,0);});
+
+test('estimator deadlines isolate each visit, escalate to shop and clear only for the matching date and visit',()=>{
+ const now=Date.parse('2026-11-13T12:00:00Z'),base={status:'open',type:'Quote',diary:false,ref:'MEASURE-1',customer:{name:'Customer'},pre:{one:{kind:'measure',status:'booked',date:'2026-11-14',who:'Estimator A'},two:{kind:'both',status:'booked',date:'2026-11-14',who:'Estimator B'},cancelled:{kind:'measure',status:'cancelled',date:'2026-11-14'},done:{kind:'measure',status:'done',date:'2026-11-14'}}};
+ const st={list:()=>[{id:'m1',data:base}]},{shopList}=require('../lib/slot-deadline');assert.equal(shopList(st,now-1).length,0);let rows=shopList(st,now);assert.equal(rows.length,2);assert.equal(rows[0].role,'Estimator');assert.equal(rows[0].fitter,'Estimator A');
+ base.msgs={a:{rev:'visit-slot:one:2026-11-14',channel:'sms',state:'delivered',at:'2026-11-13T12:01:00Z',snap:{date:'2026-11-14',slot:'11am-1pm',visitId:'one'}}};rows=shopList(st,now);assert.equal(rows.length,1);assert.equal(rows[0].visitId,'two');
+ base.pre.one.date='2026-11-13';assert.equal(shopList(st,now).length,2);base.msgs.a.snap.date='2026-11-13';assert.equal(shopList(st,now).length,1);base.msgs.a.state='failed';assert.equal(shopList(st,now).length,2);base.pre.one.status='done';assert.equal(shopList(st,now).length,1);base.status='cancelled';assert.equal(shopList(st,now).length,0);
+});
