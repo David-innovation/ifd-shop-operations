@@ -16,6 +16,7 @@ function create(opts){
   opts = opts || {};
   const env = opts.env || process.env, log = opts.log || console.log, fetchImpl = opts.fetch || fetch, now = opts.now || (() => Date.now());
   const dataDir = env.DATA_DIR || path.join(__dirname, 'data'), st = store.open(dataDir);
+  const trade=require('./lib/trade').make({dataDir,now});
   const shop = shopifyLib.client(env, fetchImpl), sendText = opts.sendText || sms.sender(env, fetchImpl, log);
   const secure = env.INSECURE_COOKIES !== '1', pepper = env.SESSION_PEPPER || 'not-for-production';
   const hash = s => crypto.createHmac('sha256', pepper).update(String(s)).digest('hex');
@@ -24,7 +25,7 @@ function create(opts){
   const appBody = fs.readFileSync(path.join(__dirname, 'app', 'ifd-shop-operations.html'), 'utf8');
   /* which build of the screens this is, so a screen left open can tell when it has been replaced */
   const VERSION = crypto.createHash('sha256').update(appBody + pub('shim.js')).digest('hex').slice(0, 12);
-  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/shim.js"></script><script src="/reschedule.js"></script><script src="/slot-alerts.js" defer></script></head><body>' + appBody + '</body></html>';
+  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/shim.js"></script><script src="/reschedule.js"></script><script src="/slot-alerts.js" defer></script><script src="/trade-link.js" defer></script></head><body>' + appBody + '</body></html>';
   const db = st.db;
   /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
   const L = rules.load(appBody);
@@ -371,6 +372,13 @@ function create(opts){
     }
     /* everything below is the shop's own screens. A fitter or estimator is refused here, whatever their page asks for. */
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
+    if(p==='/trade'&&req.method==='GET')return page(res,pub('trade.html'));
+    if(p==='/trade-link.js'&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(__dirname,'public','trade-link.js')),{"content-type":"application/javascript"});
+    if(p==='/api/trade'&&req.method==='GET')return send(res,200,{...trade.status(user),products:trade.products(user,url.searchParams.get('q')||''),invoices:trade.invoices(user,url.searchParams.get('q')||'',url.searchParams.get('tests')==='1')});
+    if(p==='/api/trade'&&req.method==='POST'){
+      const b=await readJson(req),methods={import:'importProducts',product:'saveProduct',invoice:'saveInvoice',updateInvoice:'updateInvoice'};if(!methods[b.action])return fail(res,400,'invalid_argument','Choose a trade action.');return send(res,200,trade[methods[b.action]](user,b));
+    }
+    if(p.startsWith('/api/trade/invoice/')){const id=p.slice('/api/trade/invoice/'.length);if(req.method==='POST')return send(res,200,trade.attach(user,id,await readBody(req,10*1024*1024)));if(req.method==='GET'){const f=trade.download(user,id);return send(res,200,f.body,{'content-type':'application/pdf','content-disposition':'attachment; filename="'+f.name+'"','cache-control':'private, no-store'});}}
     if(p==='/api/supplier-mail'&&req.method==='POST'){const b=await readJson(req);if(b.action==='draft')return send(res,200,supplierMail.draft(b,user));if(b.action==='enable')return send(res,200,await supplierMail.enable(b,user));if(b.action==='check')return send(res,200,await supplierMail.poll());return fail(res,400,'invalid_argument','Unknown supplier action.');}
     if(p==='/api/fitter-access'&&req.method==='POST'){
       if(user.role!=='owner')return fail(res,403,'forbidden','Only the owner can manage fitter access.');
@@ -410,7 +418,7 @@ function create(opts){
     handle(req, res).catch(e => { if (res.headersSent) return res.end(); if (e && e.status) return send(res, e.status, {error:Object.assign({code:e.code, message:e.message}, e.more || {})}); log('ERROR ' + (e && e.stack || e)); fail(res, 500, 'server_error', 'Something went wrong on the server.'); });
   });
   const beat = setInterval(() => listeners.forEach(r => { try { r.write(': keep\n\n'); } catch (e) {} }), 25000); beat.unref();
-  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ clearInterval(beat); cmds.stop(); supplierMail.stop(); performance.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
+  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ trade.close(); clearInterval(beat); cmds.stop(); supplierMail.stop(); performance.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
     /* for the owner's tools and the tests */
     disableUser(id){ const u = q.userById.get(id); if (u){ q.setUser.run(u.name, u.role, 0, id); q.dropSessionsOf.run(id); } } };
 }

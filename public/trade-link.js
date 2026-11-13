@@ -1,0 +1,2 @@
+'use strict';
+(()=>{const add=()=>{const tabs=document.querySelector('#tabs');if(tabs&&!document.querySelector('#tradeNav')){const a=document.createElement('a');a.id='tradeNav';a.href='/trade';a.textContent='Trade';a.style.cssText='display:inline-block;padding:12px 14px;color:inherit;text-decoration:none;font-weight:800;border-bottom:2px solid #d7b65c';tabs.append(a);}};document.addEventListener('DOMContentLoaded',()=>{add();new MutationObserver(add).observe(document.body,{childList:true,subtree:true});});})();
