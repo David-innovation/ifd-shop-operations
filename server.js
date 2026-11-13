@@ -100,7 +100,8 @@ function create(opts){
   }
   function broadcast(coll){ const msg = 'event: change\ndata: ' + JSON.stringify({coll:coll}) + '\n\n'; listeners.forEach(r => { try { r.write(msg); } catch (e) {} }); }
   const quoteAcceptance=require('./lib/quote-acceptance').make({st,L,now,broadcast,baseUrl:env.PUBLIC_URL||env.RENDER_EXTERNAL_URL||'https://ifd-shop-operations.onrender.com'});
-  const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, quoteAcceptance, pollMs:opts.pollMs});
+  const feedback=require('./lib/fitter-feedback').make({st,now,broadcast,baseUrl:env.PUBLIC_URL||env.RENDER_EXTERNAL_URL||'https://ifd-shop-operations.onrender.com'});
+  const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, quoteAcceptance, feedback, pollMs:opts.pollMs});
   cmds.start();
   const supplierMail=require('./lib/supplier-mail').make({st,L,env,now,broadcast});supplierMail.start();
   const appointments = require('./lib/appointments').make({st,cmds,users:()=>q.users.all(),now,L,broadcast});
@@ -214,6 +215,19 @@ function create(opts){
     const url = new URL(req.url, 'http://x'), p = url.pathname, authUser=userOf(req);
     const trial=authUser?.role==='owner'&&/(?:^|;\s*)ifd_trial=1(?:;|$)/.test(req.headers.cookie||'');
     const user=trial?{...authUser,id:'trial_'+authUser.id,name:authUser.name+' - fitter trial',role:'fitter',trial:true}:authUser, shopUser=user&&SHOP_ROLES.includes(user.role);
+    if(p.startsWith('/feedback/')){
+      res.setHeader('referrer-policy','no-referrer');res.setHeader('cache-control','no-store');
+      const token=p.slice(10);
+      try{
+        if(req.method==='POST'){
+          if(req.headers.origin&&req.headers.origin!=='null'&&new URL(req.headers.origin).host!==req.headers.host)return fail(res,403,'forbidden','Please use your feedback link.');
+          const form=new URLSearchParams((await readBody(req,12000)).toString('utf8'));feedback.submit(token,Object.fromEntries(form));
+          res.writeHead(303,{location:'/feedback/'+token,'cache-control':'no-store'});return res.end();
+        }
+        if(req.method!=='GET')return fail(res,405,'method','Method not allowed.');
+        return page(res,feedback.page(token));
+      }catch(e){return page(res,'<html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font:18px/1.6 Arial;max-width:600px;margin:40px auto;padding:24px"><h1>Innovation Flooring Direct</h1><p>'+require('./lib/quote-email').esc(e.message||'Please contact the shop.')+'</p><a href="mailto:sales@innovationflooringdirect.com">Contact the shop</a></body></html>',e.status||500);}
+    }
     if(p.startsWith('/quote/')){
       res.setHeader('referrer-policy','no-referrer');
       const token=p.slice(7);
