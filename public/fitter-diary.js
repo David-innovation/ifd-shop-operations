@@ -1,5 +1,5 @@
 'use strict';
-let diaryWeek='',diarySelected='',diaryData=null,diaryDay='',diaryTab='Diary';
+let diaryWeek='',diarySelected=new URLSearchParams(location.search).has('job')?new URLSearchParams(location.search).get('job')+':':'',diaryData=null,diaryDay='',diaryTab='Diary';
 const diaryShift=(d,n)=>new Date(Date.parse(d+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
 const diaryMonday=d=>diaryShift(d,-((new Date(d+'T12:00:00Z').getUTCDay()+6)%7));
 const diaryDate=d=>new Date(d+'T12:00:00Z').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/London'});
@@ -31,4 +31,3 @@ function renderDiary(d){
  const overdue=d.jobs.filter(j=>j.date<d.today&&!j.visitCompleted);if(overdue.length){const pending=el('details');pending.append(el('summary',overdue.length+' earlier jobs still open'));for(const j of overdue){const b=jobButton(j);b.prepend(el('small',diaryDate(j.date)));pending.append(b);}view.append(pending);}
  requestAnimationFrame(()=>{const active=strip.querySelector('[aria-pressed=true]');if(active)strip.scrollLeft=Math.min(active.offsetLeft,strip.scrollWidth-strip.clientWidth);});
 }
-

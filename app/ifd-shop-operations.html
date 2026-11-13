@@ -1613,12 +1613,13 @@ window.IFDLogic = (function(){
       linesOf(j).forEach(function(l){
         if (gidNum(l.variantId) !== id || !id) return;
         var q = Number(l.qty) || 0;
-        if (j.status === 'open'){
+        var installed = (j.activeSnag && j.activeSnag.lineKeys || []).indexOf(l.k) >= 0;
+        if (j.status === 'open' && !installed){
           if (l.hold === 'web'){ m.heldWeb += q; m.forJobs.push({ref:j.ref, name:(j.customer || {}).name, qty:q}); }
           else if (l.hold === 'supplier'){ var here = l.rx ? supplyOf(l).got : (l.state === 'allocated' ? q : 0); if (here){ m.heldSupplier += here; m.forJobs.push({ref:j.ref, name:(j.customer || {}).name, qty:here}); } }
           else if (l.hold === 'reserved'){ var held = supplyOf(l).got; m.heldShopify += held; m.forJobs.push({ref:j.ref, name:(j.customer || {}).name, qty:held}); }
           else if (l.hold === 'draft' || l.hold === 'order'){ m.heldShopify += q; m.forJobs.push({ref:j.ref, name:(j.customer || {}).name, qty:q}); }
-        } else if (j.status === 'done'){
+        } else if (j.status === 'done' || installed){
           if ((l.hold === 'draft' || l.hold === 'order') && !j.shopifyClosed) m.gone += q;
           if (l.hold === 'reserved' && !l.released) m.gone += supplyOf(l).got;
         }
@@ -2482,6 +2483,10 @@ function catalogueQuote(p,v){
  if(!carpet)sq(Q_SEARCH,{q:'tag:accessory_underlay AND NOT tag:for_carpet'}).then(d=>{(d.products?.nodes||[]).forEach(pr=>(pr.variants?.nodes||[]).forEach(z=>{const cov=Number(pr.coverage?.value)||0;if(cov&&Number(z.price)>0)floorUnderlays.push({id:z.id,title:variantTitle(pr,z),cov,pack:Number(z.price),clash:L.covClash(variantTitle(pr,z),cov)});}));underPick.replaceChildren(h('option',{value:'',text:'Choose flooring underlay if required'}),...floorUnderlays.map(x=>h('option',{value:x.id,text:x.title+' · '+L.money(x.pack)})));}).catch(()=>{message.textContent='Underlay prices could not load. Retry before including underlay.';});
 }
 
+function snagDialog(job){
+ const note=h('textarea',{class:'in',maxLength:1000}),s=sayer();let busy=false;
+ openModal(dlg('Book a snag / return visit',h('div',{class:'sec'},h('p',{text:'The original job, signature, measurements, payments and stock history stay saved. Record the customer call, then choose an agreed return date in the fitter diary.'}),field('What needs attention?',note),s.box),[btn('Cancel',closeModal),btn('Reopen job and arrange return',async()=>{if(busy)return;busy=true;try{await runCmd('snag.reopen',{jobId:job.id,key:'snag-'+crypto.randomUUID(),note:note.value});location.href='/appointments?job='+encodeURIComponent(job.id);}catch(e){s.say(e.message||'Could not reopen job.',true);busy=false;}},'pri')]));
+}
 /* ---------- Jobs ---------- */
 VIEWS.jobs = function(){
   const list = h('div', {style:'display:contents'});
@@ -3109,7 +3114,7 @@ function drawSheet(){
   const logs = Object.keys(job.log || {}).map(k => job.log[k]).sort((a, b) => String(b.at).localeCompare(String(a.at)));
   learnNames(Array.from(new Set(logs.map(x => x.by))));
   const bo = L.backOpen(job), earlier = L.backsOf(job).filter(b => b.on !== true);
-  const customerSignCard=h('div',{class:'card'},job.fitterWork?h('div',{},h('h3',{text:'Fitter checklist and return visits'}),h('p',{text:job.fitterWork.shopAttention||job.fitterWork.notificationIssue||'Managed by '+job.fitter}),Object.values(job.fitterWork.issues||{}).map(x=>h('p',{text:x.state+' · '+x.reason+' · '+x.note})),Object.values(job.fitterWork.events||{}).map(x=>h('p',{text:x.date+' · '+x.slot+' · '+x.purpose+' · '+x.byName})),btn('Open fitter tasks / approvals',()=>{location.href='/appointments';},'sm')):null,h('h3',{text:'Customer sign-off'}),Object.keys(job.customerSignoffs||{}).length?btn('Send thank-you email again',async()=>{try{const r=await runCmd('thanks.resend',{jobId:job.id,key:'thanks-resend-'+crypto.randomUUID()});toast(r.state==='sent'?'Thank-you email sent.':r.msg?.err||'Email not confirmed as sent.',r.state!=='sent');}catch(e){dbFail(e);}},'sm'):null,Object.values(job.customerSignoffs||{}).map(r=>{const canvas=h('canvas',{width:600,height:220,style:'max-width:100%;height:auto;background:white'});setTimeout(()=>{const c=canvas.getContext('2d');c.lineWidth=2;(r.strokes||[]).forEach(s=>{c.beginPath();s.forEach((p,i)=>i?c.lineTo(p[0]*600,p[1]*220):c.moveTo(p[0]*600,p[1]*220));c.stroke();});},0);return h('div',{},h('p',{text:r.at+' · '+r.name+' · '+(r.outcome==='clear'?'No issues reported':'Issues recorded')}),h('p',{text:r.statement}),h('p',{text:r.note||r.reason||''}),r.signed?canvas:null);}),job.thankYouIssue?h('p',{class:'banner warn',text:job.thankYouIssue}):null);
+  const customerSignCard=h('div',{class:'card'},job.status==='done'&&job.type==='Fitting'?btn('Book a snag / return visit',()=>snagDialog(job),'pri'):null,job.fitterWork?h('div',{},h('h3',{text:'Fitter checklist and return visits'}),h('p',{text:job.fitterWork.shopAttention||job.fitterWork.notificationIssue||'Managed by '+job.fitter}),Object.values(job.fitterWork.issues||{}).map(x=>h('p',{text:x.state+' · '+x.reason+' · '+x.note})),Object.values(job.fitterWork.events||{}).map(x=>h('p',{text:x.date+' · '+x.slot+' · '+x.purpose+' · '+x.byName})),btn('Open fitter tasks / approvals',()=>{location.href='/appointments';},'sm')):null,h('h3',{text:'Customer sign-off'}),job.status==='done'&&Object.keys(job.customerSignoffs||{}).length?btn('Send thank-you email again',async()=>{try{const r=await runCmd('thanks.resend',{jobId:job.id,key:'thanks-resend-'+crypto.randomUUID()});toast(r.state==='sent'?'Thank-you email sent.':r.msg?.err||'Email not confirmed as sent.',r.state!=='sent');}catch(e){dbFail(e);}},'sm'):null,Object.values(job.customerSignoffs||{}).map(r=>{const canvas=h('canvas',{width:600,height:220,style:'max-width:100%;height:auto;background:white'});setTimeout(()=>{const c=canvas.getContext('2d');c.lineWidth=2;(r.strokes||[]).forEach(s=>{c.beginPath();s.forEach((p,i)=>i?c.lineTo(p[0]*600,p[1]*220):c.moveTo(p[0]*600,p[1]*220));c.stroke();});},0);return h('div',{},h('p',{text:r.at+' · '+r.name+' · '+(r.outcome==='clear'?'No issues reported':'Issues recorded')}),h('p',{text:r.statement}),h('p',{text:r.note||r.reason||''}),r.signed?canvas:null);}),job.thankYouIssue?h('p',{class:'banner warn',text:job.thankYouIssue}):null);
   const backCard = bo ? h('div', {class:'card backcard', id:'backCard'}, h('h3', {}, 'Sent back to the shop', chip('Act now', 'bad')), backBlock(job, bo, true)) : null;
   const backLog = earlier.length ? h('div', {class:'card'}, h('h3', {}, 'Sent back before'), h('div', {class:'log'}, earlier.slice().reverse().map(b => h('div', {text:whenText(b.at) + '  ' + (b.fitter || 'Fitter') + ': ' + L.backReason(b) + (b.note ? '. ' + b.note : '') + (b.doneAt ? '  Dealt with ' + whenText(b.doneAt) + ' by ' + nameOf(b.doneBy) + (b.doneNote ? ': ' + b.doneNote : '') : '')})))) : null;
   const briefCard = L.briefHas(job) || (open && job.source === 'measure') ? h('div', {class:'card', id:'briefCard'}, h('h3', {}, 'What the measure is for', open ? h('span', {class:'bar'}, btn(L.briefHas(job) ? 'Change' : 'Add', () => briefDialog(job), 'sm')) : null),

@@ -65,11 +65,11 @@ test('customer sign-off enforces assignment, signatures, holds, immutable histor
   s.app.store.setDoc(docPath('jobs/issues'),j);
   assert.equal((await sign({...b,jobId:'issues',key:'customer_issues',outcome:'issues',note:'TEST: trim needs attention'})).status,200);
   assert.equal(s.job('issues').status,'open');assert.equal(s.job('issues').ret,'needed');
-  await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,2);assert.match(s.mailbox.state.got[1].text,/trim needs attention/);assert.match(s.mailbox.state.got[1].text,/Please only pay your fitter once all agreed fitting work is complete/);assert.match(s.mailbox.state.got[1].text,/https:\/\/example.test\/review/);
+  await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,1);assert.equal(s.job('issues').thankYouRequired,false);
   s.app.store.setDoc(docPath('jobs/heldsign'),testJob({date:j.date,diary:true}));assert.equal((await sign({...b,jobId:'heldsign'})).status,409);
   assert.equal((await s.req('POST','/api/db/update',{path:'jobs/heldsign',data:{status:'done'}},owner)).status,409);
   s.app.store.setDoc(docPath('jobs/absent'),j);assert.equal((await sign({...b,jobId:'absent',strokes:[],reason:'Customer had to leave'})).status,200);assert.equal(s.job('absent').status,'open');
-  s.app.store.updateDoc(docPath('settings/main'),{words:{reviewUrl:''}});await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,3);assert.match(s.mailbox.state.got[2].text,/Google and Facebook/);
+  s.app.store.updateDoc(docPath('settings/main'),{words:{reviewUrl:''}});await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,1);
  }finally{s.stop();}
 });
 /* a made-up fitting: one carpet room measured 3.00 x 3.80 m, 3.1 m sold off a 4 m roll, £377.40 in all of which £150 is the fitter's */
@@ -777,6 +777,8 @@ test('unfinished fitting cannot complete until tasks resolved and customer confi
  assert.equal(saved.status,'open');assert.match(saved.fitterWork.shopAttention,/do not collect/);
  assert.match(saved.customerSignoffs.policy_issue.statement,/outstanding issues/);
  assert.equal(saved.fitterWork.issues.signoff_policy_issue.state,'open');
+ s.app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['zed@example.test']}});await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,0);assert.equal(saved.thankYouRequired,false);
+ s.app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:[]}});
  assert.equal((await sign({...base,key:'policy_early',outcome:'clear',note:''})).status,409);
  assert.equal((await s.req('POST','/api/db/update',{path:'jobs/'+base.jobId,data:{status:'done'}},owner)).status,409);
  const rows=(await s.req('GET','/api/appointments',undefined,fitter)).json;
@@ -791,6 +793,18 @@ test('unfinished fitting cannot complete until tasks resolved and customer confi
  const resend={jobId:base.jobId,key:'thanks_design_resend'};assert.equal((await s.cmd('thanks.resend',resend,owner)).json.state,'sent');assert.equal((await s.cmd('thanks.resend',resend,owner)).json.duplicate,true);assert.equal(s.mailbox.state.got.length,2);assert.match(s.mailbox.state.got[1].html,/WITH OUR THANKS/);
  assert.match(saved.customerSignoffs.policy_complete.statement,/happy to pay/);
  assert.equal(saved.customerSignoffs.policy_complete.version,2);
+ const before=structuredClone(saved),reopen={jobId:base.jobId,key:'snag_shop_test',note:'TEST customer called about a loose door bar'};
+ assert.equal((await s.cmd('snag.reopen',reopen,owner)).status,200);
+ assert.equal((await s.cmd('snag.reopen',reopen,owner)).json.duplicate,true);
+ saved=s.job(base.jobId);assert.equal(saved.status,'open');assert.equal(saved.ret,'needed');assert.deepEqual(saved.lines,before.lines);assert.deepEqual(saved.pay,before.pay);assert.deepEqual(saved.customerSignoffs,before.customerSignoffs);assert.deepEqual(saved.snagHistory.snag_shop_test.completionRecord,before.completionRecord);
+ const mailCount=s.mailbox.state.got.length;await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,mailCount);
+ assert.equal((await s.cmd('thanks.resend',{jobId:base.jobId,key:'no_early_thanks'},owner)).status,409);
+ assert.equal((await sign({...base,key:'snag_early',outcome:'clear',note:''})).status,409);
+ const checks=Object.fromEntries(require('../lib/fitter-work').checks(['carpet']).map(c=>[c.id,{state:'done'}]));
+ assert.equal((await s.req('POST','/api/appointments/work/checklist',{jobId:base.jobId,date:j.date,version:saved.fitterWork.version,profiles:['carpet'],checks},fitter)).status,200);
+ saved=s.job(base.jobId);assert.equal((await s.req('POST','/api/appointments/work/issue',{jobId:base.jobId,date:j.date,version:saved.fitterWork.version,resolve:'snag_shop_test',note:'Door bar repaired and checked'},fitter)).status,200);
+ assert.equal((await sign({...base,key:'snag_complete',outcome:'clear',note:''})).status,200);
+ await s.app.commands.poll();assert.equal(s.mailbox.state.got.length,mailCount+1);assert.equal(Object.keys(s.job(base.jobId).customerSignoffs).length,3);
  }finally{s.stop();}
 });
 test('owner estimator trial restricts session to assigned visits and cannot regain shop access',async()=>{const s=await boot();try{const owner=await s.signIn(OWNER);const r=await s.req('POST','/api/estimator-trial',{},owner);assert.equal(r.status,200);const cookie=r.headers.get('set-cookie').split(';')[0];const me=await s.req('GET','/api/me',undefined,cookie);assert.equal(me.json.role,'estimator');const list=await s.req('GET','/api/appointments',undefined,cookie);assert.equal(list.json.shop,false);assert.equal(list.json.jobs.length,1);assert.equal(list.json.jobs[0].kind,'Estimator visit');assert.ok(list.json.jobs[0].estimator);for(const url of ['/api/users','/api/db/list?coll=jobs'])assert.equal((await s.req('GET',url,undefined,cookie)).status,403);assert.equal((await s.req('POST','/api/estimator-trial',{},cookie)).status,403);assert.equal((await s.req('GET','/api/me',undefined,owner)).status,401);const home=await s.req('GET','/',undefined,cookie);assert.match(home.text,/My diary/);}finally{s.stop();}});
