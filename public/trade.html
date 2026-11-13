@@ -23,4 +23,4 @@ $('invoiceForm').onsubmit=e=>{e.preventDefault();locked(e.submitter,async()=>{co
 $('invoiceUpdate').onsubmit=e=>{e.preventDefault();locked(e.submitter,async()=>{await api({action:'updateInvoice',id:invoiceId,...Object.fromEntries(new FormData(e.target))});$('invoiceView').close();await load();});};
 $('attachNow').onclick=e=>locked(e.target,async()=>{if(!$('attachPdf').files[0])throw Error('Choose a PDF first.');await upload(invoiceId,$('attachPdf').files[0]);$('invoiceView').close();await load();});
 $('importNow').onclick=e=>locked(e.target,async()=>{const f=$('importFile').files[0];if(!f)throw Error('Choose the trade price-list file.');if(f.size>1900000)throw Error('Split large imports into smaller lists.');const data=JSON.parse(await f.text());const r=await api({...data,action:'import'});await load();notice(r.count+' trade prices imported. Retail prices unchanged.');});load();
-</script></body></html>
+</script><script src="/trade-documents.js"></script></body></html>

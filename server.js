@@ -16,7 +16,6 @@ function create(opts){
   opts = opts || {};
   const env = opts.env || process.env, log = opts.log || console.log, fetchImpl = opts.fetch || fetch, now = opts.now || (() => Date.now());
   const dataDir = env.DATA_DIR || path.join(__dirname, 'data'), st = store.open(dataDir);
-  const trade=require('./lib/trade').make({dataDir,now});
   const shop = shopifyLib.client(env, fetchImpl), sendText = opts.sendText || sms.sender(env, fetchImpl, log);
   const secure = env.INSECURE_COOKIES !== '1', pepper = env.SESSION_PEPPER || 'not-for-production';
   const hash = s => crypto.createHmac('sha256', pepper).update(String(s)).digest('hex');
@@ -30,6 +29,7 @@ function create(opts){
   /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
   const L = rules.load(appBody);
   const texter = opts.texter || sms.make(env, fetchImpl, log), mailer = opts.mailer || mail.make(env, log);
+  const trade=require('./lib/trade').make({dataDir,now,mailer});
   const q = {
     userByMobile: db.prepare('SELECT * FROM users WHERE mobile = ?'), userById: db.prepare('SELECT * FROM users WHERE id = ?'),
     addUser: db.prepare('INSERT INTO users(id, name, mobile, role, active, created) VALUES(?, ?, ?, ?, 1, ?)'),
@@ -374,10 +374,12 @@ function create(opts){
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
     if(p==='/trade'&&req.method==='GET')return page(res,pub('trade.html'));
     if(p==='/trade-link.js'&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(__dirname,'public','trade-link.js')),{"content-type":"application/javascript"});
-    if(p==='/api/trade'&&req.method==='GET')return send(res,200,{...trade.status(user),products:trade.products(user,url.searchParams.get('q')||''),invoices:trade.invoices(user,url.searchParams.get('q')||'',url.searchParams.get('tests')==='1')});
+    if(p==='/api/trade'&&req.method==='GET')return send(res,200,{...trade.status(user),products:trade.products(user,url.searchParams.get('q')||''),invoices:trade.invoices(user,url.searchParams.get('q')||'',url.searchParams.get('tests')==='1'),documents:trade.documents(user),sender:mailer.from||'',emailReady:mailer.ready});
     if(p==='/api/trade'&&req.method==='POST'){
-      const b=await readJson(req),methods={import:'importProducts',product:'saveProduct',invoice:'saveInvoice',updateInvoice:'updateInvoice'};if(!methods[b.action])return fail(res,400,'invalid_argument','Choose a trade action.');return send(res,200,trade[methods[b.action]](user,b));
+      const b=await readJson(req),methods={import:'importProducts',product:'saveProduct',invoice:'saveInvoice',updateInvoice:'updateInvoice',draft:'draft',issue:'issue',send:'sendDocument',accept:'acceptQuote',convert:'convertQuote',resolve:'resolveSend',void:'voidDocument'};if(!methods[b.action])return fail(res,400,'invalid_argument','Choose a trade action.');return send(res,200,await trade[methods[b.action]](user,b));
     }
+    if(p.startsWith('/trade/document/')&&req.method==='GET')return page(res,trade.preview(user,p.slice('/trade/document/'.length)));
+    if(p==='/trade-documents.js'&&req.method==='GET')return send(res,200,pub('trade-documents.js'),{'content-type':'application/javascript'});
     if(p.startsWith('/api/trade/invoice/')){const id=p.slice('/api/trade/invoice/'.length);if(req.method==='POST')return send(res,200,trade.attach(user,id,await readBody(req,10*1024*1024)));if(req.method==='GET'){const f=trade.download(user,id);return send(res,200,f.body,{'content-type':'application/pdf','content-disposition':'attachment; filename="'+f.name+'"','cache-control':'private, no-store'});}}
     if(p==='/api/supplier-mail'&&req.method==='POST'){const b=await readJson(req);if(b.action==='draft')return send(res,200,supplierMail.draft(b,user));if(b.action==='enable')return send(res,200,await supplierMail.enable(b,user));if(b.action==='check')return send(res,200,await supplierMail.poll());return fail(res,400,'invalid_argument','Unknown supplier action.');}
     if(p==='/api/fitter-access'&&req.method==='POST'){
