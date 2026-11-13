@@ -1,6 +1,6 @@
 'use strict';
 window.IFDRatings=(()=>{
- const node=(tag,text)=>{const e=document.createElement(tag);if(text)e.textContent=text;return e;};
+ const node=(tag,text)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(tag==='summary')e.style.cssText='background:#211a1e;color:#fff;border:1px solid #63313b;border-radius:9px;padding:12px;overflow-wrap:anywhere';return e;};
  async function request(url,body){const r=await fetch(url,{method:body?'POST':'GET',headers:{'x-ifd':'1','content-type':'application/json'},body:body?JSON.stringify(body):undefined});const d=await r.json();if(!r.ok)throw Error(d.error?.message||'Could not load feedback');return d;}
  function mount(parent){
   messageBoard(parent);
