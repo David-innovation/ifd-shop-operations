@@ -1418,7 +1418,7 @@ window.IFDLogic = (function(){
   function quoteStage(job,today){
     var q=quoteOf(job);if(!q)return {key:'unpriced',label:'To price'};
     if(job.status==='cancelled'||job.lost)return {key:'closed',label:'Closed — not going ahead'};
-    if(job.accepted||job.customerAcceptance?.rev===q.k)return {key:'accepted',label:'Accepted — arrange order'};
+    if(job.accepted||job.customerAcceptance?.rev===q.k)return {key:'accepted',label:job.accepted?'Accepted — order arranged':'Accepted — arrange order'};
     var w=quoteWait(job,today),count=msgsFor(job,'quote',q.k).filter(m=>m.channel==='email'&&msgWent(m)&&String(m.subject||'').startsWith('A friendly follow-up')).length;
     if(w.state==='unsent')return {key:'unsent',label:w.why==='failed'?'Email failed — retry':w.why==='unsure'?'Delivery uncertain — check':'Priced — ready to send',wait:w};
     if(w.state==='yes')return {key:'accepted',label:'Accepted — arrange order',wait:w};
@@ -2228,7 +2228,7 @@ function confirmRow(job){
 }
 /* the customer has said yes and something has to be ordered in: nothing more happens to the job until the order details are in */
 function toOrderJobs(){ return openJobs().filter(j => L.orderNeeded(j).length).sort((a, b) => String((a.accepted || {}).at || '').localeCompare(String((b.accepted || {}).at || ''))); }
-function orderDetailsFor(job){ const l = L.orderNeeded(job)[0]; if (!l) return; orderDialog({jobId:job.id, lineK:l.k}); }
+function orderDetailsFor(job, selected){ const l = selected || L.orderNeeded(job)[0]; if (!l) return; orderDialog({jobId:job.id, lineK:l.k}); }
 function orderRow(job){
   const c = job.customer || {};
   return h('div', {class:'row static act'},
@@ -2933,7 +2933,7 @@ function openSheet(id){
   if (od.length) arrivalPopup(od);
 }
 function closeSheet(){ S.fitterSheet = null; S.openJob = null; S.openDelivery = null; const s = $('#sheet'); s.hidden = true; s.replaceChildren(); }
-const HOLD_TEXT = {pick:'To be picked: not a Shopify stock item', web:'Taken off Shopify stock by the website deposit', order:'On the Shopify order', draft:'Reserved in Shopify', supplier:'Ordered in for this customer', reserved:'Ordered in and held in Shopify for this job', none:'No stock needed'};
+const HOLD_TEXT = {stock:'TEST ONLY — simulated stock',pick:'To be picked: not a Shopify stock item', web:'Taken off Shopify stock by the website deposit', order:'On the Shopify order', draft:'Reserved in Shopify', supplier:'Ordered in for this customer', reserved:'Ordered in and held in Shopify for this job', none:'No stock needed'};
 function tickLine(job, l, fieldName, value){
   const p = {lines:{}}; p.lines[l.k] = {}; p.lines[l.k][fieldName] = value;
   const word = fieldName === 'picked' ? (l.unit === 'm' ? 'cut' : 'picked') : 'checked';
