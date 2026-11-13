@@ -314,7 +314,18 @@ function create(opts){
       if(!st.getDoc(d.path).exists){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));st.setDoc(d,{test:true,status:'open',type:'Fitting',diary:false,ref:'ZZ ESTIMATOR TRIAL',customer:{name:'ZZ TEST - David estimator trial',phone:authUser.mobile,email:env.TEST_CUSTOMER_EMAIL||'',address:'TEST ONLY - no customer appointment',postcode:''},brief:{rooms:'Living room and bedroom',note:'TEST ONLY - measure rooms, accessories, preparation and concealed subfloor. No real order or stock.'},rooms:{},lines:{},total:0,notes:'OWNER ESTIMATOR TRIAL ONLY. No real appointment, stock or payment.',pre:{trial:{kind:'both',status:'booked',date,who:authUser.name+' - estimator trial',whoId,duration:60}}});broadcast('jobs');}
       q.dropSession.run(hash(cookieOf(req)));setSession(res,{...authUser,id:whoId,role:'estimator'});return send(res,200,{ok:true});
     }
+    if(p==='/api/fitter-trial/deadline'&&req.method==='POST'){
+      if(user.role!=='owner')return fail(res,403,'forbidden','Only the signed-in shop owner can prepare this test.');
+      const id='ZZ-OWNER-FITTER-'+user.id,d=store.docPath('jobs/'+id),j=st.getDoc(d.path).data;
+      if(!j?.test||j.status!=='open'||j.fitterId!=='trial_'+user.id||j.total!==0||Object.values(j.lines||{}).some(x=>x.hold&&x.hold!=='none'))return fail(res,409,'test_only','This control only changes the unreserved, zero-value owner practice job.');
+      const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));
+      const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',hourCycle:'h23'}).format(new Date(now())));
+      const date=hour>=12?new Date(Date.parse(today+'T12:00:00Z')+86400000).toISOString().slice(0,10):today;
+      if(Object.values(j.msgs||{}).some(m=>m.snap?.date===date&&String(m.rev||'').startsWith('fit-slot:')&&['sent','delivered'].includes(m.state)))return fail(res,409,'already_sent','This practice date already has a sent slot. Its message history has been preserved.');
+      st.updateDoc(d,{date,diary:true,customer:{phone:user.mobile},log:{['deadlineTrial_'+now()]:{at:iso(),by:user.name,text:'TEST ONLY: practice booking moved to '+date+' for the overdue time-slot demonstration. No stock or payment changed.'}}});broadcast('jobs');return send(res,200,{ok:true,id,date});
+    }
     if(p==='/api/fitter-trial'&&req.method==='POST'){
+
       if(authUser.role!=='owner')return fail(res,403,'forbidden','Only the owner can open their fitter trial.');
       const b=await readJson(req);if(typeof b.enabled!=='boolean')return fail(res,400,'invalid_argument','Choose the shop or fitter trial.');
       const id='ZZ-OWNER-FITTER-'+authUser.id,d=store.docPath('jobs/'+id),fitterId='trial_'+authUser.id;
