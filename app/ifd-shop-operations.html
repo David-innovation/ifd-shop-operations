@@ -3907,7 +3907,7 @@ function messageDialog(job, o){
     h('div', {class:'bar'}, h('span', {class:'small muted', text:'Other ways:'}), copy, app, hand), handBox, list, s.box), [btn('Done', closeModal, 'pri')]));
   paint();
 }
-function walkinQuoteActions(job){const q=L.quoteOf(job);if(!q)return;openModal(dlg('Walk-in quote ready',h('div',{class:'sec'},h('h2',{text:job.customer.name+' · '+L.money(L.quoteTotal(q))}),h('p',{text:'Saved in Quotes & invoices. Original measurements, selected products and accessories stay with this record through every stage.'}),h('p',{class:'banner warn',text:'Customer measurements are unverified. Turning this quote into a job does not verify sizes or book fitting.'}),job.cuttingApproval?.plan?h('a',{class:'btn',href:'/cutting-plan?job='+encodeURIComponent(job.id),target:'_blank',rel:'noopener',text:'View / print stair cutting plan'}):null,h('div',{class:'bar'},btn('Email quote',()=>sendQuoteDialog(job,q),'pri'),h('a',{class:'btn',href:'/document?job='+encodeURIComponent(job.id)+'&kind=quote',target:'_blank',rel:'noopener',text:'Print quote / save PDF'}),btn(job.type==='Collection'?'Confirm collection':job.type==='Delivery'?'Arrange delivery':'Book fitting',()=>acceptDialog(job),'pri'))),[btn('Close',closeModal)]));}
+function walkinQuoteActions(job){const q=L.quoteOf(job);if(!q)return;openModal(dlg('Walk-in quote ready',h('div',{class:'sec'},h('h2',{text:job.customer.name+' · '+L.money(L.quoteTotal(q))}),h('p',{text:'Saved in Quotes & invoices. Original measurements, selected products and accessories stay with this record through every stage.'}),h('p',{class:'banner warn',text:'Customer measurements are unverified. Turning this quote into a job does not verify sizes or book fitting.'}),job.cuttingApproval?.plan?h('a',{class:'btn',href:'/cutting-plan?job='+encodeURIComponent(job.id),target:'_blank',rel:'noopener',text:'View / print stair cutting plan'}):null,h('div',{class:'bar'},btn('Email quote',()=>sendQuoteDialog(job,q),'pri'),h('a',{class:'btn',href:'/document?job='+encodeURIComponent(job.id)+'&kind=quote',target:'_blank',rel:'noopener',text:'Print quote / save PDF'}),...['Fitting','Delivery','Collection'].map(type=>btn(type==='Fitting'?'Book fitting':type==='Delivery'?'Arrange delivery':'Arrange collection',()=>acceptDialog(job,type),'pri')))),[btn('Close',closeModal)]));}
 function sendQuoteDialog(job, q, followup=false){
   const shop = shopInfo();
   messageDialog(job, {kind:'quote', rev:q.k, title:followup?'Review follow-up email':'Send the quote', head:'Quote ' + L.quoteRef(job, q) + ', ' + L.money(L.quoteTotal(q)) + '. It has the figures and no sizes.', noSizes:true,
@@ -3959,6 +3959,7 @@ function whenPicker(job, P, getType, init){
   people.forEach(f => sel.append(h('option', {value:f, text:f, selected:f === i0.fitter})));
   const o = {install:true, clear:true, skipJob:job.id, needPerson:false, hsl:() => getType() === 'Fitting' && L.hasHSL(job), person:() => sel.value, post:() => c.postcode || ''};
   const strip = dayStrip(date, o), who = h('label', {class:'fld'}, lab, sel);
+  const area=areaBox(()=>c.postcode,d=>{const problem=check(d);if(problem){toast(problem,true);return;}date.value=d;strip.show(d);strip.refresh();},{skipJob:job.id,person:()=>sel.value,empty:'Enter the customer postcode first.'});
   let min = '';
   const check = d => {
     if (!d) return '';
@@ -3966,16 +3967,16 @@ function whenPicker(job, P, getType, init){
     return (min && d < min ? 'The carpet is not due in until ' + L.fmtDay(min) + '. Pick that day or a later one.' : '') || offMsg(f, d) || (fit && f ? hslMsg(Object.assign({}, job, {type:'Fitting', fitter:f, date:d}), f, d) : '');
   };
   date.addEventListener('change', () => { const m = check(date.value); if (m){ toast(m, true); date.value = ''; strip.refresh(); } });
-  sel.addEventListener('change', () => { const m = check(date.value); if (m){ toast(m, true); date.value = ''; } strip.refresh(); });
+  sel.addEventListener('change', () => { const m = check(date.value); if (m){ toast(m, true); date.value = ''; } strip.refresh();area.refresh(); });
   function refresh(){
     const fit = getType() === 'Fitting';
     lab.textContent = fit ? 'Fitter' : 'Who is delivering, if it is decided';
     blank.textContent = fit ? 'Choose the fitter' : 'Not decided yet';
     o.needPerson = fit;
-    strip.refresh();
+    strip.refresh();area.refresh();
   }
   refresh();
-  return {who:who, days:strip.node, refresh:refresh, fitter:() => sel.value, date:() => (L.validISO(date.value) ? date.value : ''),
+  return {who:who,area:area.node, days:strip.node, refresh:refresh, fitter:() => sel.value, date:() => (L.validISO(date.value) ? date.value : ''),
     setMin:m => { min = L.validISO(m) ? m : ''; if (min) strip.show(min); }, clear:() => { if (date.value){ date.value = ''; strip.refresh(); } },
     problems:needDay => {
       const fit = getType() === 'Fitting', out = [], f = sel.value, d = L.validISO(date.value) ? date.value : '';
@@ -4006,12 +4007,12 @@ function dayDialog(job){
    The job becomes a fitting, a delivery or a collection, and the carpet is allocated there and then. From our own rolls
    it is reserved in Shopify and goes to the warehouse's cutting list. Otherwise it is ordered in, and the job is held
    until the order details and the arrival date are entered. What the customer pays is the quote, line for line. */
-function acceptDialog(job){
+function acceptDialog(job,preferredType){
   if (!needShop() || !needDb()) return;
   const q = L.quoteOf(job); if (!q) return;
   if(job.test===true&&job.id==='ZZ-MEASURE-COMBINED-esttrial_'+S.me.id&&!job.accepted){openModal(dlg('Stock-free trial order',h('p',{text:'This accepts only your fictional job, records a clearly labelled simulated materials payment, and passes its approved cuts and accessories to warehouse preparation. No real stock or money changes.'}),[btn('Cancel',closeModal),btn('Continue stock-free trial',async()=>{try{await runCmd('trial.accept',{jobId:job.id});closeModal();openSheet(job.id);}catch(e){toast(explain(e),true);}},'pri')]));return;}
-  const s = sayer(), c = job.customer || {}, b = L.briefOf(job), rooms = L.roomsOf(job), runs = L.pricingOf(job).stairs;
-  const F = {type:job.walkin&&L.TYPES.includes(job.type)?job.type:'', busy:false, saved:null}, items = [], covered = {};
+  const s = sayer(), c = {...(job.customer || {})}, b = L.briefOf(job), rooms = L.roomsOf(job), runs = L.pricingOf(job).stairs;
+  const F = {type:L.TYPES.includes(preferredType)?preferredType:job.walkin&&L.TYPES.includes(job.type)?job.type:'', busy:false, saved:null}, items = [], covered = {};
   const plan = q.supply || L.supplyPlan(job);
   plan.groups.forEach(g=>{
     const ch=b.choices.find(x=>x.k===g.choice); if(!ch)return;
@@ -4061,7 +4062,10 @@ function acceptDialog(job){
     paint(it); drawWhen();
   }
   const typeSeg = h('div', {class:'seg', id:'accType'});
-  const when = whenPicker(job, 'acc', () => F.type, {fitter:job.fitter || '', date:L.validISO(job.date) && job.date >= L.todayISO() ? job.date : ''}),   /* a fitter or a day already pencilled on the job carries over */ whenNote = h('p', {class:'small', id:'accWhenNote', style:'font-weight:600'});
+  const when = whenPicker({...job,customer:c}, 'acc', () => F.type, {fitter:job.fitter || '', date:L.validISO(job.date) && job.date >= L.todayISO() ? job.date : ''}),   /* a fitter or a day already pencilled on the job carries over */ whenNote = h('p', {class:'small', id:'accWhenNote', style:'font-weight:600'});
+  const postcode=h('input',{class:'in',id:'accPostcode',placeholder:'e.g. G81 1DX',value:c.postcode||'',oninput:e=>{c.postcode=e.target.value.trim().toUpperCase();when.clear();drawWhen();}}),address=h('input',{class:'in',id:'accAddress',value:c.address||'',placeholder:'House number and street',oninput:e=>{c.address=e.target.value.trim();}});
+  const postcodeReady=()=>/^[A-Z]{1,2}[0-9][A-Z0-9]?\s*[0-9][A-Z]{2}$/i.test(c.postcode||'');
+  const locationBox=h('div',{class:'card'},h('h3',{text:'1. Where is the job?'}),field('Customer postcode — find our next visit to the area',postcode),field('Customer address',address),h('p',{class:'small',text:'Enter the postcode first. Check nearby bookings, then choose the fitter and a suitable day. Same area does not automatically mean spare capacity.'}));
   const anyOrder = () => items.some(it => it.how === 'order');
   const qFit = L.quoteFitting(q), qTotal = L.quoteTotal(q);
   /* Each line of the quote is goods, a service, or an accessory. An accessory either comes from a Shopify product that
@@ -4121,14 +4125,16 @@ function acceptDialog(job){
      Carpet that is being ordered in has no day yet: that is picked once its arrival date is known. */
   function drawWhen(){
     const t = F.type, ord = anyOrder(), fit = t === 'Fitting', del = t === 'Delivery';
-    when.who.hidden = !(fit || (del && !ord)); when.days.hidden = !((fit || del) && !ord); fitRow.hidden = !fit; drawSplit();
+    locationBox.hidden=t==='Collection';when.area.hidden=!(fit||del)||!postcodeReady()||ord;when.who.hidden = !(fit || (del && !ord))||!postcodeReady(); when.days.hidden = !((fit || del) && !ord)||!postcodeReady(); fitRow.hidden = !fit; drawSplit();
     if (ord || t === 'Collection') when.clear();
-    whenNote.hidden = !t;
+    revision.hidden=!(job.walkin&&((t!=='Fitting'&&qFit>0)||(t==='Fitting'&&qFit===0)));whenNote.hidden = !t;
     whenNote.textContent = t === 'Collection' ? (ord ? 'Nothing more to pick. The customer collects it once it has arrived.' : 'Nothing more to pick. The carpet goes straight to be cut, and the customer collects it when it is ready.')
       : del ? (ord ? 'The delivery day is picked once the order details and the arrival date are in.' : 'Pick the delivery day.')
       : fit ? (ord ? 'Choose the fitter. The day is picked once the order details and the arrival date are in.' : 'Choose the fitter. Their diary comes up to pick the day.') : '';
+    if((fit||del)&&!postcodeReady())whenNote.textContent='Enter the customer’s full postcode above to see area bookings and available dates.';
     when.refresh();
   }
+  const revision=btn('Review quote for this order type',async()=>{try{const rooms=Object.fromEntries(Object.entries(job.rooms||{}).map(([k,r])=>[k,{...r,spec:{...(r.spec||{}),fitting:F.type==='Fitting',...(F.type==='Fitting'?{}:{uplift:false,furniture:false})}}]));await patchJob(job.id,{type:F.type,customer:c,rooms},'Changed order type to '+F.type+'; quote must be reviewed before acceptance.');closeModal();quoteDialog({...job,type:F.type,customer:c,rooms});}catch(e){s.say(explain(e),true);}},'sm');
   const drawType = () => { typeSeg.replaceChildren(); L.TYPES.forEach(t => typeSeg.append(h('button', {type:'button', id:'acc' + t, class:F.type === t ? 'on' : '', onclick:() => { F.type = t; drawType(); drawWhen(); }}, t))); };
   drawType(); drawWhen();
   const itemsBox = h('div', {id:'accItems'});
@@ -4154,7 +4160,7 @@ function acceptDialog(job){
     if (F.busy) return;
     const name = who.value.trim();
     if (!F.saved){
-      const errs = plan.problems.slice();
+      const errs = plan.problems.slice();if(F.type!=='Collection'&&!postcodeReady())errs.push('Enter the customer’s full postcode.');if(F.type!=='Collection'&&!c.address)errs.push('Enter the customer’s address.');if(F.type!=='Fitting'&&qFit>0)errs.push('This quote includes fitting. Review and save a supply-only quote before arranging collection or delivery.');
       if(flooring.length && !packSnapshot)errs.push('This older quote needs one review to save its product and pack quantities. Review and save the quote first.');
       if(packSnapshot){errs.push(...packSnapshot.problems);if(packSnapshot.signature!==L.packSignature(job))errs.push('Flooring choices or sizes changed since this quote. Review and save a new quote first.');}
       if(q.supply && JSON.stringify(q.supply)!==JSON.stringify(L.supplyPlan(job)))errs.push('The sizes or chosen carpet have changed since this quote. Review and save a new quote before accepting it.');
@@ -4198,7 +4204,7 @@ function acceptDialog(job){
       if (!F.saved){ F.saved = await reserveInShopify(ctx, s.say, true); dialog.querySelectorAll('input,select,textarea,button').forEach(el => { if (el !== save) el.disabled = true; }); }
       s.say('Saving the job');
       const draft = F.saved.draft, startN = L.linesOf(job).reduce((mx, l) => Math.max(mx, l.n || 0), 0), total = L.quoteTotal(q);
-      const patch = {type:F.type, fitter:fitter, date:day, slot:'', diary:false, diaryAuto:true, fitterDue:fitAmount(), lines:toJobLines(lines, startN, draft ? draft.name : ''), total:total, accepted:{at:nowISO(), by:S.me.id || '', byName:name, q:q.k, total:total, type:F.type, packs:packSnapshot || null}};
+      const patch = {customer:c,type:F.type, fitter:fitter, date:day, slot:'', diary:false, diaryAuto:true, fitterDue:fitAmount(), lines:toJobLines(lines, startN, draft ? draft.name : ''), total:total, accepted:{at:nowISO(), by:S.me.id || '', byName:name, q:q.k, total:total, type:F.type, packs:packSnapshot || null}};
       if (draft){ patch.drafts = {}; patch.drafts[L.gidNum(draft.id)] = {id:draft.id, name:draft.name, closed:false}; }
       const say = list => list.map(it => (it.pack?Number(it.len)+' packs':Number(it.len).toFixed(1)+' m') + ' of ' + label(it)).join(', '), fromStock = items.filter(it => it.how === 'stock'), toOrder = items.filter(it => it.how === 'order');
       await patchJob(job.id, patch, 'The customer said yes to the quote of ' + L.money(total) + '. Taken by ' + name + '. ' + F.type + (fitter ? ' with ' + fitter : '') + (day ? ' on ' + L.fmtDay(day) : F.type === 'Collection' ? '' : ', day to be picked once the carpet’s arrival date is in') + '.'
@@ -4213,7 +4219,7 @@ function acceptDialog(job){
   }
   const dialog = dlg('The customer said yes', h('div', {class:'sec', id:'acceptForm'},
     h('div', {class:'card tight'}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '')}), h('p', {class:'small muted', text:'Quote of ' + L.money(L.quoteTotal(q)) + ' from ' + (q.byName || 'the shop') + '.'})),
-    h('div', {class:'card'}, h('h3', {}, 'How are they getting it?'), typeSeg, whenNote, when.who, when.days, fitRow),
+    h('div', {class:'card'}, h('h3', {}, 'How are they getting it?'), typeSeg,revision),locationBox,h('div',{class:'card'},whenNote,when.area,when.who,when.days,fitRow),
     h('div', {class:'card'}, h('h3', {}, 'Flooring from the quote'),
       takeDone() ? null : h('p', {class:'small muted', text:'Awaiting opening stocktake: the stock figures shown here are not confirmed yet.'}),
       items.length ? itemsBox : h('p', {class:'muted', id:'accNone', text:carpetRooms.length ? 'No carpet was picked for this job when the measure was booked, so there is nothing to allocate here. Add it on the job with Add items once this is saved.' : 'There is no carpet on this job.'}),
