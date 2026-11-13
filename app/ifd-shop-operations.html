@@ -1394,9 +1394,9 @@ window.IFDLogic = (function(){
       + (due > 0 ? ' ' + money(due) + ' for fitting is paid straight to your fitter on the day.' : '') + (bal > 0.004 ? ' Still to pay the shop: ' + money(bal) + '.' : '') + ' Any changes ring ' + shop.phone + '.';
   }
   /* ---------- after the quote ----------
-     A sent quote waits on the customer. Five days with no word and the shop rings them. A call nobody answered is
-     tried again the next day. Sending the quote again starts the five days afresh. */
-  var CHASE_DAYS = 5, RETRY_DAYS = 1;
+     A sent quote waits on the customer. Two days with no word and the shop rings them. A call nobody answered is
+     tried again the next day. Sending the quote again starts the two days afresh. */
+  var CHASE_DAYS = 2, RETRY_DAYS = 1;
   var CHASE_OUT = {yes:'They want to go ahead', deciding:'Still deciding', noanswer:'No answer', changes:'They want something changed', no:'Not going ahead'};
   function stampDay(at){ var d = new Date(at); return isNaN(d.getTime()) ? '' : isoOf(d); }
   function quoteSent(job, q){ var ms = q ? msgsFor(job, 'quote', q.k).filter(msgWent) : []; return ms.length ? msgWhen(ms[ms.length - 1]) : ''; }
@@ -1414,6 +1414,16 @@ window.IFDLogic = (function(){
     /* a call that ended in yes, or in a change to the quote, is not finished until somebody acts on it */
     var state = last && last.outcome === 'yes' ? 'yes' : last && last.outcome === 'changes' ? 'change' : today >= ringOn ? 'ring' : 'waiting';
     return {state:state, days:Math.max(0, daysBetween(sentOn, today)), ringOn:ringOn, last:last, sentAt:sent, sentOn:sentOn, calls:calls.length};
+  }
+  function quoteStage(job,today){
+    var q=quoteOf(job);if(!q)return {key:'unpriced',label:'To price'};
+    if(job.status==='cancelled'||job.lost)return {key:'closed',label:'Closed — not going ahead'};
+    if(job.accepted||job.customerAcceptance?.rev===q.k)return {key:'accepted',label:'Accepted — arrange order'};
+    var w=quoteWait(job,today),count=msgsFor(job,'quote',q.k).filter(m=>m.channel==='email'&&msgWent(m)&&String(m.subject||'').startsWith('A friendly follow-up')).length;
+    if(w.state==='unsent')return {key:'unsent',label:w.why==='failed'?'Email failed — retry':w.why==='unsure'?'Delivery uncertain — check':'Priced — ready to send',wait:w};
+    if(w.state==='yes')return {key:'accepted',label:'Accepted — arrange order',wait:w};
+    if(w.state==='change')return {key:'review',label:'Customer requested changes',wait:w};
+    return {key:w.state==='ring'?'due':'waiting',label:w.state==='ring'?(count>=2?'Call customer':count===1?'Second email follow-up due':'First email follow-up due'):'Waiting for reply',due:w.ringOn,followups:count,wait:w};
   }
   /* ---------- once the customer has said yes ----------
      Goods ordered in hold the job where it is until the order details and the arrival date are entered. Carpet sold
@@ -1710,7 +1720,7 @@ window.IFDLogic = (function(){
     shortages:shortages, goodsMissing:goodsMissing, cutBlocks:cutBlocks, isService:isService, quoteNeeds:quoteNeeds, closeOff:closeOff, allAllocated:allAllocated, stageOf:stageOf,
     canConfirmDiary:canConfirmDiary, canComplete:canComplete, hasShopifyDocs:hasShopifyDocs, warningsOf:warningsOf, searchJobs:searchJobs,
     needsArrival:needsArrival, arrivalConfirmed:arrivalConfirmed, arrivalState:arrivalState, triesOf:triesOf, visitsOf:visitsOf, BACK_REASONS:BACK_REASONS, backsOf:backsOf, backOpen:backOpen, backReason:backReason,
-    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, toPrice:toPrice, quoted:quoted, CHASE_DAYS:CHASE_DAYS, CHASE_OUT:CHASE_OUT, quoteSent:quoteSent, chasesOf:chasesOf, quoteWait:quoteWait, orderNeeded:orderNeeded, onOrder:onOrder, cutsOf:cutsOf, toCut:toCut, quotesOf:quotesOf, quoteOf:quoteOf, quoteLines:quoteLines, quoteTotal:quoteTotal, quoteMessage:quoteMessage, quoteText:quoteText, quoteSubject:quoteSubject, quoteRef:quoteRef, quoteParts:quoteParts, wordsOf:wordsOf, DEFAULT_TERMS:DEFAULT_TERMS, DEFAULT_PREP:DEFAULT_PREP, quoteRows:quoteRows, PRICE_DEFAULTS:PRICE_DEFAULTS, PRICE_FIELDS:PRICE_FIELDS, PRICE_PLAIN:PRICE_PLAIN, priceList:priceList, discountsOf:discountsOf, floorKind:floorKind, choiceOf:choiceOf, woodRooms:woodRooms, catalogue:catalogue, packPlan:packPlan, packSignature:packSignature, covClash:covClash, discounted:discounted, isFitting:isFitting, hasSize:hasSize, firstName:firstName, lastFindings:lastFindings, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, supplyPlan:supplyPlan, cutPlanSignature:cutPlanSignature, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
+    BAR_KINDS:BAR_KINDS, specOf:specOf, specBars:specBars, toPrice:toPrice, quoted:quoted, CHASE_DAYS:CHASE_DAYS, CHASE_OUT:CHASE_OUT, quoteSent:quoteSent, chasesOf:chasesOf, quoteWait:quoteWait, quoteStage:quoteStage, orderNeeded:orderNeeded, onOrder:onOrder, cutsOf:cutsOf, toCut:toCut, quotesOf:quotesOf, quoteOf:quoteOf, quoteLines:quoteLines, quoteTotal:quoteTotal, quoteMessage:quoteMessage, quoteText:quoteText, quoteSubject:quoteSubject, quoteRef:quoteRef, quoteParts:quoteParts, wordsOf:wordsOf, DEFAULT_TERMS:DEFAULT_TERMS, DEFAULT_PREP:DEFAULT_PREP, quoteRows:quoteRows, PRICE_DEFAULTS:PRICE_DEFAULTS, PRICE_FIELDS:PRICE_FIELDS, PRICE_PLAIN:PRICE_PLAIN, priceList:priceList, discountsOf:discountsOf, floorKind:floorKind, choiceOf:choiceOf, woodRooms:woodRooms, catalogue:catalogue, packPlan:packPlan, packSignature:packSignature, covClash:covClash, discounted:discounted, isFitting:isFitting, hasSize:hasSize, firstName:firstName, lastFindings:lastFindings, HSL_RE:HSL_RE, hslOf:hslOf, hslArea:hslArea, hslText:hslText, stairRun:stairRun, carpetPlan:carpetPlan, roomWidths:roomWidths, planFor:planFor, carpetGroups:carpetGroups, supplyPlan:supplyPlan, cutPlanSignature:cutPlanSignature, CUT_EXTRA:CUT_EXTRA, pricingOf:pricingOf, saleMissing:saleMissing,
     BRIEF_ROOMS:BRIEF_ROOMS, BRIEF_ALSO:BRIEF_ALSO, briefOf:briefOf, briefHas:briefHas, briefChoice:briefChoice, briefName:briefName, briefLine:briefLine,
     hasHSL:hasHSL, limitsOf:limitsOf, measureLimits:measureLimits, planMeasure:planMeasure, toArrange:toArrange, milesBetween:milesBetween, dayWork:dayWork, dayReach:dayReach, hslClash:hslClash, farClash:farClash, hslWhy:hslWhy,
     isFinalBay:isFinalBay, lineAllocated:lineAllocated, supplyOf:supplyOf, supplyState:supplyState, dLines:dLines, dRecs:dRecs, dGot:dGot, dOutstanding:dOutstanding,
@@ -2041,13 +2051,14 @@ const TABS = [
 ];
 const VIEWS = {};
 VIEWS.documents=function(){
- const body=h('div',{class:'sec'}),search=h('input',{class:'in',type:'search',placeholder:'Find a customer or reference','aria-label':'Find quote or invoice'});let mode='quotes',showTests=false;
+ const body=h('div',{class:'sec'}),search=h('input',{class:'in',type:'search',placeholder:'Find a customer or reference','aria-label':'Find quote or invoice'});let mode='quotes',stage='all',showTests=false;
  function draw(){
-  const term=search.value.trim().toLowerCase(),test=j=>j.test===true||/\bZZ[ -]?TEST\b/i.test(j.customer?.name||'')||/^ZZ[- ]/i.test(j.ref||''),jobs=jobsArr().filter(j=>j.status!=='cancelled'&&(showTests||!test(j))&&(!term||((j.customer?.name||'')+' '+(j.ref||'')+' '+(j.invoice?.number||'')).toLowerCase().includes(term))).filter(j=>mode==='quotes'?!!L.quoteOf(j):!!j.accepted||!!j.invoice);
-  body.replaceChildren();add(body,[h('h1',{text:'Quotes & invoices'}),h('p',{text:'Send professional emails from sales@. Quotes carry the agreed items automatically; invoices cover the shop’s materials and services only.'}),h('div',{class:'bar'},btn('Quotes',()=>{mode='quotes';draw();},mode==='quotes'?'pri':''),btn('Invoices',()=>{mode='invoices';draw();},mode==='invoices'?'pri':''),btn('New quote',()=>go('catalogue'),'sm')),search,h('label',{},h('input',{type:'checkbox',checked:showTests,onchange:e=>{showTests=e.target.checked;draw();}}),' Show test jobs')]);
-  if(!jobs.length)add(body,h('p',{text:mode==='quotes'?'No saved quotes match.':'No confirmed orders match. Confirm an accepted quote before issuing its invoice.'}));
-  jobs.forEach(j=>{const q=L.quoteOf(j),invoice=j.invoice,kind=mode==='quotes'?'quote':'invoice',rev=kind==='quote'?q.k:invoice?.number,ms=L.msgsFor(j,kind,rev||''),last=ms.at(-1),isAccepted=j.customerAcceptance?.rev===q?.k||j.accepted?.q===q?.k;
-   add(body,h('div',{class:'card'},h('h2',{text:(j.customer?.name||'Customer')+' · '+(kind==='invoice'&&invoice?invoice.number:j.ref)}),h('p',{text:kind==='quote'?L.money(L.quoteTotal(q))+(isAccepted?' · Customer accepted':''):invoice?L.money(invoice.total)+' · Shop only · Balance '+L.money(L.balanceOf(j)):'Ready to create from the accepted order'}),h('p',{class:'small',text:last?'Last email: '+last.state+' · '+whenText(last.sentAt||last.at):'Not emailed yet'}),h('div',{class:'bar'},btn('Open job',()=>openSheet(j.id),'sm'),kind==='quote'||invoice?h('a',{class:'btn sm',href:'/document?job='+encodeURIComponent(j.id)+'&kind='+kind,target:'_blank',rel:'noopener',text:'Preview email'}):null,kind==='quote'?btn('Send quote',()=>sendQuoteDialog(j,q),'pri'):invoice?btn('Send invoice',()=>sendInvoiceDialog(j),'pri'):btn('Create invoice',()=>createInvoiceDialog(j),'pri'),kind==='quote'&&isAccepted&&!j.accepted?btn('Arrange order',()=>acceptDialog(j),'sm'):null)));
+  const term=search.value.trim().toLowerCase(),test=j=>j.test===true||/\bZZ[ -]?TEST\b/i.test(j.customer?.name||'')||/^ZZ[- ]/i.test(j.ref||''),all=jobsArr().filter(j=>(showTests||!test(j))&&(!term||((j.customer?.name||'')+' '+(j.ref||'')+' '+(j.invoice?.number||'')).toLowerCase().includes(term))).filter(j=>mode==='quotes'?!!L.quoteOf(j):!!j.accepted||!!j.invoice),stageOf=j=>L.quoteStage(j,L.todayISO()),jobs=all.filter(j=>mode!=='quotes'||stage==='all'||stageOf(j).key===stage).sort((a,b)=>(stageOf(a).key==='due'?-1:0)-(stageOf(b).key==='due'?-1:0)||String(stageOf(a).due||'').localeCompare(stageOf(b).due||''));
+  body.replaceChildren();add(body,[h('h1',{text:'Quotes & invoices'}),h('p',{text:'Every priced job stays here. Review unanswered quotes after 2 days, send a friendly follow-up, then review again after 2 more days. After two follow-up emails, call the customer. Accepted and closed quotes stay on record.'}),h('div',{class:'bar'},btn('Quotes',()=>{mode='quotes';draw();},mode==='quotes'?'pri':''),btn('Invoices',()=>{mode='invoices';draw();},mode==='invoices'?'pri':''),btn('New quote',()=>go('catalogue'),'sm')),search,h('label',{},h('input',{type:'checkbox',checked:showTests,onchange:e=>{showTests=e.target.checked;draw();}}),' Show test jobs')]);
+  if(mode==='quotes')add(body,h('div',{class:'bar'},[['all','All priced'],['unsent','To send'],['waiting','Waiting'],['due','Follow up'],['review','Changes'],['accepted','Accepted'],['closed','Closed']].map(([key,label])=>btn(label+' · '+all.filter(j=>key==='all'||stageOf(j).key===key).length,()=>{stage=key;draw();},stage===key?'pri':'sm'))));
+  if(!jobs.length)add(body,h('p',{text:'No jobs in this stage.'}));
+  jobs.forEach(j=>{const q=L.quoteOf(j),invoice=j.invoice,kind=mode==='quotes'?'quote':'invoice',rev=kind==='quote'?q.k:invoice?.number,ms=L.msgsFor(j,kind,rev||''),last=ms.at(-1),st=stageOf(j),closed=st.key==='closed',accepted=st.key==='accepted';
+   add(body,h('div',{class:'card'},h('h2',{text:(j.customer?.name||'Customer')+' · '+(kind==='invoice'&&invoice?invoice.number:j.ref)}),h('p',{text:kind==='quote'?L.money(L.quoteTotal(q))+' · '+st.label:invoice?L.money(invoice.total)+' · Shop only · Balance '+L.money(L.balanceOf(j)):'Ready to create from the accepted order'}),kind==='quote'&&st.due?h('p',{text:'Next follow-up: '+L.fmtDay(st.due)+' · '+(st.followups||0)+' follow-up emails recorded'}):null,h('p',{class:'small',text:last?'Last message: '+last.state+' · '+whenText(last.sentAt||last.at):'Not sent yet'}),h('div',{class:'bar'},btn('Open job',()=>openSheet(j.id),'sm'),kind==='quote'||invoice?h('a',{class:'btn sm',href:'/document?job='+encodeURIComponent(j.id)+'&kind='+kind,target:'_blank',rel:'noopener',text:'Preview email'}):null,kind==='quote'?(closed||accepted?null:btn(st.key==='unsent'?'Send quote':'Review follow-up email',()=>sendQuoteDialog(j,q,st.key!=='unsent'),'pri')):invoice?btn('Send invoice',()=>sendInvoiceDialog(j),'pri'):btn('Create invoice',()=>createInvoiceDialog(j),'pri'),kind==='quote'&&!closed&&!accepted?btn('Record customer response',()=>chaseDialog(j),'sm'):null,kind==='quote'&&st.key==='review'?btn('Revise quote',()=>quoteDialog(j),'sm'):null,kind==='quote'&&accepted&&!j.accepted?btn('Arrange order',()=>acceptDialog(j),'sm'):null)));
   });
  }
  search.oninput=()=>{const start=search.selectionStart;draw();search.focus();search.setSelectionRange(start,start);};draw();return {nodes:[body],refresh:draw};
@@ -2127,7 +2138,7 @@ function attentionJobs(){ const t = L.todayISO(), cx = dayCtx(); return jobsArr(
 function measureSignaturePicture(record){const strokes=record.strokes||[];const paths=strokes.map(points=>'<polyline points="'+points.map(p=>Number(p[0])*600+','+Number(p[1])*180).join(' ')+'" fill="none" stroke="#111" stroke-width="3"/>').join('');return h('img',{alt:'Customer measurement signature',style:'display:block;width:100%;max-width:600px;background:white;border:1px solid #ccc',src:'data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 180">'+paths+'</svg>')});}
 function toPriceJobs(){ const at = j => (L.lastFindings(j) || {}).doneAt || ''; return openJobs().filter(L.toPrice).sort((a, b) => String(at(a)).localeCompare(String(at(b)))); }
 function openToPrice(id){ openSheet(id); const j = S.jobs.get(id); if (j) quoteDialog(j); }
-/* quotes that are out with the customer: the ones to ring come first, then the ones still inside their five days */
+/* quotes that are out with the customer: the ones to ring come first, then the ones still inside their two days */
 function quotedJobs(){
   const t = L.todayISO(), rank = j => { const w = L.quoteWait(j, t); return w.state === 'waiting' ? '1' + w.ringOn : '0' + (w.ringOn || ''); };
   return openJobs().filter(L.quoted).sort((a, b) => rank(a).localeCompare(rank(b)));
@@ -3617,9 +3628,18 @@ function configureCuttingDialog(job){
  const save=btn('Build cutting plan',async()=>{save.disabled=true;try{await runCmd('cutting.configure',{jobId:job.id,widths:[w4.checked?4:0,w5.checked?5:0].filter(Boolean),plain:plain.checked,sameBatch:batch.checked,pileConfirmed:pile.checked});closeModal();await approveCuttingDialog({...job,cuttingSpec:{configured:true}});}catch(e){s.say(explain(e),true);save.disabled=false;}},'pri');
  openModal(dlg('Configure cutting plan',h('div',{},h('p',{text:'Confirm these facts for the selected carpet. Measurements must be verified. This planner supports one plain carpet and straight stairs; patterns and winders need a separate measured plan.'}),tick(w4,'4m rolls available'),tick(w5,'5m rolls available'),tick(plain,'Plain carpet — no pattern repeat'),tick(batch,'Selected widths available in matching dye batch'),tick(pile,'Measured length follows the agreed pile direction in every room'),s.box),[btn('Cancel',closeModal),save]));
 }
-function quoteDialog(job){
+async function quoteDialog(job){
   if (!needDb()) return;
-  const s = sayer(), c = job.customer || {}, cur = L.quoteOf(job), base = L.quoteRows(job), list = L.priceList(S.prices), discs = L.discountsOf(list), p = L.pricingOf(job);
+  let pricingJob=job;
+  if(job.cuttingSpec&&!L.cuttingApproved(job)){
+    try{
+      const preview=await runCmd('cutting.preview',{jobId:job.id}),groups=[];
+      for(const b of preview.plan.bins){const w=b.w/100,ch=L.choiceOf(job,L.roomsOf(job)[0]);let g=groups.find(g=>g.w===w);if(!g){g={choice:ch.k,w,cut:0,sq:0,names:[],cuts:[]};groups.push(g);}g.cut=L.round2(g.cut+b.l/100);g.sq=L.round2(g.cut*w);const names=[...new Set(b.pieces.map(x=>job.rooms[x.source]?.name||x.name))];g.names=[...new Set([...g.names,...names])];g.cuts.push({room:b.pieces[0].source,label:b.id,width:w,length:b.l/100,note:b.pieces.map(x=>x.name).join(', ')});}
+      // Local pricing preview only. The real job remains unapproved until the shop approves on the server.
+      pricingJob={...job,cuttingApproval:{inputKey:L.cuttingInputKey(job),supply:{groups,problems:[]}}};
+    }catch(e){toast(explain(e),true);return;}
+  }
+  const s = sayer(), c = job.customer || {}, cur = L.quoteOf(job), base = L.quoteRows(pricingJob), list = L.priceList(S.prices), discs = L.discountsOf(list), p = L.pricingOf(pricingJob);
   const mk = (z, price, label, extra) => Object.assign({key:z.key || '', label:label || z.label || '', price:price, note:z.note || '', must:!!z.must, calc:'', pick:''}, extra || {});
   const same = (z, l) => l.key ? z.key === l.key : z.label === l.label;
   const rows = cur ? L.quoteLines(cur).map(l => mk(base.find(z => same(z, l)) || {}, Number(Number(l.full) > Number(l.price) ? l.full : l.price).toFixed(2), l.label, {calc:l.calc || '', pick:l.pick || '', needQty:l.needQty, needUnit:l.needUnit}))
@@ -3642,7 +3662,7 @@ function quoteDialog(job){
   const setPrice = (r, i, z) => { r.price = Number(z.amount).toFixed(2); r.calc = z.text; r.needQty=z.needQty; r.needUnit=z.needUnit; r.pick = r.key === 'underlay' && pick.underlayFloor ? pick.underlayFloor.id : ''; const inp = box.querySelector('#qp' + i); if (inp) inp.value = r.price; };
   const fill = btn('Fill in the catalogue prices', () => { rows.forEach((r, i) => { const z = cat[r.key]; if (z && z.amount > 0 && !(Number(r.price) > 0)) setPrice(r, i, z); }); sum(); recalc(); }, 'sm pri'); fill.id = 'quoteFill';
   function paint(){ strips.forEach(u => u()); fill.disabled = !rows.some(r => cat[r.key] && cat[r.key].amount > 0 && !(Number(r.price) > 0)); }
-  function recalc(){ cat = L.catalogue(job, S.prices, goods, pick); if(!cur)rows.forEach((r,i)=>{const z=cat[r.key];if((r.auto||r.price==='')&&z&&z.amount>0){setPrice(r,i,z);r.auto=true;}else if(r.auto&&(!z||!(z.amount>0))){r.price='';r.auto=false;const inp=box.querySelector('#qp'+i);if(inp)inp.value='';}});paint();sum(); }
+  function recalc(){ cat = L.catalogue(pricingJob, S.prices, goods, pick); if(!cur)rows.forEach((r,i)=>{const z=cat[r.key];if((r.auto||r.price==='')&&z&&z.amount>0){setPrice(r,i,z);r.auto=true;}else if(r.auto&&(!z||!(z.amount>0))){r.price='';r.auto=false;const inp=box.querySelector('#qp'+i);if(inp)inp.value='';}});paint();sum(); }
   /* the catalogue figure for one line, with the few things staff may have to say: a price per m² Shopify does not have, the m² for stairs, which underlay */
   function strip(r, i){
     if (!r.key) return null;
@@ -3705,12 +3725,12 @@ function quoteDialog(job){
     if (lines.some(l => !l.label)) errs.push('Every price needs to say what it is for.');
     if (lines.some(l => L.hasSize(l.label))) errs.push('Take the sizes out of the wording. The customer is only given the figures.');
     rows.filter(r => (r.must || r.key) && !(Number(r.price) > 0)).forEach(r => errs.push(r.label + ' still needs a price before this quote is complete.'));
-    L.supplyPlan(job).problems.concat(L.packPlan(job,goods,list).problems).forEach(e=>errs.push(e));
+    L.supplyPlan(pricingJob).problems.concat(L.packPlan(job,goods,list).problems).forEach(e=>errs.push(e));
     if (!name) errs.push('Type your name, so the quote says who priced it.');
     if (errs.length){ s.say(errs.join(' '), true); return; }
     myName(name);
     const off = L.round2(lines.reduce((t, l) => t + (l.full ? l.full - l.price : 0), 0));
-    const k = 'q' + uid(), q = {n:L.quotesOf(job).length + 1, at:nowISO(), by:S.me.id || '', byName:name, lines:lines, total:L.round2(lines.reduce((t, l) => t + l.price, 0)), rates:list, supply:L.supplyPlan(job), packs:L.packPlan(job,goods,list), cuttingApproval:L.cuttingApproved(job)?job.cuttingApproval.signature:'', options:JSON.parse(JSON.stringify(pick))}, pt = {quotes:{}};
+    const k = 'q' + uid(), q = {n:L.quotesOf(job).length + 1, at:nowISO(), by:S.me.id || '', byName:name, lines:lines, total:L.round2(lines.reduce((t, l) => t + l.price, 0)), rates:list, supply:L.supplyPlan(pricingJob), packs:L.packPlan(job,goods,list), cuttingApproval:L.cuttingApproved(job)?job.cuttingApproval.signature:'', options:JSON.parse(JSON.stringify(pick))}, pt = {quotes:{}};
     if (off > 0) q.discount = {pct:pct, amount:off};
     pt.quotes[k] = q; save.disabled = true;
     try { await patchJob(job.id, pt, 'Quote of ' + L.money(q.total) + ' saved by ' + name + ': ' + lines.map(l => l.label + ' ' + L.money(l.full || l.price)).join(', ') + (off > 0 ? '. ' + pct + '% discount on the shop’s part, ' + L.money(off) + ' off' : '')); toast('Quote saved');const next=Object.assign({},job,{quotes:Object.assign({},job.quotes,pt.quotes)});if(job.cuttingSpec&&!L.cuttingApproved(job))await approveCuttingDialog(next,true);else sendQuoteDialog(next,Object.assign({k:k},q)); }
@@ -3836,10 +3856,10 @@ function messageDialog(job, o){
     h('div', {class:'bar'}, h('span', {class:'small muted', text:'Other ways:'}), copy, app, hand), handBox, list, s.box), [btn('Done', closeModal, 'pri')]));
   paint();
 }
-function sendQuoteDialog(job, q){
+function sendQuoteDialog(job, q, followup=false){
   const shop = shopInfo();
-  messageDialog(job, {kind:'quote', rev:q.k, title:'Send the quote', head:'Quote ' + L.quoteRef(job, q) + ', ' + L.money(L.quoteTotal(q)) + '. It has the figures and no sizes.', noSizes:true,
-    subject:L.quoteSubject(job, q, shop), email:() => L.quoteMessage(job, q, shop), sms:() => L.quoteText(job, q, shop)});
+  messageDialog(job, {kind:'quote', rev:q.k, title:followup?'Review follow-up email':'Send the quote', head:'Quote ' + L.quoteRef(job, q) + ', ' + L.money(L.quoteTotal(q)) + '. It has the figures and no sizes.', noSizes:true,
+    subject:(followup?'A friendly follow-up — ':'')+L.quoteSubject(job, q, shop), email:() => (followup?'A friendly follow-up\nWe hope you have had a chance to look through your flooring quote. If you have any questions or would like to discuss your options, simply reply — we would be delighted to help. Your quote is below whenever you are ready.\n\n':'')+L.quoteMessage(job, q, shop), sms:() => L.quoteText(job, q, shop)});
 }
 function receiptDialog(job){
   const shop = shopInfo();
