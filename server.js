@@ -374,9 +374,10 @@ function create(opts){
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
     if(p==='/trade'&&req.method==='GET')return page(res,pub('trade.html'));
     if(p==='/trade-link.js'&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(__dirname,'public','trade-link.js')),{"content-type":"application/javascript"});
+    if(p==='/api/trade/due'&&req.method==='GET')return send(res,200,trade.due(user,user.role==='owner'&&url.searchParams.get('tests')==='1'));
     if(p==='/api/trade'&&req.method==='GET')return send(res,200,{...trade.status(user),products:trade.products(user,url.searchParams.get('q')||''),invoices:trade.invoices(user,url.searchParams.get('q')||'',url.searchParams.get('tests')==='1'),documents:trade.documents(user),sender:mailer.from||'',emailReady:mailer.ready});
     if(p==='/api/trade'&&req.method==='POST'){
-      const b=await readJson(req),methods={import:'importProducts',product:'saveProduct',invoice:'saveInvoice',updateInvoice:'updateInvoice',draft:'draft',issue:'issue',send:'sendDocument',accept:'acceptQuote',convert:'convertQuote',resolve:'resolveSend',void:'voidDocument'};if(!methods[b.action])return fail(res,400,'invalid_argument','Choose a trade action.');return send(res,200,await trade[methods[b.action]](user,b));
+      const b=await readJson(req),methods={import:'importProducts',product:'saveProduct',invoice:'saveInvoice',updateInvoice:'updateInvoice',draft:'draft',issue:'issue',send:'sendDocument',accept:'acceptQuote',convert:'convertQuote',resolve:'resolveSend',void:'voidDocument',collection:'collection',paid:'paid'};if(!methods[b.action])return fail(res,400,'invalid_argument','Choose a trade action.');return send(res,200,await trade[methods[b.action]](user,b));
     }
     if(p.startsWith('/trade/document/')&&req.method==='GET')return page(res,trade.preview(user,p.slice('/trade/document/'.length)));
     if(p==='/trade-documents.js'&&req.method==='GET')return send(res,200,pub('trade-documents.js'),{'content-type':'application/javascript'});
