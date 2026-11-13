@@ -314,6 +314,9 @@ function create(opts){
       if(!st.getDoc(d.path).exists){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));st.setDoc(d,{test:true,status:'open',type:'Fitting',diary:false,ref:'ZZ ESTIMATOR TRIAL',customer:{name:'ZZ TEST - David estimator trial',phone:authUser.mobile,email:env.TEST_CUSTOMER_EMAIL||'',address:'TEST ONLY - no customer appointment',postcode:''},brief:{rooms:'Living room and bedroom',note:'TEST ONLY - measure rooms, accessories, preparation and concealed subfloor. No real order or stock.'},rooms:{},lines:{},total:0,notes:'OWNER ESTIMATOR TRIAL ONLY. No real appointment, stock or payment.',pre:{trial:{kind:'both',status:'booked',date,who:authUser.name+' - estimator trial',whoId,duration:60}}});broadcast('jobs');}
       q.dropSession.run(hash(cookieOf(req)));setSession(res,{...authUser,id:whoId,role:'estimator'});return send(res,200,{ok:true});
     }
+    if(p==='/api/reminder-trial'&&req.method==='POST'){
+      const result=require('./lib/reminder-trial')(st,user,now(),(await readJson(req)).action);broadcast('jobs');return send(res,200,result);
+    }
     if(p==='/api/fitter-trial/deadline'&&req.method==='POST'){
       if(user.role!=='owner')return fail(res,403,'forbidden','Only the signed-in shop owner can prepare this test.');
       const id='ZZ-OWNER-FITTER-'+user.id,d=store.docPath('jobs/'+id),j=st.getDoc(d.path).data;

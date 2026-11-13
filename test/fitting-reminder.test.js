@@ -11,3 +11,19 @@ test('three-day fitting reminder sends once, preserves UK dates, excludes closed
  const R=require('../lib/fitting-reminder');assert.equal(R.eligible({...base,date:'2026-07-04'},Date.parse('2026-06-30T23:30:00Z')),true);
  }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('owner-only live reminder fixture uses the scheduler, reschedule is checked, concurrent polls do not duplicate',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ifd-reminder-trial-')),sent=[];const time=Date.parse('2026-11-13T12:00:00Z');
+ const app=create({env:{DATA_DIR:dir},now:()=>time,mailer:{ready:true,send:async m=>{await new Promise(r=>setTimeout(r,20));sent.push(m);return {ref:'proof'};}},log:()=>{},pollMs:3600000});
+ const trial=require('../lib/reminder-trial'),owner={id:'owner',name:'Owner',mobile:'07497557253',role:'owner'};
+ try{app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:false}});
+ assert.throws(()=>trial(app.store,{...owner,role:'fitter'},time,'prepare'),e=>e.code==='forbidden');
+ trial(app.store,owner,time,'prepare');await app.commands.poll();assert.equal(sent.length,0);
+ trial(app.store,owner,time,'move');await app.commands.poll();assert.equal(sent.length,0);
+ trial(app.store,owner,time,'due');await Promise.all([app.commands.poll(),app.commands.poll(),app.commands.poll()]);assert.equal(sent.length,1);assert.match(sent[0].text,/16 November 2026/);assert.match(sent[0].text,/additional charge/);
+ await app.commands.poll();assert.equal(sent.length,1);const result=trial(app.store,owner,time,'status');assert.equal(result.messages.length,1);assert.equal(result.messages[0].attempts,1);
+ trial(app.store,owner,time,'move');await app.commands.poll();assert.equal(sent.length,1);
+ trial(app.store,owner,time,'due');await app.commands.poll();assert.equal(sent.length,1);
+ trial(app.store,owner,time,'stop');await app.commands.poll();assert.equal(sent.length,1);
+ }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
+});
