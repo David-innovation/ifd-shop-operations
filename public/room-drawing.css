@@ -4,3 +4,6 @@
 /* The whole white grid is interactive, with no misleading dead side margins. */
 .crew .drawing-expanded .drawing-canvas{width:100%;max-width:none;min-width:0;margin:0;box-sizing:border-box;border-top:1px solid #ddd;border-bottom:1px solid #ddd;cursor:crosshair}.drawing-canvas svg{pointer-events:auto;touch-action:none}.drawing-hint{pointer-events:none}
 
+/* Choice buttons must not inherit the generic red last-button rule. */
+.drawing-modal button[aria-pressed=false]{background:#fff!important;color:#171717!important;border:2px solid #c5c5ca!important;box-shadow:none!important}.drawing-modal button[aria-pressed=true]{background:#bc1630!important;color:#fff!important;border:2px solid #bc1630!important;box-shadow:none!important}.drawing-modal [hidden]{display:none!important}.drawing-modal .stair-selection{font-size:14px;line-height:1.4;color:#555;margin:8px 0 12px}.drawing-modal input,.drawing-modal textarea{background:#fff!important;color:#151515!important;border:1px solid #aaa!important;box-shadow:none!important}
+
