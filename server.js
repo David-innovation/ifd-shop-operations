@@ -315,7 +315,7 @@ function create(opts){
       q.dropSession.run(hash(cookieOf(req)));setSession(res,{...authUser,id:whoId,role:'estimator'});return send(res,200,{ok:true});
     }
     if(p==='/api/reminder-trial'&&req.method==='POST'){
-      const result=require('./lib/reminder-trial')(st,user,now(),(await readJson(req)).action);broadcast('jobs');return send(res,200,result);
+      const action=(await readJson(req)).action,est=String(action||'').startsWith('est-');const result=require(est?'./lib/estimator-reminder-trial':'./lib/reminder-trial')(st,user,now(),est?action.slice(4):action);broadcast('jobs');return send(res,200,result);
     }
     if(p==='/api/fitter-trial/deadline'&&req.method==='POST'){
       if(user.role!=='owner')return fail(res,403,'forbidden','Only the signed-in shop owner can prepare this test.');
