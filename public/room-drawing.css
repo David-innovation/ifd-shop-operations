@@ -8,3 +8,6 @@
 .drawing-modal button[aria-pressed=false]{background:#fff!important;color:#171717!important;border:2px solid #c5c5ca!important;box-shadow:none!important}.drawing-modal button[aria-pressed=true]{background:#bc1630!important;color:#fff!important;border:2px solid #bc1630!important;box-shadow:none!important}.drawing-modal [hidden]{display:none!important}.drawing-modal .stair-selection{font-size:14px;line-height:1.4;color:#555;margin:8px 0 12px}.drawing-modal input,.drawing-modal textarea{background:#fff!important;color:#151515!important;border:1px solid #aaa!important;box-shadow:none!important}
 
 .measure-handover{border:1px solid #bc1630;border-radius:14px;padding:18px;margin:20px 0}.measure-handover svg{background:white;width:100%;height:auto}.measure-handover details{margin:12px 0;padding:10px;border:1px solid #555;border-radius:8px}.measure-dialog input[type=checkbox]{display:inline-block;width:22px;height:22px;margin-right:8px}.drawing-head{flex-wrap:wrap;gap:8px}.drawing-head button{flex:0 1 auto}
+
+.measure-review-room{border:1px solid #ccc;border-radius:10px;padding:12px;margin:12px 0}.measure-review-room svg{width:100%;height:auto}.measure-review-room p{white-space:pre-wrap}.drawing-modal .stair-template-fields input[type=checkbox]{width:22px;height:22px;display:inline-block}
+
