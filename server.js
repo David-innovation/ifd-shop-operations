@@ -108,6 +108,7 @@ function create(opts){
   const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, quoteAcceptance, feedback, pollMs:opts.pollMs});
   const outstanding=require('./lib/retail-outstanding').make({st,L,cmds,mailer,now,broadcast});
   cmds.start();
+  const textCredit=require('./lib/text-credit').make({st,texter,mailer,now,broadcast});textCredit.start();
   const supplierMail=require('./lib/supplier-mail').make({st,L,env,now,broadcast,mailer});supplierMail.start();
   const fitterMessages=require('./lib/fitter-messages').make({st,users:()=>q.users.all(),now,broadcast});
   const performance=require('./lib/fitter-performance').make({st,users:()=>q.users.all(),now,mailer,broadcast});performance.start();
@@ -424,6 +425,8 @@ function create(opts){
     if(p.startsWith('/trade/document/')&&req.method==='GET')return page(res,trade.preview(user,p.slice('/trade/document/'.length)));
     if(p==='/trade-documents.js'&&req.method==='GET')return send(res,200,pub('trade-documents.js'),{'content-type':'application/javascript'});
     if(p.startsWith('/api/trade/invoice/')){const id=p.slice('/api/trade/invoice/'.length);if(req.method==='POST')return send(res,200,trade.attach(user,id,await readBody(req,10*1024*1024)));if(req.method==='GET'){const f=trade.download(user,id);return send(res,200,f.body,{'content-type':'application/pdf','content-disposition':'attachment; filename="'+f.name+'"','cache-control':'private, no-store'});}}
+    if(p==='/api/text-credit'&&req.method==='GET')return send(res,200,textCredit.status());
+    if(p==='/api/text-credit'&&req.method==='POST')return send(res,200,await textCredit.check());
     if(p==='/api/supplier-mail'&&req.method==='POST'){const b=await readJson(req);if(['contacts','contact.save'].includes(b.action))return send(res,200,supplierMail.contacts(b,user));if(b.action==='send')return send(res,200,await supplierMail.send(b,user));if(b.action==='settle')return send(res,200,supplierMail.settle(b,user));if(['placed','eta'].includes(b.action))return send(res,200,supplierMail.record(b,user));if(b.action==='draft')return send(res,200,supplierMail.draft(b,user));if(b.action==='enable')return send(res,200,await supplierMail.enable(b,user));if(b.action==='check')return send(res,200,await supplierMail.poll());return fail(res,400,'invalid_argument','Unknown supplier action.');}
     if(p==='/api/fitter-access'&&req.method==='POST'){
       if(user.role!=='owner')return fail(res,403,'forbidden','Only the owner can manage fitter access.');
@@ -463,7 +466,7 @@ function create(opts){
     handle(req, res).catch(e => { if (res.headersSent) return res.end(); if (e && e.status) return send(res, e.status, {error:Object.assign({code:e.code, message:e.message}, e.more || {})}); log('ERROR ' + (e && e.stack || e)); fail(res, 500, 'server_error', 'Something went wrong on the server.'); });
   });
   const beat = setInterval(() => listeners.forEach(r => { try { r.write(': keep\n\n'); } catch (e) {} }), 25000); beat.unref();
-  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ trade.close(); clearInterval(beat); cmds.stop(); supplierMail.stop(); performance.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
+  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ textCredit.stop();trade.close(); clearInterval(beat); cmds.stop(); supplierMail.stop(); performance.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
     /* for the owner's tools and the tests */
     disableUser(id){ const u = q.userById.get(id); if (u){ q.setUser.run(u.name, u.role, 0, id); q.dropSessionsOf.run(id); } } };
 }

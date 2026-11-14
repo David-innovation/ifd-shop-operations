@@ -11,6 +11,7 @@ function make(o){
     if (state.down) throw new Error('network down');
     if ((init.headers || {}).authorization !== 'Basic ' + Buffer.from(sid + ':' + token).toString('base64')) return resp(401, {code:20003, message:'Authenticate'});
     const u = String(url), one = /\/Messages\/(SM[0-9a-f]+)\.json$/.exec(u);
+    if (/\/Balance\.json$/.test(u)) return resp(200, {balance:'100.00',currency:'USD'});
     if (one){
       const t = state.sent.find(x => x.sid === one[1]); if (!t) return resp(404, {code:20404, message:'Not found'});
       t.asked++; t.status = t.final;

@@ -482,6 +482,8 @@ test('messages: only the mail server or the text service taking it counts as sen
     const shop = await s.signIn(SHOPM), owner = await s.signIn(OWNER), L = s.app.rules, k = n => 'msg' + String(n).padStart(6, '0'), ms = id => s.job(id).msgs || {};
     const quote = {qa:{n:1, at:'2026-11-10T09:00:00.000Z', byName:'Sam', lines:[{label:'Carpet', price:200}, {label:'Fitting', price:150}], total:350}};
     s.app.store.setDoc(docPath('jobs/g1'), testJob({lines:{}, total:0, fitterDue:0, quotes:quote})); s.app.store.setDoc(docPath('jobs/g2'), testJob({date:'2026-11-20', diary:true}));
+    // This test isolates explicit message recovery; automatic quote SMS is covered separately.
+    s.app.store.updateDoc(docPath('jobs/g1'),{customer:{phone:''}});
     const body = 'Hi Zed,\n\nThanks for coming in. Here is your quote.\n\nCarpet: £200.00\nFitting: £150.00\n\nTotal: £350.00\n\nThanks again,\nSam\nInnovation Flooring Direct';
     const send = (extra, cookie) => s.cmd('msg.send', Object.assign({jobId:'g1', kind:'quote', channel:'email', to:'zed@example.test', subject:'Your quote from Innovation Flooring Direct', body:body, rev:'qa', byName:'Sam'}, extra), cookie || shop);
     assert.deepStrictEqual((await s.req('GET', '/api/status', undefined, shop)).json, {email:true, emailFrom:'shop@example.test', sms:true, testOnly:true, allow:0});
@@ -648,6 +650,7 @@ test('a send whose answer was lost is never sent again blind: it is looked up, o
     s.app.store.setDoc(docPath('settings/main'), {msgs:{testOnly:true, allow:['zed@example.test', '07700 900555', '07700 900556']}});
     const quote = {qa:{n:1, at:'2026-11-10T09:00:00.000Z', byName:'Sam', lines:[{label:'Carpet', price:200}], total:200}};
     for (const id of ['u1', 'u2', 'u3', 'u4', 'u5']) s.app.store.setDoc(docPath('jobs/' + id), testJob({lines:{}, total:0, fitterDue:0, quotes:quote}));
+    for(const id of ['u1','u2','u3','u4','u5'])s.app.store.updateDoc(docPath('jobs/'+id),{customer:{phone:''}});
     const mail = (id, extra) => s.cmd('msg.send', Object.assign({jobId:id, kind:'quote', channel:'email', to:'zed@example.test', subject:'Your quote', body:'Hello Zed, your quote is £200.00', rev:'qa', byName:'Sam'}, extra), shop);
     const text = (id, extra) => s.cmd('msg.send', Object.assign({jobId:id, kind:'quote', channel:'sms', to:'07700 900555', body:'Quote #T9-Q1. Total: £200.00', rev:'qa', byName:'Sam'}, extra), shop);
     // EMAIL: the mail server took the message, then the line dropped before its answer came back
@@ -704,7 +707,7 @@ test('a send whose answer was lost is never sent again blind: it is looked up, o
     s.app.store.setDoc(docPath('jobs/u6'), testJob({lines:{}, total:0, quotes:quote})); s.twilio.state.fault = 1;
     r = await text('u6', {key:k(8)}); assert.strictEqual(r.json.state, 'unsure'); assert.match(ms('u6')['m' + k(8)].err, /had a fault \(503\)/);
     // the same request arriving again while the first is still on its way to the mail server is one message, and the answer says it is still going rather than "sent"
-    s.app.store.setDoc(docPath('jobs/u7'), testJob({lines:{}, total:0, quotes:quote})); s.mailbox.state.slow = 250; const before = s.mailbox.state.got.length;
+    s.app.store.setDoc(docPath('jobs/u7'), testJob({lines:{}, total:0, quotes:quote})); s.app.store.updateDoc(docPath('jobs/u7'),{customer:{phone:''}}); s.mailbox.state.slow = 250; const before = s.mailbox.state.got.length;
     const first = mail('u7', {key:k(9)}); await new Promise(x => setTimeout(x, 80));
     const second = await mail('u7', {key:k(9)}); assert.strictEqual(second.json.duplicate, true); assert.strictEqual(second.json.state, 'queued'); assert.strictEqual(second.json.ok, false);
     const done = await first; s.mailbox.state.slow = 0; assert.strictEqual(done.json.state, 'sent'); assert.strictEqual(s.mailbox.state.got.length, before + 1); assert.strictEqual(Object.keys(ms('u7')).length, 1);

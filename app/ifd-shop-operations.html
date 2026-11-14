@@ -2376,8 +2376,10 @@ function go(view, recordHistory = true){
   window.scrollTo(0, 0);
 }
 function refresh(){ paintTabs(); if (S.refreshView) S.refreshView(); }
+let textCreditCache=null,textCreditChecked=0;
+function textCreditBanner(){const box=h('div',{});const draw=c=>{if(!c)return;box.replaceChildren();if(c.state==='ok'){box.append(h('small',{text:'Text credit: '+c.currency+' '+Number(c.balance).toFixed(2)+' · checked '+whenText(c.checkedAt)}));return;}box.append(h('div',{class:'banner '+(c.state==='urgent'?'bad':'warn')},h('div',{class:'grow'},h('b',{text:c.state==='unknown'?'Text credit needs checking':(c.state==='urgent'?'Urgent — ':'')+'Text credit low: '+c.currency+' '+Number(c.balance).toFixed(2)}),h('p',{text:c.message||'Top up Twilio to keep customer texts and sign-in codes running. Email reminders go to admin@ and David@.'}),c.emailIssue?h('p',{text:c.emailIssue}):null),h('a',{class:'btn',href:'https://console.twilio.com/',target:'_blank',rel:'noopener',text:'Open Twilio'}),btn('Check after top-up',async()=>{const r=await fetch('/api/text-credit',{method:'POST',headers:{'X-IFD':'1'}});if(r.ok){textCreditCache=await r.json();draw(textCreditCache);}},'sm')));};draw(textCreditCache);if(Date.now()-textCreditChecked>60000){textCreditChecked=Date.now();fetch('/api/text-credit').then(r=>r.ok?r.json():null).then(c=>{if(c){textCreditCache=c;draw(c);}}).catch(()=>{});}return box;}
 function banners(){
-  const out = [];
+  const out = [textCreditBanner()];
   if (S.shop.state === 'wrong') out.push(h('div', {class:'banner bad'}, h('p', {class:'grow'}, h('b', {text:'Wrong Shopify store. '}), 'This system is connected to ' + S.shop.name + ', not Innovation Flooring Direct. Stock and sales are locked until the owner puts that right.'), btn('Check again', connectShop, 'sm')));
   else if (S.shop.state === 'down') out.push(h('div', {class:'banner warn'}, h('p', {class:'grow'}, h('b', {text:'Shopify is not connected. '}), S.shop.msg + ' Jobs and the diary still work. Stock and new sales are paused.'), btn('Try again', connectShop, 'sm')));
   if (S.db.state === 'off') out.push(h('div', {class:'banner bad'}, h('p', {}, h('b', {text:'The saved jobs cannot be reached. '}), 'Check the internet connection and reload the page.')));
