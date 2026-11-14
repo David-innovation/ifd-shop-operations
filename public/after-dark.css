@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Allura&display=swap");
 body.crew-diary{max-width:620px;background:#050506;padding:0 20px 110px;position:relative;isolation:isolate}
 body.crew-diary::before{content:'';position:absolute;z-index:-1;left:0;right:0;top:42px;height:225px;background:url('/after-dark-wave.svg') center/cover no-repeat;pointer-events:none;animation:brand-arrive 1.2s both}
 .crew-diary>.brand{height:170px;border:0;margin:0;padding:32px 0 0;display:flex;flex-direction:column;align-items:flex-start}
@@ -55,3 +56,6 @@ body.crew-diary::before{top:16px;height:170px}
 .crew-diary>#status:not(:empty){display:block;font-size:12px;color:#c9c9d1;margin:8px 0 16px}
 .crew-diary>#status:empty{display:none}
 .crew-diary .date-tile.day-off{border-style:dashed;border-color:#ad6774}.crew-diary .date-tile.day-off span::after{content:' / OFF';font-size:8px}.crew-diary .availability{margin:0 0 16px;padding:12px 0;border-bottom:1px solid #303035}.crew-diary .availability>strong{color:#ff8598;font-size:14px}.crew-diary .availability p{font-size:12px}.crew-diary .availability>button{background:transparent;font-size:12px;min-height:40px}.crew-diary .availability form{padding:14px;background:#141417;border:1px solid #35353c;border-radius:12px;margin-top:10px}.crew-diary .availability form button{margin-right:8px}.crew-diary .availability form button[type=submit]{background:#c90022;border-color:#e92444}
+
+/* Internal Floor Pilot product identity; customer documents do not load this stylesheet. */
+.pilot-credit{display:block;font:9px/1.4 Inter,'Segoe UI',sans-serif;letter-spacing:.08em;color:#bdbdc8;text-transform:none}.pilot-signature{display:block;font:30px/1.1 Allura,'Segoe Script','Snell Roundhand','Brush Script MT',cursive;letter-spacing:0;color:#fff;font-weight:400;text-transform:none;margin-top:3px}.crew .pilot-credit{margin:10px 0 0 20px}.crew-auth .pilot-credit{margin-left:0}.crew-diary>.brand{height:auto;min-height:175px;padding-bottom:24px}.crew-diary.job-open>.brand{height:auto;min-height:150px}.crew-diary .brand-name{font-size:23px;letter-spacing:2px}.brand .pilot-credit{display:block}.top .brand{gap:6px}.top .pilot-signature{font-size:25px}@media(max-width:480px){.top .brand{font-size:17px}.top .pilot-credit{font-size:8px}.top .pilot-signature{font-size:23px}}

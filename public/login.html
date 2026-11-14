@@ -1,5 +1,5 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Sign in · IFD Shop Operations</title>
+<title>Sign in · Floor Pilot</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@700&display=swap">
 <style>
 :root{--bg:#f2f3ef;--surface:#fff;--ink:#14181a;--muted:#566065;--line:#d3d7cf;--bad:#b0241c;--bad-bg:#fadfdb;--gold:#9a7226;color-scheme:light}
@@ -12,8 +12,8 @@ input{font:inherit;font-size:20px;color:var(--ink);background:var(--surface);bor
 button{font:inherit;font-weight:600;border-radius:8px;min-height:50px;padding:10px 14px;cursor:pointer;border:1.5px solid var(--ink);background:var(--ink);color:var(--surface)}
 button.link{background:none;border:0;color:var(--ink);text-decoration:underline;min-height:40px}button[disabled]{opacity:.5}
 .err{background:var(--bad-bg);color:var(--bad);border:1.5px solid var(--bad);border-radius:8px;padding:10px 12px}[hidden]{display:none!important}:focus-visible{outline:3px solid #1b5683;outline-offset:2px}
-</style><link rel="stylesheet" href="/crew-style.css"><link rel="stylesheet" href="/after-dark.css"></head><body class="crew crew-auth"><main><header class="brand" aria-label="Innovation Flooring Direct"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">INNOVATION</span><span class="brand-sub">FLOORING DIRECT</span><span class="brand-caption">The team behind every floor</span></header>
-<div class="auth-title"><small class="b">Innovation Flooring Direct</small><h1>Shop Operations</h1></div>
+</style><link rel="stylesheet" href="/crew-style.css"><link rel="stylesheet" href="/after-dark.css"></head><body class="crew crew-auth"><main><header class="brand" aria-label="Floor Pilot"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">FLOOR PILOT</span><span class="pilot-credit">Designed and created by <span class="pilot-signature">David Woodcock</span></span><span class="brand-caption">The team behind every floor</span></header>
+<div class="auth-title"><small class="b">Innovation Flooring Direct</small><h1>Team sign-in</h1></div>
 <form id="f1"><p>Enter your mobile number and we will text you a code.</p>
   <label>Mobile number<input id="mobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="07700 900123" required></label><br><button id="b1" type="submit">Text me a code</button></form>
 <form id="f2" hidden><p id="sent"></p>
@@ -24,7 +24,7 @@ button.link{background:none;border:0;color:var(--ink);text-decoration:underline;
 (function(){
   const $ = s => document.querySelector(s), err = $('#err'); let mobile = '';
   const fitterLogin=['/fitter','/appointments'].includes(location.pathname);
-  if(fitterLogin){document.querySelector('h1').textContent='Fitter sign-in';document.title='Fitter sign-in | Innovation Flooring';}
+  if(fitterLogin){document.querySelector('h1').textContent='Fitter sign-in';document.title='Fitter sign-in | Floor Pilot';}
   const say = t => { err.textContent = t || ''; err.hidden = !t; };
   async function post(url, body){ if(fitterLogin)body.mode='fitter';const r = await fetch(url, {method:'POST', headers:{'content-type':'application/json', 'x-ifd':'1'}, body:JSON.stringify(body), credentials:'same-origin'}); const d = await r.json().catch(() => ({})); if (!r.ok) throw (d.error || {message:'Something went wrong. Try again.'}); return d; }
   $('#f1').addEventListener('submit', async e => { e.preventDefault(); say(''); $('#b1').disabled = true;
