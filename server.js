@@ -30,6 +30,7 @@ function create(opts){
   const L = rules.load(appBody);
   const texter = opts.texter || sms.make(env, fetchImpl, log), mailer = opts.mailer || mail.make(env, log);
   const goodsIn=require('./lib/goods-in').make({st,shop,now,broadcast});
+  const rollEnds=require('./lib/roll-ends').make({st,shop,now,broadcast});
   const trade=require('./lib/trade').make({dataDir,now,mailer});
   const q = {
     userByMobile: db.prepare('SELECT * FROM users WHERE mobile = ?'), userById: db.prepare('SELECT * FROM users WHERE id = ?'),
@@ -183,7 +184,7 @@ function create(opts){
     const body = await readJson(req), kind = body.kind === 'mutation' ? 'mutation' : 'query', op = shopifyLib.allowed(body.query, kind);
     if (!op) return fail(res, 400, 'not_in_manifest', 'That Shopify request is not one this system makes.');
     if (kind === 'mutation') st.audit(user.id, 'shopify ' + op.name, JSON.stringify(body.variables || {}).slice(0, 600));
-    try { send(res, 200, {body:await shop.graphql(body.query, body.variables)}); }
+    try { send(res, 200, {body:rollEnds.decorate(await shop.graphql(body.query, rollEnds.query(op.name,body.variables)))}); }
     catch (e){ send(res, 502, {error:{code:e.code || 'upstream_error', message:e.message || 'Shopify did not answer.', retryable:!!e.retryable, retryAfterMs:e.retryAfterMs || 0}}); }
   }
 
@@ -380,6 +381,10 @@ function create(opts){
       appointments.photo(jobId,id,user);const a=/^[0-9a-f]{32}$/.test(id)?q.asset.get(id):null;if(!a)return fail(res,404,'not_found','Photo not found.');
       return send(res,200,fs.readFileSync(path.join(dataDir,'assets',id)),{'content-type':a.type,'cache-control':'private, no-store'});
     }
+    if(p==='/roll-ends'&&req.method==='GET'){if(!shopUser&&user.role!=='warehouse')return fail(res,403,'forbidden','Warehouse access required.');return page(res,pub('roll-ends.html'));}
+    if(p==='/api/roll-ends'&&req.method==='GET')return send(res,200,await rollEnds.list(user,url.searchParams.get('q')||''));
+    if(p==='/api/roll-ends'&&req.method==='POST')return send(res,200,await rollEnds.create(user,await readJson(req)));
+    if(p==='/api/roll-ends/inspect'&&req.method==='GET')return send(res,200,await rollEnds.inspect(user,url.searchParams.get('variant')));
     if(p==='/goods-in'&&req.method==='GET'){if(!shopUser&&user.role!=='warehouse')return fail(res,403,'forbidden','Warehouse access required.');return page(res,pub('goods-in.html'));}
     if(p==='/api/goods-in'&&req.method==='GET')return send(res,200,goodsIn.list(user));
     if(p==='/api/goods-in/search'&&req.method==='GET')return send(res,200,await goodsIn.find(user,url.searchParams.get('q'),url.searchParams.get('after')));

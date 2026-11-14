@@ -2082,7 +2082,7 @@ const NAV_GROUPS=[
  {id:'today',label:'Today',home:'today',pages:[['today','Today']]},
  {id:'sales',label:'Sales',home:'documents',pages:[['documents','Quotes & invoices'],['jobs','All jobs'],['walkin','Walk-in quote'],['/still-to-pay?channel=retail','Still to pay'],['/trade','Trade']]},
  {id:'diary',label:'Diary',home:'diary',pages:[['diary','Fitting diary'],['measures','Estimator visits'],['fitter','Fitter’s page']]},
- {id:'warehouse',label:'Warehouse',home:'stock',pages:[['/goods-in','Receive delivery'],['/goods-in-office','Office costs'],['stock','Stock'],['cut','Cutting & picking'],['deliveries','Deliveries'],['stocktake','Opening stocktake']]},
+ {id:'warehouse',label:'Warehouse',home:'stock',pages:[['/goods-in','Receive delivery'],['/goods-in-office','Office costs'],['stock','Stock'],['/roll-ends','Roll ends'],['cut','Cutting & picking'],['deliveries','Deliveries'],['stocktake','Opening stocktake']]},
  {id:'team',label:'Team',home:'tasks',pages:[['tasks','Tasks'],['feedback','Messages & fitter feedback']]},
  {id:'more',label:'More',home:'more',pages:[['catalogue','Catalogue'],['activity','Activity'],['setup','Setup'],['help','Staff help']]}
 ];
@@ -2775,7 +2775,7 @@ function stockCard(p, v){
   const forJobs = m.forJobs.length ? h('p', {class:'small muted', text:'For jobs: ' + m.forJobs.map(f => f.ref + ' ' + (f.name || '') + ' (' + L.fmtQty(f.qty, unit) + ')').join(', ')}) : null;
   let actions;
   if (!fig.tracked) actions = h('div', {class:'bar'}, chip('Shopify is not tracking stock for this', 'warn'), adminLink('products', p.id, 'Open in Shopify'), roll ? null : btn('Set bay', () => bayDialog(p, v), 'sm'));
-  else if (roll) actions = h('p', {class:'small muted', text:'Rolls are received and cut on the carpet stock screens. A cut sold here is reserved against the roll straight away.'});
+  else if (roll) actions = h('div',{class:'bar'},h('a',{class:'btn sm',href:'/goods-in',text:'Receive delivery'}),h('a',{class:'btn sm',href:'/roll-ends?variant='+encodeURIComponent(v.id),text:'Mark as roll end'}),h('a',{class:'btn sm',href:'/roll-ends',text:'Find roll-end code'}));
   else actions = h('div', {class:'bar'}, btn('Receive', () => receiveDialog(p, v), 'sm'), btn('Count', () => countDialog(p, v), 'sm'), btn('Set bay', () => bayDialog(p, v), 'sm'));
   return h('div', {class:'stk'}, h('div', {class:'stk-top'}, h('div', {class:'grow'}, h('h3', {text:variantTitle(p, v)}), tags), figs), forJobs, actions);
 }
