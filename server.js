@@ -6,7 +6,7 @@ const http = require('node:http'), fs = require('node:fs'), path = require('node
 const store = require('./lib/store'), shopifyLib = require('./lib/shopify'), sms = require('./lib/sms'), mail = require('./lib/mail'), rules = require('./lib/rules'), commands = require('./lib/commands');
 
 const SHOP_ROLES = ['owner', 'shop'];                       /* full shop screens */
-const ROLES = ['owner', 'shop', 'fitter', 'estimator'];
+const ROLES = ['owner', 'shop', 'fitter', 'estimator', 'warehouse'];
 const CODE_MINUTES = 10, CODE_TRIES = 5, SENDS_PER_WINDOW = 3, WINDOW_MS = 15 * 60000;
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 const SKEL = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' +
@@ -29,6 +29,7 @@ function create(opts){
   /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
   const L = rules.load(appBody);
   const texter = opts.texter || sms.make(env, fetchImpl, log), mailer = opts.mailer || mail.make(env, log);
+  const goodsIn=require('./lib/goods-in').make({st,shop,now,broadcast});
   const trade=require('./lib/trade').make({dataDir,now,mailer});
   const q = {
     userByMobile: db.prepare('SELECT * FROM users WHERE mobile = ?'), userById: db.prepare('SELECT * FROM users WHERE id = ?'),
@@ -269,7 +270,7 @@ function create(opts){
     if (req.method === 'GET' && (p === '/' || p === '/login')){
       if (!user) return page(res, pub('login.html'));
       if (p === '/login'){ res.writeHead(302, {location:'/'}); return res.end(); }
-      return page(res, shopUser ? appHtml() : ['fitter','estimator'].includes(user.role) ? pub('appointments.html') : pub('holding.html').replace('{{name}}', String(user.name).replace(/[<>&"]/g, '')));
+      return page(res, shopUser ? appHtml() : user.role==='warehouse'?pub('goods-in.html'):['fitter','estimator'].includes(user.role) ? pub('appointments.html') : pub('holding.html').replace('{{name}}', String(user.name).replace(/[<>&"]/g, '')));
     }
     if (p.startsWith('/api/') && req.method !== 'GET' && !sameSite(req)) return fail(res, 403, 'forbidden', 'That did not come from this system’s own pages.');
     if (p === '/api/login/code' && req.method === 'POST') return requestCode(req, res);
@@ -379,6 +380,10 @@ function create(opts){
       appointments.photo(jobId,id,user);const a=/^[0-9a-f]{32}$/.test(id)?q.asset.get(id):null;if(!a)return fail(res,404,'not_found','Photo not found.');
       return send(res,200,fs.readFileSync(path.join(dataDir,'assets',id)),{'content-type':a.type,'cache-control':'private, no-store'});
     }
+    if(p==='/goods-in'&&req.method==='GET'){if(!shopUser&&user.role!=='warehouse')return fail(res,403,'forbidden','Warehouse access required.');return page(res,pub('goods-in.html'));}
+    if(p==='/api/goods-in'&&req.method==='GET')return send(res,200,goodsIn.list(user));
+    if(p==='/api/goods-in/search'&&req.method==='GET')return send(res,200,await goodsIn.find(user,url.searchParams.get('q'),url.searchParams.get('after')));
+    if(p==='/api/goods-in/receive'&&req.method==='POST')return send(res,200,await goodsIn.receive(user,await readJson(req)));
     /* everything below is the shop's own screens. A fitter or estimator is refused here, whatever their page asks for. */
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
     if(p==='/shop-password'&&req.method==='GET'){
@@ -390,6 +395,10 @@ function create(opts){
       return send(res,200,shopPassword.status());
     }
     if(p==='/api/shop-password'&&req.method==='POST')return send(res,200,await shopPassword.set(user,await readJson(req)));
+    if(p==='/goods-in-office'&&req.method==='GET')return page(res,pub('goods-in.html'));
+    if(p==='/api/goods-in/office'&&req.method==='GET')return send(res,200,goodsIn.list(user,true));
+    if(p==='/api/goods-in/cost'&&req.method==='POST')return send(res,200,await goodsIn.setCost(user,await readJson(req)));
+    if(p==='/api/goods-in/valuation'&&req.method==='GET')return send(res,200,await goodsIn.valuation(user));
     if(p==='/staff-help'&&req.method==='GET')return page(res,pub('staff-help.html'));
     if(p==='/api/staff-help'&&req.method==='GET')return send(res,200,require('./lib/staff-help.json'));
     if(p==='/still-to-pay'&&req.method==='GET')return page(res,pub('still-to-pay.html'));
