@@ -353,7 +353,7 @@ function create(opts){
     if(p==='/api/fitter-messages/admin'&&req.method==='GET')return send(res,200,fitterMessages.admin(user,url.searchParams.get('fitterId')||''));
     if(p==='/api/fitter-messages/send'&&req.method==='POST')return send(res,200,fitterMessages.send(user,await readJson(req)));
     if(p==='/api/fitter-messages/review'&&req.method==='POST')return send(res,200,fitterMessages.review(user,await readJson(req)));
-    if(p==='/api/slot-deadlines'&&req.method==='GET'){if(!shopUser)return fail(res,403,'forbidden','Only shop staff can see all fitter deadlines.');return send(res,200,{jobs:require('./lib/slot-deadline').shopList(st,now(),url.searchParams.get('tests')==='1'),checkedAt:iso()});}
+    if(p==='/api/slot-deadlines'&&req.method==='GET'){if(!shopUser)return fail(res,403,'forbidden','Only shop staff can see all fitter deadlines.');return send(res,200,{jobs:require('./lib/slot-deadline').shopList(st,now(),url.searchParams.get('tests')==='1',url.searchParams.get('outstanding')==='1'),checkedAt:iso()});}
     if(p==='/api/my-ratings'&&req.method==='GET')return send(res,200,performance.own(user,url.searchParams.get('month')||undefined));
     if(p==='/api/fitter-performance'&&req.method==='GET')return send(res,200,performance.admin(user));
     if(p==='/api/fitter-performance/contact'&&req.method==='POST')return send(res,200,performance.contact(user,await readJson(req)));

@@ -68,6 +68,15 @@ test('fitter slot API enforces assignments, fixed wording, dates, test mode and 
  assert.equal(Object.keys(app.store.getDoc('jobs/visit').data.msgs).length,3);
  assert.equal((await call('/api/appointments/send',estimator,body)).status,403);
  assert.equal((await call('/api/cmd',estimator,{cmd:'msg.send',...vb})).status,403);
+ app.store.setDoc(docPath('jobs/shop-custom'),{...j,type:'Quote',diary:false,pre:{one:{kind:'measure',who:'Surveyor',status:'booked',date:j.date}}});
+ const custom={...vb,jobId:'shop-custom',slot:'13:20 to 14:20',key:'shop_custom_123'};
+ assert.equal((await call('/api/appointments/send',estimator,custom)).status,400);
+ assert.equal((await call('/api/appointments/send',ownerSession,{...custom,slot:'14:20 to 13:20'})).status,400);
+ assert.equal((await call('/api/appointments/send',ownerSession,custom)).data.state,'sent');
+ assert.match(sent.at(-1).body,/13:20 to 14:20/);
+ assert.equal(app.store.getDoc('jobs/shop-custom').data.pre.one.arrival.slot,'13:20 to 14:20');
+ const count=sent.length;assert.equal((await call('/api/appointments/send',ownerSession,custom)).data.duplicate,true);assert.equal(sent.length,count);
+ assert.ok(!(await call('/api/slot-deadlines?tests=1&outstanding=1',ownerSession)).data.jobs.some(x=>x.id==='shop-custom'));
  app.ensureUser('Lennox','07700900005','fitter');assert.equal((await call('/api/appointments',user)).data.jobs.length,0);
  }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
 });

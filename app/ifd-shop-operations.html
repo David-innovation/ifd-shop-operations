@@ -3180,7 +3180,7 @@ function drawSheet(){
     arr === 'ok' ? h('p', {text:job.arrival.slot + ' on ' + L.fmtDay(job.date) + '. Agreed with the customer ' + whenText(job.arrival.at) + '.'})
       : h('p', {class:'muted', text:'Ring the customer and agree when you will arrive. It has to be done at least a day before, and only a recorded time counts.'}),
     tries.length ? h('div', {class:'log'}, tries.map(x => h('div', {text:whenText(x.at) + '  ' + nameOf(x.by) + ' could not reach them' + (x.note ? ': ' + x.note : '')}))) : null,
-    h('div', {class:'bar'}, btn(arr === 'ok' ? 'Change the time' : 'Record agreed time', () => arrivalDialog(job), 'sm' + (arr === 'ok' ? '' : ' pri')), arr === 'ok' ? null : btn('Could not reach them', () => noReachDialog(job), 'sm')));
+    h('div', {class:'bar'}, btn(arr === 'ok' ? 'Send / change time slot' : 'Send time slot', () => arrivalDialog(job), 'sm' + (arr === 'ok' ? '' : ' pri')), arr === 'ok' ? null : btn('Could not reach them', () => noReachDialog(job), 'sm')));
   const visitsCard = visits.length ? h('div', {class:'card'}, h('h3', {}, 'Visits so far', job.status === 'open' ? chip(job.ret === 'needed' ? 'Return visit needed' : 'Return visit booked', job.ret === 'needed' ? 'bad' : 'info') : null),
     visits.map(x => h('div', {class:'ln'}, h('div', {class:'ln-top'}, h('b', {text:L.fmtDay(x.date) + (x.fitter ? ', ' + x.fitter : '')}), chip('Not finished', 'warn')),
       h('p', {text:'Left to do: ' + x.remains}),
@@ -3373,7 +3373,7 @@ function drawFitterSheet(){
     arr === 'ok' ? h('p', {text:agreed.slot + ' on ' + L.fmtDay(date) + '. Agreed with the customer ' + whenText(agreed.at) + '.'})
       : h('p', {class:'muted', text:'Ring the customer and agree when you will arrive. It has to be done at least a day before, and only a recorded time counts.'}),
     tries.length ? h('p', {class:'small muted', text:tries.length + (tries.length === 1 ? ' try' : ' tries') + ' logged, the last ' + whenText(tries[tries.length - 1].at) + '.'}) : null,
-    h('div', {class:'bar'}, btn(arr === 'ok' ? 'Change the time' : 'Record agreed time', () => arrivalDialog(job, v), 'sm' + (arr === 'ok' ? '' : ' pri')), arr === 'ok' ? null : btn('Could not reach them', () => noReachDialog(job, v), 'sm')));
+    h('div', {class:'bar'}, btn(arr === 'ok' ? 'Send / change time slot' : 'Send time slot', () => arrivalDialog(job, v), 'sm' + (arr === 'ok' ? '' : ' pri')), arr === 'ok' ? null : btn('Could not reach them', () => noReachDialog(job, v), 'sm')));
   const lines = L.linesOf(job);
   const takeCard = !lines.length ? null : h('div', {class:'card'}, h('h3', {}, v ? 'What is on the order' : 'What goes on the job'),
     lines.map(l => { const stock = l.hold && l.hold !== 'none';
@@ -5182,7 +5182,7 @@ function visitBlock(job, v){
       try { await patchJob(job.id, visitPatch(v, {status:'cancelled', cancelledAt:nowISO()}), L.PRE_KINDS[v.kind] + ' on ' + L.fmtDay(v.date) + ' cancelled'); } catch (e){ dbFail(e); }
     }, 'sm');
     if (open) add(el, h('div', {class:'bar'}, btn('Submit findings', () => findingsDialog(job, v), 'sm pri'),
-      arr !== 'na' ? btn(arr === 'ok' ? 'Change the time' : 'Record agreed time', () => arrivalDialog(job, v), 'sm') : null, arr !== 'na' && arr !== 'ok' ? btn('Could not reach them', () => noReachDialog(job, v), 'sm') : null,
+      arr !== 'na' ? btn(arr === 'ok' ? 'Send / change time slot' : 'Send time slot', () => arrivalDialog(job, v), 'sm') : null, arr !== 'na' && arr !== 'ok' ? btn('Could not reach them', () => noReachDialog(job, v), 'sm') : null,
       btn('Change', () => visitDialog(job, v), 'sm'), cancel));
   } else {
     const names = Object.keys(v.verified || {}).map(k => ((job.rooms || {})[k] || {}).name || 'Room');
@@ -5498,7 +5498,16 @@ function fitterPicker(id, current){
 }
 /* v is a preliminary visit on the job, or nothing for the installation itself */
 function visitPatch(v, value){ const p = {pre:{}}; p.pre[v.k] = value; return p; }
-function arrivalDialog(job, v){
+function arrivalDialog(job,v){
+ if((v&&!['measure','both'].includes(v.kind))||(!v&&job.type!=='Fitting'))return phoneArrivalDialog(job,v);
+ const date=v?v.date:job.date,c=job.customer||{},prior=(v?v.arrival:job.arrival)||{},slots=['8-10am','10am-12pm','11am-1pm','1-3pm','2-4pm','3-5pm'],s=sayer(),key='slot_'+uid();let selected=prior.forDate===date?prior.slot:'';
+ const preview=h('p',{class:'banner',role:'status'}),choices=h('div',{class:'grid2'}),from=h('input',{class:'in',type:'time','aria-label':'Custom arrival from'}),to=h('input',{class:'in',type:'time','aria-label':'Custom arrival until'});
+ const show=()=>{preview.textContent=selected?'Text to '+(c.phone||'missing mobile')+': Your '+(v?'estimator':'fitter')+' will arrive '+L.fmtDay(date)+', '+selected+'.':'Choose a time slot to preview the customer text.';};
+ slots.forEach(slot=>choices.append(btn(slot,()=>{selected=slot;show();},'sm')));
+ const send=btn('Send time-slot text',async()=>{if(!selected){s.say('Choose a time slot first.',true);return;}send.disabled=true;try{const r=await fetch('/api/appointments/send',{method:'POST',headers:{'x-ifd':'1','content-type':'application/json'},body:JSON.stringify({jobId:job.id,visitId:v?v.k:'',date,slot:selected,key})}),d=await r.json();if(!r.ok)throw Error(d.error?.message||'Could not send the text.');if(!['sent','delivered'].includes(d.state))throw Error(d.error||'Text status: '+d.state+'. Check the message history before retrying.');window.dispatchEvent(new Event('ifd-slot-sent'));closeModal();toast('Time-slot text sent to '+c.phone);}catch(e){s.say(e.message,true);send.disabled=false;}},'pri');
+ openModal(dlg('Send customer time slot',h('div',{class:'sec'},h('p',{text:(c.name||'Customer')+' · '+L.fmtDay(date)+' · '+(v?v.who:job.fitter)}),choices,h('details',{},h('summary',{text:'Custom time agreed by the shop'}),field('From',from),field('Until',to),btn('Use this time',()=>{selected=from.value+' to '+to.value;show();},'sm')),preview,s.box,h('p',{class:'small muted',text:'This sends a real text. Recording a telephone agreement alone does not send a message.'})),[btn('Cancel',closeModal),btn('Record phone agreement only',()=>phoneArrivalDialog(job,v),'sm'),send],true));show();
+}
+function phoneArrivalDialog(job, v){
   if (!needDb()) return;
   const s = sayer(), c = job.customer || {}, date = v ? v.date : job.date, what = v ? ' for the ' + L.PRE_KINDS[v.kind].toLowerCase() : '';
   const from = h('input', {class:'in', id:'arrFrom', type:'time'}), to = h('input', {class:'in', id:'arrTo', type:'time'});
