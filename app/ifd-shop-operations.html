@@ -355,8 +355,8 @@ ol.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
   <div class="brand" aria-label="Floor Pilot"><span>FLOOR PILOT</span><span class="pilot-credit">Designed and created by <span class="pilot-signature">David Woodcock</span></span></div>
   <span class="grow"></span>
   <button type="button" class="store" id="store" title="Check the Shopify connection"><i></i><span id="storeText">Connecting to Shopify</span></button>
-  <button class="btn hide-phone" id="newMeasureTop" type="button">Book a measure</button>
-  <button class="btn pri hide-phone" id="newSaleTop" type="button">New sale</button>
+  <button class="btn" id="newMeasureTop" type="button">Book a measure</button>
+  <button class="btn pri" id="newSaleTop" type="button">New sale</button>
 </div></header>
 <nav class="tabs" aria-label="Sections"><div class="tabs-in" id="tabs"></div></nav>
 <main id="view"></main>
@@ -2078,11 +2078,13 @@ function learnNames(ids){
 }
 
 /* ---------- shell ---------- */
-const TABS = [
-  {id:'today', label:'Today'}, {id:'jobs', label:'Jobs'}, {id:'sale', label:'New sale', cls:'only-phone sale'},
-  {id:'diary', label:'Diary'}, {id:'documents',label:'Quotes & invoices',cls:'only-desk'}, {id:'catalogue',label:'Catalogue',cls:'only-desk'}, {id:'measures', label:'Measures', cls:'only-desk'}, {id:'stock', label:'Stock'}, {id:'cut', label:'Cutting', cls:'only-desk'}, {id:'deliveries', label:'Deliveries', cls:'only-desk'},
-  {id:'tasks', label:'Tasks', cls:'only-desk'}, {id:'feedback',label:'Fitter feedback',cls:'only-desk'}, {id:'activity', label:'Activity', cls:'only-desk'}, {id:'setup', label:'Setup', cls:'only-desk'},
-  {id:'help', label:'Staff help'}, {id:'more', label:'More', cls:'only-phone'}
+const NAV_GROUPS=[
+ {id:'today',label:'Today',home:'today',pages:[['today','Today']]},
+ {id:'sales',label:'Sales',home:'documents',pages:[['documents','Quotes & invoices'],['jobs','All jobs'],['walkin','Walk-in quote'],['/still-to-pay?channel=retail','Still to pay'],['/trade','Trade']]},
+ {id:'diary',label:'Diary',home:'diary',pages:[['diary','Fitting diary'],['measures','Estimator visits'],['fitter','Fitter’s page']]},
+ {id:'warehouse',label:'Warehouse',home:'stock',pages:[['stock','Stock'],['cut','Cutting & picking'],['deliveries','Deliveries'],['stocktake','Opening stocktake']]},
+ {id:'team',label:'Team',home:'tasks',pages:[['tasks','Tasks'],['feedback','Messages & fitter feedback']]},
+ {id:'more',label:'More',home:'more',pages:[['catalogue','Catalogue'],['activity','Activity'],['setup','Setup'],['help','Staff help']]}
 ];
 const VIEWS = {};
 VIEWS.help=function(){return {nodes:[h('a',{class:'btn',href:'/shop-password',text:'Owner: set shared shop password'}),h('h1',{text:'Staff help'}),h('p',{text:'Search the shared handbook or print it for the shop. This help desk does not access private chats.'}),h('a',{class:'btn pri',href:'/staff-help',text:'Open the staff help desk'})]};};
@@ -2352,13 +2354,11 @@ function actRow(job){
     h('div', {class:'end'}, chip(b ? 'Sent back' : rv ? 'Shop review' : 'Return visit needed', 'bad')));
 }
 function paintTabs(){
-  const box = $('#tabs'); box.replaceChildren();
-  const badge = {today:inboxList().length + actNowJobs().length + toPriceJobs().length + quotedJobs().filter(j => L.quoteWait(j, L.todayISO()).state !== 'waiting').length + toOrderJobs().length + confirmJobs().length + failedMsgs().length, jobs:attentionJobs().length, diary:overdueArrivals('').length, measures:lateVisits(), deliveries:deliveryAlerts(), tasks:S.tasks.filter(t => !t.done && (!t.due || t.due <= L.todayISO())).length, cut:cutReady().length + pickAll().length};
-  TABS.forEach(t => {
-    const on = S.view === t.id || (t.id === 'more' && ['tasks','activity','setup','deliveries','stocktake','measures','cut'].indexOf(S.view) !== -1 && window.matchMedia('(max-width: 760px)').matches);
-    box.append(h('button', {type:'button', class:'tab' + (t.cls ? ' ' + t.cls : '') + (on ? ' on' : ''), onclick:() => { if (t.id === 'sale') saleDialog(); else go(t.id); }},
-      t.label, badge[t.id] ? h('span', {class:'badge', text:String(badge[t.id])}) : null));
-  });
+ const box=$('#tabs');box.dataset.grouped='1';box.replaceChildren();
+ const active=NAV_GROUPS.find(g=>g.id===S.view||g.pages.some(p=>p[0]===S.view))||NAV_GROUPS[0];
+ NAV_GROUPS.forEach(g=>box.append(h('button',{type:'button',class:'tab'+(g===active?' on':''),'aria-current':g===active?'page':null,onclick:()=>go(g.home),text:g.label})));
+ let sub=$('#sectionLinks');if(!sub){sub=h('div',{id:'sectionLinks',class:'section-links','aria-label':'Pages in this section'});box.parentElement.append(sub);}sub.replaceChildren();sub.hidden=active.id==='today';
+ active.pages.forEach(([id,label])=>sub.append(id.startsWith('/')?h('a',{class:'section-link',href:id,text:label}):h('button',{type:'button',class:'section-link'+(S.view===id?' on':''),'aria-current':S.view===id?'page':null,onclick:()=>go(id),text:label})));
 }
 function go(view){
   if (!VIEWS[view]) view = 'today';
