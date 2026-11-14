@@ -678,9 +678,22 @@ window.IFDLogic = (function(){
   }
   function preLate(v, today){ return !!v && v.status === 'booked' && validISO(v.date) && v.date < today; }
   /* everything that still has to happen before the job can be called ready for fitting */
+  function herringboneScope(j){return JSON.stringify([j.fitter||'',(j.customer||{}).address||'',(j.customer||{}).postcode||'',roomsOf(j).map(function(r){var c=choiceOf(j,r)||{};return [r.k,r.name,r.len,r.wid,r.area,c.title||'',r.spec||{}];}),linesOf(j).map(function(l){return [l.title,l.variantId||l.variant];})]);}
+  function herringboneInspection(job){
+    var j=job||{}, choices=briefOf(j).choices||[], floors=choices.concat(linesOf(j));
+    var required=j.type==='Fitting' && (floors.some(function(c){return /herringbone/i.test([c.title,c.type,c.pattern].join(' '));}) || roomsOf(j).some(function(r){return /herringbone/i.test(JSON.stringify(r.spec||{}));}));
+    if(!required)return {required:false,state:'not_required',blocked:false};
+    var who=j.fitter||'', visits=preOf(j).filter(function(v){return isInspection(v)&&v.who===who&&(!j.fitterId||!v.whoId||v.whoId===j.fitterId);});
+    var done=visits.filter(function(v){return v.status==='done';}).sort(function(a,b){return String(b.doneAt).localeCompare(String(a.doneAt))||((b.n||0)-(a.n||0));})[0];
+    var booked=visits.filter(function(v){return v.status==='booked';})[0];
+    if(!booked&&done&&done.inspectionScope===herringboneScope(j)&&['ok','suitable'].indexOf((done.sub||{}).outcome)!==-1)return {required:true,state:'passed',blocked:false,visit:done,reason:'Assigned fitter inspected: suitable.'};
+    if(j.diary&&validISO(j.date)&&j.fitterWork&&j.fitterWork.purpose==='preparation')return {required:true,state:'prep_booked',blocked:false,reason:'A floor-preparation visit is already booked with the fitting team.'};
+    return {required:true,state:booked?'booked':done?'action_needed':'unbooked',blocked:true,visit:booked||done||null,reason:!who?'Herringbone: assign the fitter to arrange the mandatory inspection.':booked?'Herringbone inspection booked with '+who+' for '+fmtDay(booked.date)+'. Findings required before fitting.':done?'Herringbone: preparation or further inspection is still required.':'Herringbone: '+who+' must call the customer and book a subfloor inspection before fitting.'};
+  }
   function checksOutstanding(job){
     var out = [];
     if (!job || job.status !== 'open') return out;
+    var hb=herringboneInspection(job); if(hb.blocked)out.push(hb.reason);
     var sc = job.sizeCheck || '', rooms = roomsOf(job), pre = preOf(job), booked = pre.filter(function(v){ return v.status === 'booked'; });
     if (!SIZE_CHECKS[sc]) out.push('Nobody has said how the sizes will be checked.');
     else if (sc === 'none'){ if (job.type === 'Fitting') out.push('A fitting job cannot be supply only. Say how the sizes will be checked.'); }
@@ -1720,7 +1733,7 @@ window.IFDLogic = (function(){
     SIZE_CHECKS:SIZE_CHECKS, SOURCES:SOURCES, ROOM_STATUS:ROOM_STATUS, ROOM_TONE:ROOM_TONE, PRE_KINDS:PRE_KINDS, OUTCOMES:OUTCOMES, OUTCOME_TONE:OUTCOME_TONE, SPARE:SPARE,
     fmtM:fmtM, roomArea:roomArea, roomSize:roomSize, roomsOf:roomsOf, measuredArea:measuredArea, roomChanged:roomChanged, roomHistory:roomHistory, picsOf:picsOf, parseRoomSize:parseRoomSize,
     preOf:preOf, isMeasure:isMeasure, isInspection:isInspection, latestInspection:latestInspection, preArrivalState:preArrivalState, preTries:preTries, preLate:preLate,
-    checksOutstanding:checksOutstanding, sizeEffect:sizeEffect, newlyShort:newlyShort, roomsFromQuote:roomsFromQuote, spareFromText:spareFromText,
+    herringboneScope:herringboneScope,herringboneInspection:herringboneInspection, checksOutstanding:checksOutstanding, sizeEffect:sizeEffect, newlyShort:newlyShort, roomsFromQuote:roomsFromQuote, spareFromText:spareFromText,
     isOff:isOff, offClashes:offClashes, outwardOf:outwardOf, tidyPost:tidyPost, postLetters:postLetters, areaGroup:areaGroup, inArea:inArea,
     attrMap:attrMap, orderToJob:orderToJob, isSampleOrder:isSampleOrder, inboxWorthy:inboxWorthy, productQuery:productQuery };
 })();
@@ -5011,7 +5024,7 @@ function findingsDialog(job, v){
       p.rooms[key] = rec; verified[key] = true; names.push(x.nm);
     });
     const rec = {status:'done', doneAt:now, doneBy:nm, doneById:S.me.id || '', role:role, verified:verified, noVerify:measure && !ticked.length ? noneWhy.value.trim() : '', notes:notes.value.trim(), changed:changes};
-    if (inspect) rec.sub = sub;
+    if (inspect){rec.sub=sub;rec.inspectionScope=L.herringboneScope(Object.assign({},job,{rooms:mergeRooms(job.rooms,p.rooms)}));}
     if (pics.list.length){ rec.photos = {}; pics.list.forEach(x => { rec.photos['p' + uid()] = x; }); }
     Object.assign(p, visitPatch(v, rec));
     const short = L.newlyShort(job, Object.assign({}, job, {rooms:mergeRooms(job.rooms, p.rooms)}));
@@ -5162,6 +5175,10 @@ function checksCard(job){
   learnNames(Array.from(new Set(ids.filter(Boolean))));
   const head = !open ? null : !chosen ? chip('Choice needed', 'bad') : out.length ? chip(out.length + (out.length === 1 ? ' check outstanding' : ' checks outstanding'), flagged ? 'bad' : 'warn') : job.sizeCheck === 'none' ? chip('Supply only') : chip('Checks done', 'ok');
   const card = h('div', {class:'card', id:'checksCard'}, h('h3', {}, 'Measurements & site checks', head));
+  if(open&&L.herringboneInspection(job).required){
+    const hb=L.herringboneInspection(job),pick=fitterPicker('inspectionFitter',job.fitter||'');
+    add(card,h('section',{class:'banner '+(hb.blocked?'warn':'ok')},h('div',{},h('h3',{text:'Mandatory herringbone inspection'}),h('p',{text:hb.reason}),h('p',{text:'Assign the fitting team now. Their private diary will ask them to call the customer, arrange the inspection and record the findings. This does not book the installation.'}),pick,btn('Assign fitter for inspection',async()=>{const name=pick.value.trim();if(!name){toast('Choose the fitter first.',true);return;}try{await patchJob(job.id,{fitter:name,fitterId:name===job.fitter?(job.fitterId||''):''},'Assigned '+name+' to arrange the mandatory herringbone inspection');toast('Fitter assigned — inspection is in their diary alerts');}catch(e){dbFail(e);}},'sm'))));
+  }
   if (open) add(card, h('div', {class:'radios', role:'radiogroup', 'aria-label':'How the sizes will be checked'}, Object.keys(L.SIZE_CHECKS).filter(k => k !== 'none' || job.type !== 'Fitting' || job.sizeCheck === 'none').map(k =>
     h('label', {class:'radio'}, h('input', {type:'radio', name:'sizeCheck', value:k, checked:job.sizeCheck === k, onchange:async () => { await set({sizeCheck:k}, 'Size check recorded: ' + L.SIZE_CHECKS[k]); if (k === 'estimator' && S.estimators.length && needsEstimator(job)) sendToEstimator(S.jobs.get(job.id) || job); }}), h('span', {text:L.SIZE_CHECKS[k]})))));
   else if (chosen) add(card, h('p', {class:'muted', text:L.SIZE_CHECKS[job.sizeCheck] + '.'}));

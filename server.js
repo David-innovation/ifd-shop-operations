@@ -351,6 +351,7 @@ function create(opts){
     if(p==='/api/fitter-performance'&&req.method==='GET')return send(res,200,performance.admin(user));
     if(p==='/api/fitter-performance/contact'&&req.method==='POST')return send(res,200,performance.contact(user,await readJson(req)));
     if (p === '/api/appointments' && req.method === 'GET') return send(res,200,appointments.list(user));
+    if(p === '/api/appointments/inspection' && req.method === 'POST')return send(res,200,appointments.inspections.save(await readJson(req),user));
     if (p === '/api/appointments/send' && req.method === 'POST') return send(res,200,await appointments.send(await readJson(req),user));
     if (p === '/api/appointments/signoff' && req.method === 'POST') return send(res,200,appointments.signoff(await readJson(req),user));
     if (p.startsWith('/api/appointments/work/') && req.method === 'POST') {

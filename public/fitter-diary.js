@@ -11,6 +11,28 @@ function addAvailability(view,d,day){
  const change=el('button',off?'Change my availability':'Mark unavailable');box.append(change);change.onclick=()=>{change.hidden=true;const form=el('form'),start=el('input'),end=el('input'),note=el('input'),mode=el('select'),warn=el('p'),save=el('button','Save availability'),cancel=el('button','Cancel'),result=el('p');start.type=end.type='date';start.value=end.value=day;start.min=end.min=d.today;start.max=end.max=diaryShift(d.today,366);note.maxLength=200;note.value=d.availability?.[day]?.note||'';for(const [value,label] of [['off','Unavailable'],['on','Available again']]){const o=el('option',label);o.value=value;mode.append(o);}mode.value=off?'on':'off';const label=(text,input)=>{const l=el('label',text);l.className='work-label';l.append(input);return l;};save.type='submit';cancel.type='button';cancel.onclick=()=>{form.remove();change.hidden=false;};result.setAttribute('role','status');const update=()=>{const hits=d.jobs.filter(j=>j.date>=start.value&&j.date<=(end.value||start.value));warn.textContent=hits.length&&mode.value==='off'?hits.length+' booked visit(s) overlap. They stay in your diary and will be flagged to the shop. You must arrange another date with each customer.':'This updates only your own availability. No customer messages will be sent.';};start.onchange=end.onchange=mode.onchange=update;update();form.append(label('From',start),label('To',end),label('Availability',mode),label('Reason (optional, visible to the shop)',note),warn,save,cancel,result);form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{await api('/api/my-availability',{start:start.value,end:end.value,off:mode.value==='off',note:note.value});await load();status.textContent='Your availability has been saved.';}catch(e){result.textContent=e.message;save.disabled=false;}};box.append(form);};view.append(box);
 }
 let slotWarningTimer;
+function drawInspectionWarning(d){
+ document.getElementById('herringboneInspections')?.remove();if(d.role!=='fitter')return;
+ const pending=(d.inspections||[]).filter(x=>x.state!=='passed');if(!pending.length)return;
+ const box=el('section');box.id='herringboneInspections';box.setAttribute('aria-label','Mandatory herringbone inspections');box.style.cssText='border:2px solid #ff3c56;border-radius:14px;padding:18px;margin:18px 0;background:#3d101a;color:white';
+ box.append(el('h2','ACTION REQUIRED — Herringbone inspections'),el('p','Call each customer, agree an inspection visit and record your findings. If preparation is already booked, check suitability during that visit instead. Fitting cannot go ahead until the subfloor is suitable.'));
+ const label=(text,node)=>{const l=el('label',text);l.className='work-label';l.append(node);return l;};
+ for(const j of pending){const row=el('section');row.style.cssText='border-top:1px solid #a54855;padding:14px 0';row.append(el('strong',j.name+' · '+j.ref),el('p',j.address),el('p',j.reason));if(j.phone){const call=el('a','Call customer: '+j.phone);call.href='tel:'+j.phone.replace(/[^+0-9]/g,'');row.append(call);}
+  const form=el('div'),button=el('button',j.state==='prep_booked'?'Record suitability at preparation visit':j.state==='booked'?'Record inspection findings':'Arrange inspection'),error=el('p');button.onclick=()=>{form.replaceChildren();button.hidden=true;
+   if(['booked','prep_booked'].includes(j.state)){
+    const outcome=el('select'),notes=el('textarea'),checked=el('input'),save=el('button','Save inspection findings');checked.type='checkbox';notes.maxLength=2000;
+    for(const [v,t] of [['','Choose outcome'],['suitable','Subfloor suitable'],['prep','Preparation required — shop must review'],['not_checked','Unable to inspect — flooring still down'],['further','Further assessment required']]){const o=el('option',t);o.value=v;outcome.append(o);}
+    form.append(el('p','Visit: '+j.visit.date+' · '+(j.visit.slot||'')),label('Outcome',outcome),label('Condition, preparation needed and advice given',notes),label('I inspected the exposed subfloor and checked the flooring requirements',checked),save);
+    save.onclick=async()=>{save.disabled=true;try{await api('/api/appointments/inspection',{jobId:j.id,version:j.version,action:'result',visitId:j.visit.k,outcome:outcome.value,note:notes.value,checked:checked.checked});await load();}catch(e){error.textContent=e.message;save.disabled=false;}};
+   }else{
+    const date=el('input'),slot=el('select'),agreed=el('input'),save=el('button','Save agreed inspection');date.type='date';date.min=d.today;agreed.type='checkbox';for(const s of d.slots){const o=el('option',s);o.value=s;slot.append(o);}
+    form.append(label('Inspection date',date),label('Arrival time',slot),label('I called the customer and agreed this date and time',agreed),el('p','Days off and existing diary bookings are checked before saving. This records your phone agreement; no automatic text is sent.'),save);
+    save.onclick=async()=>{save.disabled=true;try{await api('/api/appointments/inspection',{jobId:j.id,version:j.version,action:'book',date:date.value,slot:slot.value,agreed:agreed.checked});await load();}catch(e){error.textContent=e.message;save.disabled=false;}};
+   }
+  };row.append(button,form,error);box.append(row);
+ }
+ document.querySelector('body>h1').before(box);
+}
 function drawSlotWarning(d){
  document.getElementById('slotDeadlineWarning')?.remove();document.getElementById('slotDeadlinePersistent')?.remove();if(!['fitter','estimator'].includes(d.role))return;
  const box=el('section');box.id='slotDeadlineWarning';box.setAttribute('aria-label','Customer time-slot deadline');const pending=d.jobs.filter(j=>j.slotDeadline&&!j.slotDeadline.sent).sort((a,b)=>a.date.localeCompare(b.date));
@@ -26,9 +48,9 @@ function drawSlotWarning(d){
  b.onclick=()=>{diarySelected=j.id+':'+(j.visitId||'');diaryTab='Diary';renderDiary(diaryData);document.getElementById('jobs')?.scrollIntoView({behavior:'smooth'});};row.append(b);box.append(row);}
  document.querySelector('body>h1').before(box);
 }
-async function refreshSlotDeadline(){try{const fresh=await api('/api/appointments');if(diaryData)for(const j of diaryData.jobs){const f=fresh.jobs.find(x=>x.id===j.id&&x.visitId===j.visitId);j.slotDeadline=f?.slotDeadline||null;}drawSlotWarning(fresh);}catch(e){const box=document.getElementById('slotDeadlineWarning');if(box&&!box.querySelector('[data-connection]')){const note=el('p','Unable to refresh time-slot status. Check your connection and refresh before assuming a message has sent.');note.dataset.connection='1';box.append(note);}}}
+async function refreshSlotDeadline(){try{const fresh=await api('/api/appointments');if(diaryData)for(const j of diaryData.jobs){const f=fresh.jobs.find(x=>x.id===j.id&&x.visitId===j.visitId);j.slotDeadline=f?.slotDeadline||null;}drawSlotWarning(fresh);drawInspectionWarning(fresh);}catch(e){const box=document.getElementById('slotDeadlineWarning');if(box&&!box.querySelector('[data-connection]')){const note=el('p','Unable to refresh time-slot status. Check your connection and refresh before assuming a message has sent.');note.dataset.connection='1';box.append(note);}}}
 function renderDiary(d){
- clearInterval(slotWarningTimer);drawSlotWarning(d);if(['fitter','estimator'].includes(d.role))slotWarningTimer=setInterval(refreshSlotDeadline,60000);
+ clearInterval(slotWarningTimer);drawSlotWarning(d);drawInspectionWarning(d);if(['fitter','estimator'].includes(d.role))slotWarningTimer=setInterval(refreshSlotDeadline,60000);
 
  diaryData=d;if(!diaryDay)diaryDay=d.today;if(!diaryWeek)diaryWeek=diaryMonday(diaryDay);
  for(const id of ['diaryView','diaryBack','crewBottom'])document.getElementById(id)?.remove();
