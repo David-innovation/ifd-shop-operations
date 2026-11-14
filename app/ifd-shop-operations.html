@@ -6187,7 +6187,7 @@ VIEWS.deliveries = function(){
   const search=h('input',{class:'in',type:'search',placeholder:'Enter order reference, job reference or customer name','aria-label':'Find delivery reference'}),mailStatus=h('p',{class:'small'}),body = h('div', {style:'display:contents'});
   search.oninput=()=>draw();
   async function mailCheck(action){mailStatus.textContent='Checking supplier mailbox…';try{const r=await supplierRequest({action,enabled:true});mailStatus.textContent=r.ok?'Supplier mailbox connected. '+r.matched+' new replies matched.':r.enabled===false?'Supplier-reply monitoring is off.':r.error||'Mailbox check is already running.';}catch(e){mailStatus.textContent=e.message;}}
-  S.cap.db.doc('settings/supplierMailStatus').get().then(r=>{if(r.exists){const d=r.data();mailStatus.textContent=d.ok?'Supplier mailbox last checked '+whenText(d.at):d.error;}}).catch(()=>{});
+  S.cap.db?.doc('settings/supplierMailStatus').get().then(r=>{if(r.exists){const d=r.data();mailStatus.textContent=d.ok?'Supplier mailbox last checked '+whenText(d.at):d.error;}}).catch(()=>{});
   function row(d){
     const st = L.deliveryState(d), live = st === 'due' || st === 'part', late = live && L.validISO(d.expected) && d.expected < L.todayISO(), trouble = L.deliveryTrouble(d), ls = L.dLines(d), forJobs = ls.filter(l => l.jobId).length;
     return h('button', {type:'button', class:'row', onclick:() => openDelivery(d.id)},
