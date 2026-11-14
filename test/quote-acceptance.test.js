@@ -10,6 +10,18 @@ async function boot(){
  const send=async(key='quote_send_1')=>app.commands.run('msg.send',{jobId:'trial',key,kind:'quote',channel:'email',rev:'q1',subject:'TEST quote',to:'customer@example.test',body:'Hello David\nSubfloor inspection\nOld flooring prevented inspection. Additional preparation must be agreed.\nTo go ahead, reply.',byName:'TEST'},{id:'owner',role:'owner'});
  return {app,sent,clock,base,job,send,get:()=>app.store.getDoc('jobs/trial').data,close(){app.close();fs.rmSync(dir,{recursive:true,force:true});}};
 }
+test('shop fees reach the actual outbound email and VAT invoice while fitter payment remains unchanged',async()=>{
+ const s=await boot();try{
+  const lines=[{label:'Flooring',price:300},{label:'Fitting',price:200},{key:'arrangement',label:'Fitting arrangement & support',price:30},{key:'delivery',label:'Delivery',price:25}];
+  s.app.store.updateDoc(docPath('jobs/trial'),{type:'Fitting',customer:{address:'1 Example Street',postcode:'G81 1DX'},quotes:{q1:{lines,charges:{version:1,orderType:'Fitting'}}}});
+  await s.send();assert.match(s.sent[0].html,/already included in your quoted total/);assert.match(s.sent[0].html,/£355.00/);assert.match(s.sent[0].html,/£200.00/);assert.match(s.sent[0].html,/£555.00/);
+  const user={id:'owner',role:'owner'};
+  assert.throws(()=>s.app.commands.guardJobWrite(docPath('jobs/trial'),{type:'Collection',accepted:{q:'q1'}},false,user),e=>e.code==='quote_order_type');
+  s.app.store.updateDoc(docPath('jobs/trial'),{accepted:{q:'q1'},total:555,fitterDue:200});
+  const r=await s.app.commands.run('invoice.create',{jobId:'trial',supplyDate:'2026-11-12',dueDate:'2026-11-12'},user);assert.equal(r.invoice.total,355);assert.equal(r.invoice.fitterDue,200);
+  const fee=r.invoice.lines.find(l=>/arrangement/.test(l.description));assert.equal(fee.gross,30);assert.equal(fee.net,25);assert.equal(fee.vat,5);assert.equal(r.invoice.lines.find(l=>l.description==='Delivery').gross,25);
+ }finally{s.close();}
+});
 test('actual outbound herringbone HTML retains preparation estimate through the privacy-safe message snapshot',async()=>{
  const s=await boot();try{
   s.app.store.updateDoc(docPath('jobs/trial'),{brief:{choices:[{k:'hb',title:'Herringbone laminate',unit:'packs'}]},rooms:{r:{name:'Living room',want:'hb',len:4,wid:5,area:20,spec:{floor:'flooring',fitting:true}}}});
