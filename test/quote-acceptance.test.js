@@ -2,14 +2,38 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {create}=require('../server'),{docPath}=require('../lib/store'),template=require('../lib/quote-email');
 async function boot(){
- const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ifd-quote-')),sent=[],clock={t:Date.parse('2026-11-12T18:00:00Z')};
- const app=create({env:{DATA_DIR:dir,INSECURE_COOKIES:'1',SESSION_PEPPER:'test',PUBLIC_URL:'https://quotes.example.test'},now:()=>clock.t,mailer:{ready:true,from:'sales@innovationflooringdirect.com',send:async m=>{sent.push(m);return {ref:'test-mail'};}},log:()=>{},pollMs:3600000});
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ifd-quote-')),sent=[],delivery={error:null,attempts:0},clock={t:Date.parse('2026-11-12T18:00:00Z')};
+ const app=create({env:{DATA_DIR:dir,INSECURE_COOKIES:'1',SESSION_PEPPER:'test',PUBLIC_URL:'https://quotes.example.test'},now:()=>clock.t,mailer:{ready:true,from:'sales@innovationflooringdirect.com',send:async m=>{if(m.to==='admin@innovationflooringdirect.com'){delivery.attempts++;if(delivery.error)throw delivery.error;}sent.push(m);return {ref:'test-mail'};}},log:()=>{},pollMs:3600000});
  await new Promise(r=>app.server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+app.server.address().port;
  const job={status:'open',type:'Quote',diary:false,ref:'TEST-QUOTE',customer:{name:'David <script> & Test',email:'customer@example.test'},quotes:{q1:{at:'2026-11-12T18:00:00Z',n:1,lines:[{label:'Velvet Dreams carpet',price:1029.60},{label:'Underlay',price:204.56},{label:'Gripper',price:56},{label:'Door bars',price:39.96},{label:'Fitting',price:181.55}]}}};
  app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['customer@example.test']}});app.store.setDoc(docPath('jobs/trial'),job);
  const send=async(key='quote_send_1')=>app.commands.run('msg.send',{jobId:'trial',key,kind:'quote',channel:'email',rev:'q1',subject:'TEST quote',to:'customer@example.test',body:'Hello David\nSubfloor inspection\nOld flooring prevented inspection. Additional preparation must be agreed.\nTo go ahead, reply.',byName:'TEST'},{id:'owner',role:'owner'});
- return {app,sent,clock,base,job,send,get:()=>app.store.getDoc('jobs/trial').data,close(){app.close();fs.rmSync(dir,{recursive:true,force:true});}};
+ return {app,sent,delivery,clock,base,job,send,get:()=>app.store.getDoc('jobs/trial').data,close(){app.close();fs.rmSync(dir,{recursive:true,force:true});}};
 }
+test('accepted quote queues one shop email, survives failures and leaves stock payment and booking unchanged',async()=>{
+ const s=await boot();try{
+  s.app.store.updateDoc(docPath('settings/main'),{msgs:{allow:['customer@example.test','admin@innovationflooringdirect.com']}});
+  const sent=await s.send(),route=new URL(sent.msg.acceptUrl).pathname;
+  for(let i=0;i<2;i++)await fetch(s.base+route,{method:'POST',body:'confirm=yes',redirect:'manual'});
+  assert.equal(Object.keys(s.get().acceptanceNotifications).length,1);
+  await Promise.all([s.app.commands.poll(),s.app.commands.poll()]);await s.app.commands.poll();
+  const notices=s.sent.filter(m=>m.to==='admin@innovationflooringdirect.com');assert.equal(notices.length,1);assert.match(notices[0].subject,/Quote accepted/);assert.match(notices[0].text,/£1,511.67/);assert.match(notices[0].html,/Quote accepted/);assert.doesNotMatch(notices[0].html,/<script>/);assert.doesNotMatch(notices[0].text,/Please only pay your fitter/);
+  const r=await s.app.commands.run('acceptance.notify',{jobId:'trial'},{id:'owner',role:'owner'});assert.equal(r.duplicate,true);assert.equal(s.sent.length,2);
+  assert.equal(s.get().customerAcceptance.pending,true);assert.equal(s.get().diary,false);assert.equal(s.get().pay,undefined);assert.equal(s.get().lines,undefined);
+  await assert.rejects(s.app.commands.run('acceptance.notify',{jobId:'trial'},{id:'f',role:'fitter'}),e=>e.status===403);
+ }finally{s.close();}
+});
+test('shop acceptance mail failure is retained and uncertain delivery cannot be blindly retried',async()=>{
+ for(const unsure of [false,true]){const s=await boot();try{
+  s.app.store.updateDoc(docPath('settings/main'),{msgs:{allow:['customer@example.test','admin@innovationflooringdirect.com']}});
+  const quote=await s.send();await fetch(s.base+new URL(quote.msg.acceptUrl).pathname,{method:'POST',body:'confirm=yes',redirect:'manual'});
+  s.delivery.error=Object.assign(new Error('Simulated delivery problem'),{unsure});await s.app.commands.poll();await s.app.commands.poll();assert.equal(s.delivery.attempts,1);
+  const [mk,m]=Object.entries(s.get().msgs).find(([,m])=>m.to==='admin@innovationflooringdirect.com');assert.equal(m.state,unsure?'unsure':'failed');assert.equal(s.get().customerAcceptance.pending,true);
+  s.delivery.error=null;
+  if(unsure)await assert.rejects(s.app.commands.run('msg.retry',{jobId:'trial',mk},{id:'owner',role:'owner'}),e=>e.code==='unsure_first');
+  else{const r=await s.app.commands.run('msg.retry',{jobId:'trial',mk},{id:'owner',role:'owner'});assert.equal(r.ok,true);assert.equal(s.delivery.attempts,2);await s.app.commands.poll();assert.equal(s.delivery.attempts,2);}
+ }finally{s.close();}}
+});
 test('shop fees reach the actual outbound email and VAT invoice while fitter payment remains unchanged',async()=>{
  const s=await boot();try{
   const lines=[{label:'Flooring',price:300},{label:'Fitting',price:200},{key:'arrangement',label:'Fitting arrangement & support',price:30},{key:'delivery',label:'Delivery',price:25}];

@@ -1,14 +1,142 @@
 [
-  {"title":"Start here — Monday shop trial","tags":"training team login access opening closing","steps":["Use the shop sign-in on each shop computer. Keep David’s personal ChatGPT account off shared computers: this help desk does not open or search his private chats.","Libby is Operations Manager. Declan leads sales while training as shop manager. Trish works in sales. Record the staff member handling a job in its notes when using a shared sign-in; the account history alone cannot identify the individual.","At opening, review Today: customer acceptances, work to price, missing confirmations, overdue time slots, holds and stock checks. Check Still to pay separately for retail and trade.","At closing, check unsent messages, tomorrow’s visits and fitting slots, unpaid materials, incomplete jobs and return visits. Leave a clear next action and named colleague on every unresolved job.","For an unexpected result, stop that action, note the job reference and what happened, and raise it with Libby. Do not create another job or payment to work around an error." ]},
-  {"title":"Walk-in quote — rooms, products and prices","tags":"new sale feet inches cm converter laminate carpet vinyl wood stairs runner","steps":["Open New sale and choose the walk-in quote builder. Enter customer contact details and postcode accurately.","Add each room separately. Choose its measurement unit before entering sizes; feet and inches, centimetres and metres are supported. Check the converted dimensions with the customer.","For each room, choose Same as last room or select its own product from the catalogue. Keep underlay, beading, door bars and fitting inside that room. Check each room’s breakdown with the customer.","Choose Fitting, Delivery or Collection. Use current catalogue and Setup prices, not remembered rates. Collection has no delivery charge.","For stairs, measure width and the length over tread and down riser, plus step count. Measure landing and turning steps separately. Check the cutting plan; runner edging is charged per metre of edge, including both sides.","Save, then email or print the quote, or turn it into a job. Customer-supplied measurements remain unverified until checked. Search Quotes & invoices before making a new record for a returning customer." ]},
-  {"title":"Book a measure and hand the job to the estimator","tags":"measure estimator drawing photos room furniture uplift disposal subfloor configure","steps":["Capture name, phone, email, full address and postcode, rooms and chosen products. Record access needs and customer promises clearly.","Choose a visit using the estimator’s diary and postcode availability, then confirm the appointment. The estimator must send an arrival slot by noon the day before.","The estimator records actual room dimensions, wall and doorway measurements, landing and stair layout, photos and room sketches, products and accessories. Add extra rooms to this same job.","Record separately who clears furniture, who uplifts old flooring and who disposes of it. If old flooring prevents a subfloor inspection, record that explicitly; preparation may be needed at additional cost.","Configure is the summary and completeness check. Check all rooms and notes, complete the customer measurement acknowledgement where required, then send the package to the shop for pricing. Do not re-enter the same rooms as a new sale." ]},
-  {"title":"Price check and approve the carpet cutting plan","tags":"carpet cuts roll width pile allowance underlay gripper warehouse","steps":["Review every room, product, quantity, fitting charge, preparation and customer responsibility before sending the quote. Missing physical stock counts or supplier names must be checked, not guessed.","Carpet is charged on the approved roll cuts, including the cutting allowance. Underlay uses the actual measured room area, not the excess carpet roll area. Check the plan’s displayed allowance; do not add it a second time.","Check each labelled cut, room, roll width, pile direction and any proposed offcut use for stairs and landing. A proposed saving is not permission to rotate carpet against its pile or ignore a pattern.","Shop approval of the current plan updates the linked quote, quantities and fitting information. Recheck the plan after measurement or product changes. Print the approved plan for the warehouse.","Use exact accessory quantities and selling units. Picking a box is different from picking a square metre or an individual bar. Escalate missing units or unverified counts before allocation." ]},
-  {"title":"Send a quote, handle acceptance and follow up","tags":"email accept accepted notification chase 48 hours customer sales","steps":["Open Quotes & invoices, find the customer and check the saved quote version and email address. Preview the branded email, then Send.","Copying text or preparing an email is not sending it. Check the message status and any failure before telling the customer it has gone.","When the customer accepts through the quote link, the job records acceptance, stops quote chasing and alerts the shop dashboard. Acceptance is not payment and does not book fitting.","At present, acceptance does not send a separate notification email to the shop mailbox. Staff must check Today and the job’s acceptance status; absence of an email does not mean the customer has not accepted.","Review unanswered quotes within 48 hours in Quotes & invoices. Use the saved follow-up action and check the customer has not already agreed by phone or in store. Keep the existing job and record the next action.","Use the customer’s name, address, postcode, phone or reference to find their saved quote. Never duplicate the sale to chase it." ]},
-  {"title":"Payments, fitting package and booking","tags":"bank transfer card cash invoice arrangement delivery paid materials balance","steps":["Verify that money has actually arrived before recording a bank transfer. Record the correct method and amount on the existing job. Quote acceptance is not proof of payment.","The customer’s agreed fitting package includes the shop arrangement charge. The displayed split shows what goes to the shop and the balance due directly to the fitter. Do not add that included charge again.","Fitting and delivery orders carry the configured delivery charge; collection does not. Review the customer totals before issuing an invoice.","Materials and shop charges must be paid before the fitting booking proceeds. An initial deposit is not permission to bypass this rule. Check outstanding balances and any stock or inspection holds.","Choose the fitter and date using the diary, postcode area and availability. Do not guess availability or bypass a blocked day. Confirm that the customer booking message was sent.","Fitters see their fitting amount to collect, not the customer’s material prices, shop fees or invoice totals. Incomplete fitting is not payable as completed work, except for an explicitly agreed staged arrangement.","Correct or refund payments using the recorded correction/refund workflow and a reason. Never erase the original history or enter a second payment because the screen is slow." ]},
-  {"title":"Herringbone inspection and preparation","tags":"plywood screed prep uneven floor required conditional charge","steps":["Herringbone jobs require the assigned fitter’s inspection unless the applicable preparation arrangement already satisfies that requirement. Check the inspection status before booking fitting.","The fitter arranges the inspection from their diary, records the findings and required preparation area, and sends the findings to the shop.","Explain conditional preparation costs in the quote: the customer pays them only if that preparation is required and agreed. Use the saved rates; do not hide the likely cost.","When preparation is required, the shop checks the findings, revises the quote and obtains customer agreement. Confirm the revised quantities and instructions carry through to the fitting details.","Do not proceed against professional preparation advice or promise blanket warranty exclusions. Use the approved customer wording; statutory rights remain unaffected." ]},
-  {"title":"Stock, supplier orders and warehouse handover","tags":"cut picking delivery supplier reference allocation bay shortage stock","steps":["Use the existing job and its approved material list. Check stock reservation, availability, location and any hold before releasing work.","For ordered materials, prepare the supplier order using the correct product identity and job/order reference. Review the recipient and quantities before sending.","Supplier replies that match an order may update its status. Ambiguous replies need shop review. An order acknowledgement is not proof that stock has arrived.","On receipt, find the order/job by reference, check quantities and damage, and record the stock location and allocation. Resolve shortages before marking the job ready.","Warehouse staff work from the current approved cutting plan and exact picking list, then record cutting, picking and checking. A picking tick alone is not a Shopify stock deduction.","Do not bypass a cutting hold or shortage. Only an authorised owner override with a recorded reason can override the relevant hold. Keep old and revised plans distinguishable." ]},
-  {"title":"Time slots, delays and reminders","tags":"sms text 12 noon day before 8 10 11 1 delay reminder reschedule","steps":["Fitters and estimators must send the customer a slot by 12 noon the day before their visit. Selecting a slot is not enough: press Send and check the result.","The preset slots are 8–10, 10–12, 11–1, 1–3, 2–4 and 3–5. Use the prepared message rather than writing a fresh one.","If delayed, use the delayed message with the new agreed slot. If moving a date, use Reschedule, check the diary and postcode suggestions, and record the reason. The shop is notified.","Overdue slot warnings appear for the worker and shop until the required notification is recorded. Investigate failed or uncertain sends rather than dismissing the warning.","Eligible fitting bookings receive an automatic reminder three days before fitting. Eligible estimator bookings receive theirs from 9am on the day before. These need a valid email address and current booking details.","If a visit moves, update the actual booking rather than adding a note with a different date. Check the current confirmation and reminder status. Do not promise a morning arrival before a slot is agreed." ]},
-  {"title":"Completion, return visits and customer signature","tags":"fitter checklist snag incomplete sign off signature thank you archive previous jobs","steps":["The fitter opens Full job details and reviews rooms, materials, quantities, drawings, notes and customer responsibilities before starting.","Tick completed checklist items. Flag unfinished items and book a return visit with a reason using the diary. Check the customer text and shop notification.","An incomplete job must not be marked complete or produce a clean completion thank-you. Resolve outstanding items before asking for completed-work sign-off.","The customer reads the completion statement, enters their name and signs themselves. Staff must not sign for them. If absent or unhappy, record the actual situation through the available issue route.","After valid completion, check that the signature and history are saved and the thank-you email status is recorded. Provider acceptance is not proof that the customer read it.","For a later snag, find and reopen the original completed job through its return/snag workflow. Keep the original completion, signature, payments and visit history; do not replace them with a new sale." ]},
-  {"title":"Still to pay and trade invoices","tags":"trade tier 1 collection seven 7 days retail paid invoice due","steps":["Keep retail and trade in their separate areas. Trade uses verified Tier 1 prices; do not copy those prices into a retail quote.","For a trade collection, create the invoice against the collected materials, check customer details and quantities, then save and issue it. The trade payment term is seven days.","Open Still to pay and choose Retail or Trade. Check due dates, outstanding amounts and the original record before sending a polite reminder.","When money arrives, record the payment against the correct invoice/job and verify the remaining balance. A part-payment leaves the remainder outstanding.","Paid records remain in history for later lookup. Do not delete an invoice to remove it from the unpaid list. Use the documented correction or void process with a reason where necessary." ]},
-  {"title":"Message failures, feedback and getting help","tags":"failed unsure duplicate support issue help ratings reviews report","steps":["Prepared means not sent. Sent/provider accepted means the service accepted it. Read or received must not be assumed from that alone.","For a failed send, use the existing retry action. For an uncertain send, investigate through the available resolution workflow before sending again; a duplicate message can confuse the customer.","Review fitter feedback monthly by fitter. Follow up low ratings and customer contact requests. Test feedback must not count in real ratings. The public-review invitation follows the same rule for every customer.","Use the staff message board for fitter instructions and check read, acknowledgement and reply separately. Do not assume that opening the dashboard means a message was understood.","For help, search this page using the task or error wording. If unresolved, give Libby the job reference, page, action attempted and exact message. Keep customer records in Floor Pilot; never add passwords or sign-in codes to help notes.","This is a searchable handbook, not a live AI chat. It has no access to David’s private conversations and cannot change a job or send a customer message." ]}
+  {
+    "title": "Start here — Monday shop trial",
+    "tags": "training team login access opening closing",
+    "steps": [
+      "On each shop computer choose Shop password at sign-in. Use the username shop and the password set by David. Owner and field-team text sign-ins remain separate. Keep David’s personal ChatGPT account off shared computers: this help desk does not open or search his private chats.",
+      "Libby is Operations Manager. Declan leads sales while training as shop manager. Trish works in sales. Record the staff member handling a job in its notes when using a shared sign-in; the account history alone cannot identify the individual.",
+      "At opening, review Today: customer acceptances, work to price, missing confirmations, overdue time slots, holds and stock checks. Check Still to pay separately for retail and trade.",
+      "At closing, check unsent messages, tomorrow’s visits and fitting slots, unpaid materials, incomplete jobs and return visits. Leave a clear next action and named colleague on every unresolved job.",
+      "For an unexpected result, stop that action, note the job reference and what happened, and raise it with Libby. Do not create another job or payment to work around an error."
+    ]
+  },
+  {
+    "title": "Walk-in quote — rooms, products and prices",
+    "tags": "new sale feet inches cm converter laminate carpet vinyl wood stairs runner",
+    "steps": [
+      "Open New sale and choose the walk-in quote builder. Enter customer contact details and postcode accurately.",
+      "Add each room separately. Choose its measurement unit before entering sizes; feet and inches, centimetres and metres are supported. Check the converted dimensions with the customer.",
+      "For each room, choose Same as last room or select its own product from the catalogue. Keep underlay, beading, door bars and fitting inside that room. Check each room’s breakdown with the customer.",
+      "Choose Fitting, Delivery or Collection. Use current catalogue and Setup prices, not remembered rates. Collection has no delivery charge.",
+      "For stairs, measure width and the length over tread and down riser, plus step count. Measure landing and turning steps separately. Check the cutting plan; runner edging is charged per metre of edge, including both sides.",
+      "Save, then email or print the quote, or turn it into a job. Customer-supplied measurements remain unverified until checked. Search Quotes & invoices before making a new record for a returning customer."
+    ]
+  },
+  {
+    "title": "Book a measure and hand the job to the estimator",
+    "tags": "measure estimator drawing photos room furniture uplift disposal subfloor configure",
+    "steps": [
+      "Capture name, phone, email, full address and postcode, rooms and chosen products. Record access needs and customer promises clearly.",
+      "Choose a visit using the estimator’s diary and postcode availability, then confirm the appointment. The estimator must send an arrival slot by noon the day before.",
+      "The estimator records actual room dimensions, wall and doorway measurements, landing and stair layout, photos and room sketches, products and accessories. Add extra rooms to this same job.",
+      "Record separately who clears furniture, who uplifts old flooring and who disposes of it. If old flooring prevents a subfloor inspection, record that explicitly; preparation may be needed at additional cost.",
+      "Configure is the summary and completeness check. Check all rooms and notes, complete the customer measurement acknowledgement where required, then send the package to the shop for pricing. Do not re-enter the same rooms as a new sale."
+    ]
+  },
+  {
+    "title": "Price check and approve the carpet cutting plan",
+    "tags": "carpet cuts roll width pile allowance underlay gripper warehouse",
+    "steps": [
+      "Review every room, product, quantity, fitting charge, preparation and customer responsibility before sending the quote. Missing physical stock counts or supplier names must be checked, not guessed.",
+      "Carpet is charged on the approved roll cuts, including the cutting allowance. Underlay uses the actual measured room area, not the excess carpet roll area. Check the plan’s displayed allowance; do not add it a second time.",
+      "Check each labelled cut, room, roll width, pile direction and any proposed offcut use for stairs and landing. A proposed saving is not permission to rotate carpet against its pile or ignore a pattern.",
+      "Shop approval of the current plan updates the linked quote, quantities and fitting information. Recheck the plan after measurement or product changes. Print the approved plan for the warehouse.",
+      "Use exact accessory quantities and selling units. Picking a box is different from picking a square metre or an individual bar. Escalate missing units or unverified counts before allocation."
+    ]
+  },
+  {
+    "title": "Send a quote, handle acceptance and follow up",
+    "tags": "email accept accepted notification chase 48 hours customer sales",
+    "steps": [
+      "Open Quotes & invoices, find the customer and check the saved quote version and email address. Preview the branded email, then Send.",
+      "Copying text or preparing an email is not sending it. Check the message status and any failure before telling the customer it has gone.",
+      "When the customer accepts through the quote link, the job records acceptance, stops quote chasing and alerts the shop dashboard. Acceptance is not payment and does not book fitting.",
+      "Each new online acceptance also queues an email to admin@innovationflooringdirect.com. Its status is saved in the job’s Messages. The dashboard alert remains until the order is dealt with. Failed sends need retry; uncertain sends need checking before resend. For an older accepted quote, Notify shop by email sends its missing notification once.",
+      "Review unanswered quotes within 48 hours in Quotes & invoices. Use the saved follow-up action and check the customer has not already agreed by phone or in store. Keep the existing job and record the next action.",
+      "Use the customer’s name, address, postcode, phone or reference to find their saved quote. Never duplicate the sale to chase it."
+    ]
+  },
+  {
+    "title": "Payments, fitting package and booking",
+    "tags": "bank transfer card cash invoice arrangement delivery paid materials balance",
+    "steps": [
+      "Verify that money has actually arrived before recording a bank transfer. Record the correct method and amount on the existing job. Quote acceptance is not proof of payment.",
+      "The customer’s agreed fitting package includes the shop arrangement charge. The displayed split shows what goes to the shop and the balance due directly to the fitter. Do not add that included charge again.",
+      "Fitting and delivery orders carry the configured delivery charge; collection does not. Review the customer totals before issuing an invoice.",
+      "Materials and shop charges must be paid before the fitting booking proceeds. An initial deposit is not permission to bypass this rule. Check outstanding balances and any stock or inspection holds.",
+      "Choose the fitter and date using the diary, postcode area and availability. Do not guess availability or bypass a blocked day. Confirm that the customer booking message was sent.",
+      "Fitters see their fitting amount to collect, not the customer’s material prices, shop fees or invoice totals. Incomplete fitting is not payable as completed work, except for an explicitly agreed staged arrangement.",
+      "Correct or refund payments using the recorded correction/refund workflow and a reason. Never erase the original history or enter a second payment because the screen is slow."
+    ]
+  },
+  {
+    "title": "Herringbone inspection and preparation",
+    "tags": "plywood screed prep uneven floor required conditional charge",
+    "steps": [
+      "Herringbone jobs require the assigned fitter’s inspection unless the applicable preparation arrangement already satisfies that requirement. Check the inspection status before booking fitting.",
+      "The fitter arranges the inspection from their diary, records the findings and required preparation area, and sends the findings to the shop.",
+      "Explain conditional preparation costs in the quote: the customer pays them only if that preparation is required and agreed. Use the saved rates; do not hide the likely cost.",
+      "When preparation is required, the shop checks the findings, revises the quote and obtains customer agreement. Confirm the revised quantities and instructions carry through to the fitting details.",
+      "Do not proceed against professional preparation advice or promise blanket warranty exclusions. Use the approved customer wording; statutory rights remain unaffected."
+    ]
+  },
+  {
+    "title": "Stock, supplier orders and warehouse handover",
+    "tags": "cut picking delivery supplier reference allocation bay shortage stock",
+    "steps": [
+      "Use the existing job and its approved material list. Check stock reservation, availability, location and any hold before releasing work.",
+      "For ordered materials, prepare the supplier order using the correct product identity and job/order reference. Review the recipient and quantities before sending.",
+      "Supplier replies that match an order may update its status. Ambiguous replies need shop review. An order acknowledgement is not proof that stock has arrived.",
+      "On receipt, find the order/job by reference, check quantities and damage, and record the stock location and allocation. Resolve shortages before marking the job ready.",
+      "Warehouse staff work from the current approved cutting plan and exact picking list, then record cutting, picking and checking. A picking tick alone is not a Shopify stock deduction.",
+      "Do not bypass a cutting hold or shortage. Only an authorised owner override with a recorded reason can override the relevant hold. Keep old and revised plans distinguishable."
+    ]
+  },
+  {
+    "title": "Time slots, delays and reminders",
+    "tags": "sms text 12 noon day before 8 10 11 1 delay reminder reschedule",
+    "steps": [
+      "Fitters and estimators must send the customer a slot by 12 noon the day before their visit. Selecting a slot is not enough: press Send and check the result.",
+      "The preset slots are 8–10, 10–12, 11–1, 1–3, 2–4 and 3–5. Use the prepared message rather than writing a fresh one.",
+      "If delayed, use the delayed message with the new agreed slot. If moving a date, use Reschedule, check the diary and postcode suggestions, and record the reason. The shop is notified.",
+      "Overdue slot warnings appear for the worker and shop until the required notification is recorded. Investigate failed or uncertain sends rather than dismissing the warning.",
+      "Eligible fitting bookings receive an automatic reminder three days before fitting. Eligible estimator bookings receive theirs from 9am on the day before. These need a valid email address and current booking details.",
+      "If a visit moves, update the actual booking rather than adding a note with a different date. Check the current confirmation and reminder status. Do not promise a morning arrival before a slot is agreed."
+    ]
+  },
+  {
+    "title": "Completion, return visits and customer signature",
+    "tags": "fitter checklist snag incomplete sign off signature thank you archive previous jobs",
+    "steps": [
+      "The fitter opens Full job details and reviews rooms, materials, quantities, drawings, notes and customer responsibilities before starting.",
+      "Tick completed checklist items. Flag unfinished items and book a return visit with a reason using the diary. Check the customer text and shop notification.",
+      "An incomplete job must not be marked complete or produce a clean completion thank-you. Resolve outstanding items before asking for completed-work sign-off.",
+      "The customer reads the completion statement, enters their name and signs themselves. Staff must not sign for them. If absent or unhappy, record the actual situation through the available issue route.",
+      "After valid completion, check that the signature and history are saved and the thank-you email status is recorded. Provider acceptance is not proof that the customer read it.",
+      "For a later snag, find and reopen the original completed job through its return/snag workflow. Keep the original completion, signature, payments and visit history; do not replace them with a new sale."
+    ]
+  },
+  {
+    "title": "Still to pay and trade invoices",
+    "tags": "trade tier 1 collection seven 7 days retail paid invoice due",
+    "steps": [
+      "Keep retail and trade in their separate areas. Trade uses verified Tier 1 prices; do not copy those prices into a retail quote.",
+      "For a trade collection, create the invoice against the collected materials, check customer details and quantities, then save and issue it. The trade payment term is seven days.",
+      "Open Still to pay and choose Retail or Trade. Check due dates, outstanding amounts and the original record before sending a polite reminder.",
+      "When money arrives, record the payment against the correct invoice/job and verify the remaining balance. A part-payment leaves the remainder outstanding.",
+      "Paid records remain in history for later lookup. Do not delete an invoice to remove it from the unpaid list. Use the documented correction or void process with a reason where necessary."
+    ]
+  },
+  {
+    "title": "Message failures, feedback and getting help",
+    "tags": "failed unsure duplicate support issue help ratings reviews report",
+    "steps": [
+      "Prepared means not sent. Sent/provider accepted means the service accepted it. Read or received must not be assumed from that alone.",
+      "For a failed send, use the existing retry action. For an uncertain send, investigate through the available resolution workflow before sending again; a duplicate message can confuse the customer.",
+      "Review fitter feedback monthly by fitter. Follow up low ratings and customer contact requests. Test feedback must not count in real ratings. The public-review invitation follows the same rule for every customer.",
+      "Use the staff message board for fitter instructions and check read, acknowledgement and reply separately. Do not assume that opening the dashboard means a message was understood.",
+      "For help, search this page using the task or error wording. If unresolved, give Libby the job reference, page, action attempted and exact message. Keep customer records in Floor Pilot; never add passwords or sign-in codes to help notes.",
+      "This is a searchable handbook, not a live AI chat. It has no access to David’s private conversations and cannot change a job or send a customer message."
+    ]
+  }
 ]

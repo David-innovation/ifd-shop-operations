@@ -4,6 +4,18 @@ const { create } = require('../server'), fake = require('../testkit/fake-shopify
 const fakeMail = require('../testkit/fake-mail'), fakeTwilio = require('../testkit/fake-twilio');
 
 const OWNER = '+447700900001', SHOPM = '+447700900002', FITTER = '+447700900003';
+test('shop password routes enforce roles, preserve owner access and support two shop computers',async()=>{
+ const s=await boot();try{
+  const owner=await s.signIn(OWNER),oldShop=await s.signIn(SHOPM),password='Test-only silver forest lantern';
+  assert.equal((await s.req('POST','/api/shop-password',{password,confirm:password},oldShop)).status,403);
+  assert.equal((await s.req('POST','/api/shop-password',{password,confirm:password},owner,{'x-ifd':'0'})).status,403);
+  assert.equal((await s.req('POST','/api/shop-password',{password,confirm:password},owner)).status,200);
+  assert.equal((await s.req('GET','/api/staff-help',undefined,oldShop)).status,401);
+  const sign=async()=>{const r=await s.req('POST','/api/login/password',{username:'shop',password});assert.equal(r.status,200);assert.equal(r.json.role,'shop');return r.headers.get('set-cookie').split(';')[0];};
+  const a=await sign(),b=await sign();for(const cookie of [a,b]){assert.equal((await s.req('GET','/api/staff-help',undefined,cookie)).status,200);assert.equal((await s.req('GET','/api/shop-password',undefined,cookie)).status,403);}
+  assert.equal((await s.req('GET','/api/shop-password',undefined,owner)).json.configured,true);
+ }finally{s.stop();}
+});
 test('staff handbook is available to shop staff but blocked for unauthenticated and field accounts',async()=>{
  const s=await boot();try{
   const guest=await s.req('GET','/api/staff-help');assert.notEqual(guest.status,200);

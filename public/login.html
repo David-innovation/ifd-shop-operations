@@ -14,6 +14,8 @@ button.link{background:none;border:0;color:var(--ink);text-decoration:underline;
 .err{background:var(--bad-bg);color:var(--bad);border:1.5px solid var(--bad);border-radius:8px;padding:10px 12px}[hidden]{display:none!important}:focus-visible{outline:3px solid #1b5683;outline-offset:2px}
 </style><link rel="stylesheet" href="/crew-style.css"><link rel="stylesheet" href="/after-dark.css"></head><body class="crew crew-auth"><main><header class="brand" aria-label="Floor Pilot"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">FLOOR PILOT</span><span class="pilot-credit">Designed and created by <span class="pilot-signature">David Woodcock</span></span><span class="brand-caption">The team behind every floor</span></header>
 <div class="auth-title"><small class="b">Innovation Flooring Direct</small><h1>Team sign-in</h1></div>
+<div id="methods"><button type="button" id="choosePassword">Shop password</button><button type="button" class="link" id="chooseText">Owner / field team text code</button></div>
+<form id="fp" hidden><p>Shared shop sign-in. Ask the owner if the password has not been set yet.</p><label>Username<input id="username" autocomplete="username" value="shop" required></label><label>Password<input id="password" type="password" autocomplete="current-password" maxlength="128" required></label><br><button id="bp" type="submit">Sign in to shop</button></form>
 <form id="f1"><p>Enter your mobile number and we will text you a code.</p>
   <label>Mobile number<input id="mobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="07700 900123" required></label><br><button id="b1" type="submit">Text me a code</button></form>
 <form id="f2" hidden><p id="sent"></p>
@@ -25,8 +27,12 @@ button.link{background:none;border:0;color:var(--ink);text-decoration:underline;
   const $ = s => document.querySelector(s), err = $('#err'); let mobile = '';
   const fitterLogin=['/fitter','/appointments'].includes(location.pathname);
   if(fitterLogin){document.querySelector('h1').textContent='Fitter sign-in';document.title='Fitter sign-in | Floor Pilot';}
+  if(fitterLogin)$('#methods').hidden=true;else{$('#fp').hidden=false;$('#f1').hidden=true;}
   const say = t => { err.textContent = t || ''; err.hidden = !t; };
   async function post(url, body){ if(fitterLogin)body.mode='fitter';const r = await fetch(url, {method:'POST', headers:{'content-type':'application/json', 'x-ifd':'1'}, body:JSON.stringify(body), credentials:'same-origin'}); const d = await r.json().catch(() => ({})); if (!r.ok) throw (d.error || {message:'Something went wrong. Try again.'}); return d; }
+  $('#choosePassword').onclick=()=>{say('');$('#fp').hidden=false;$('#f1').hidden=$('#f2').hidden=true;$('#password').focus();};
+  $('#chooseText').onclick=()=>{say('');$('#fp').hidden=$('#f2').hidden=true;$('#f1').hidden=false;$('#mobile').focus();};
+  $('#fp').onsubmit=async e=>{e.preventDefault();say('');$('#bp').disabled=true;try{await post('/api/login/password',{username:$('#username').value.trim().toLowerCase(),password:$('#password').value});$('#password').value='';location.href='/';}catch(x){say(x.message);$('#bp').disabled=false;}};
   $('#f1').addEventListener('submit', async e => { e.preventDefault(); say(''); $('#b1').disabled = true;
     try { mobile = $('#mobile').value; await post('/api/login/code', {mobile:mobile}); $('#sent').textContent = 'If ' + mobile + ' is set up for this system, a code is on its way. It lasts 10 minutes.'; $('#f1').hidden = true; $('#f2').hidden = false; $('#code').focus(); }
     catch (x){ say(x.message); } $('#b1').disabled = false; });

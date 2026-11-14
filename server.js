@@ -52,6 +52,7 @@ function create(opts){
   }
   ensureUser(env.OWNER_NAME || 'Owner', env.OWNER_MOBILE, 'owner');
   ensureUser('Shop', env.SHOP_MOBILE, 'shop');
+  const shopPassword=require('./lib/shop-password').make({db,now,shopUser:()=>q.userByMobile.get(sms.normaliseMobile(env.SHOP_MOBILE)||''),audit:(...a)=>st.audit(...a),revoke:id=>q.dropSessionsOf.run(id)});
 
   /* ---------- small helpers ---------- */
   const ipSends = new Map(), listeners = new Set();
@@ -273,6 +274,12 @@ function create(opts){
     if (p.startsWith('/api/') && req.method !== 'GET' && !sameSite(req)) return fail(res, 403, 'forbidden', 'That did not come from this system’s own pages.');
     if (p === '/api/login/code' && req.method === 'POST') return requestCode(req, res);
     if (p === '/api/login/verify' && req.method === 'POST') return verifyCode(req, res);
+    if(p==='/api/login/password'&&req.method==='POST'){
+      const u=await shopPassword.verify(await readJson(req),req.socket.remoteAddress);
+      const prior=cookieOf(req);if(prior)q.dropSession.run(hash(prior));setSession(res,u);
+      res.setHeader('set-cookie',[res.getHeader('set-cookie'),'ifd_trial=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(secure?'; Secure':'')]);
+      return send(res,200,{ok:true,role:'shop'});
+    }
     if (p === '/api/logout' && req.method === 'POST'){ const t = cookieOf(req); if (t) q.dropSession.run(hash(t)); res.setHeader('set-cookie', 'ifd_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' + (secure ? '; Secure' : '')); return send(res, 200, {ok:true}); }
     if (!user && p === '/appointments' && req.method === 'GET') return page(res, pub('login.html'));
     if (!user) return fail(res, 401, 'signed_out', 'Sign in first.');
@@ -374,6 +381,15 @@ function create(opts){
     }
     /* everything below is the shop's own screens. A fitter or estimator is refused here, whatever their page asks for. */
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
+    if(p==='/shop-password'&&req.method==='GET'){
+      if(user.role!=='owner')return fail(res,403,'forbidden','Only the owner can set the shop password.');
+      return page(res,pub('shop-password.html'));
+    }
+    if(p==='/api/shop-password'&&req.method==='GET'){
+      if(user.role!=='owner')return fail(res,403,'forbidden','Only the owner can manage passwords.');
+      return send(res,200,shopPassword.status());
+    }
+    if(p==='/api/shop-password'&&req.method==='POST')return send(res,200,await shopPassword.set(user,await readJson(req)));
     if(p==='/staff-help'&&req.method==='GET')return page(res,pub('staff-help.html'));
     if(p==='/api/staff-help'&&req.method==='GET')return send(res,200,require('./lib/staff-help.json'));
     if(p==='/still-to-pay'&&req.method==='GET')return page(res,pub('still-to-pay.html'));
