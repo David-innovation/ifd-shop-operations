@@ -22,14 +22,15 @@ function drawInspectionWarning(d){
    if(['booked','prep_booked'].includes(j.state)){
     const outcome=el('select'),notes=el('textarea'),checked=el('input'),save=el('button','Save inspection findings');checked.type='checkbox';notes.maxLength=2000;
     for(const [v,t] of [['','Choose outcome'],['suitable','Subfloor suitable'],['prep','Preparation required — shop must review'],['not_checked','Unable to inspect — flooring still down'],['further','Further assessment required']]){const o=el('option',t);o.value=v;outcome.append(o);}
-    form.append(el('p','Visit: '+j.visit.date+' · '+(j.visit.slot||'')),label('Outcome',outcome),label('Condition, preparation needed and advice given',notes),label('I inspected the exposed subfloor and checked the flooring requirements',checked),save);
-    save.onclick=async()=>{save.disabled=true;try{await api('/api/appointments/inspection',{jobId:j.id,version:j.version,action:'result',visitId:j.visit.k,outcome:outcome.value,note:notes.value,checked:checked.checked});await load();}catch(e){error.textContent=e.message;save.disabled=false;}};
+    const prep=el('div'),method=el('select'),area=el('input');for(const [value,text] of [['','Choose preparation'],['screed','Screed'],['plywood','Plywood']]){const o=el('option',text);o.value=value;method.append(o);}area.type='number';area.min='0.01';area.step='0.01';prep.hidden=true;prep.append(label('Preparation method',method),label('Area requiring preparation (m²)',area),el('p','The shop reviews the price before it is sent to the customer. This does not approve fitting or take payment.'));outcome.onchange=()=>{prep.hidden=outcome.value!=='prep';};
+    form.append(el('p','Visit: '+j.visit.date+' · '+(j.visit.slot||'')),label('Outcome',outcome),prep,label('Condition, preparation needed and advice given',notes),label('I inspected the exposed subfloor and checked the flooring requirements',checked),save);
+    save.onclick=async()=>{save.disabled=true;try{await api('/api/appointments/inspection',{jobId:j.id,version:j.version,action:'result',visitId:j.visit.k,outcome:outcome.value,note:notes.value,checked:checked.checked,preparation:outcome.value==='prep'?{method:method.value,area:Number(area.value)}:null});await load();}catch(e){error.textContent=e.message;save.disabled=false;}};
    }else{
     const date=el('input'),slot=el('select'),agreed=el('input'),save=el('button','Save agreed inspection');date.type='date';date.min=d.today;agreed.type='checkbox';for(const s of d.slots){const o=el('option',s);o.value=s;slot.append(o);}
     form.append(label('Inspection date',date),label('Arrival time',slot),label('I called the customer and agreed this date and time',agreed),el('p','Days off and existing diary bookings are checked before saving. This records your phone agreement; no automatic text is sent.'),save);
     save.onclick=async()=>{save.disabled=true;try{await api('/api/appointments/inspection',{jobId:j.id,version:j.version,action:'book',date:date.value,slot:slot.value,agreed:agreed.checked});await load();}catch(e){error.textContent=e.message;save.disabled=false;}};
    }
-  };row.append(button,form,error);box.append(row);
+  };const detail=el('details'),summary=el('summary','Full job details');detail.append(summary);if(j.details)renderFitterDetails(detail,{...j,details:j.details,date:j.visit?.date||'Inspection not arranged'});row.append(button,form,error,detail);box.append(row);
  }
  document.querySelector('body>h1').before(box);
 }
