@@ -2766,7 +2766,7 @@ function stockCard(p, v){
     if (v.rollNumber && v.rollNumber.value) tags.append(chip('Roll ' + v.rollNumber.value));
     if (v.rollWidth && v.rollWidth.value) tags.append(chip(Number(v.rollWidth.value) + 'm wide'));
     if (v.rollStatus && v.rollStatus.value) tags.append(chip(v.rollStatus.value, v.rollStatus.value === 'Available' ? 'ok' : 'info'));
-    if (v.rollLocation && v.rollLocation.value) tags.append(bayTag(v.rollLocation.value));
+    if (home || (v.rollLocation && v.rollLocation.value)) tags.append(bayTag(home || v.rollLocation.value));
   } else {
     tags.append(home ? bayTag(home) : chip('No bay set', 'warn'));
     tags.append(chip(unit === 'packs' ? 'Sold by the pack' : 'Sold singly'));
