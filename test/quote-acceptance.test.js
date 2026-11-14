@@ -19,7 +19,7 @@ test('shop fees reach the actual outbound email and VAT invoice while fitter pay
   assert.throws(()=>s.app.commands.guardJobWrite(docPath('jobs/trial'),{type:'Collection',accepted:{q:'q1'}},false,user),e=>e.code==='quote_order_type');
   s.app.store.updateDoc(docPath('jobs/trial'),{accepted:{q:'q1'},total:555,fitterDue:200});
   const r=await s.app.commands.run('invoice.create',{jobId:'trial',supplyDate:'2026-11-12',dueDate:'2026-11-12'},user);assert.equal(r.invoice.total,355);assert.equal(r.invoice.fitterDue,200);
-  const fee=r.invoice.lines.find(l=>/arrangement/.test(l.description));assert.equal(fee.gross,30);assert.equal(fee.net,25);assert.equal(fee.vat,5);assert.equal(r.invoice.lines.find(l=>l.description==='Delivery').gross,25);
+  const fee=r.invoice.lines.find(l=>/arrangement/.test(l.description));assert.equal(fee.gross,30);assert.equal(fee.net,25);assert.equal(fee.vat,5);assert.equal(r.invoice.lines.find(l=>l.description==='Delivery').gross,25);const rendered=require('../lib/invoice').html(r.invoice,s.get(),s.app.rules),plain=require('../lib/invoice').text(r.invoice,s.get(),s.app.rules);assert.match(rendered,/£230.00/);assert.match(rendered,/£200.00/);assert.match(rendered,/Less: included arrangement/);assert.match(rendered,/taken from this package/);assert.match(plain,/agreed fitting package is £230.00/);assert.equal(r.invoice.total,355);
  }finally{s.close();}
 });
 test('isolated live fee acceptance is idempotent and exposes unchanged fitter payment',async()=>{
