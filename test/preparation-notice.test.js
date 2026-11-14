@@ -7,7 +7,7 @@ test('preparation estimates use only relevant measured rooms; no double billing 
  const e=L.preparationEstimate(job,q);assert.equal(e.area,20);assert.equal(e.screed,280);assert.equal(e.plywood,280);assert.equal(e.screedRate,14);assert.equal(e.plywoodRate,14);assert.equal(L.preparationEstimate({...job,type:'Quote'},q).screed,280);
  const n=L.preparationNotice(job,q);assert.match(n,/£280.00 for screed or £280.00 for plywood/);assert.match(n,/not included in your current quote total/);assert.match(n,/cannot proceed with the fitting/);assert.match(n,/may invalidate/);assert.match(n,/statutory rights/);assert.equal(q.total,700);
  const included=L.preparationNotice(job,{...q,lines:[...q.lines,{key:'prep',label:'Floor preparation',price:280}]});assert.match(included,/already includes £280.00/);assert.match(included,/not a second charge/);
- const unknown=L.preparationNotice({...job,rooms:{}},q);assert.match(unknown,/once the areas have been measured/);assert.doesNotMatch(unknown,/£0.00/);
+ const unknown=L.preparationNotice({...job,rooms:{}},q);assert.match(unknown,/once the areas have been measured/);assert.doesNotMatch(unknown,/£0.00 for screed/);
  assert.equal(L.preparationNotice({...job,type:'Collection'},q),'');assert.equal(L.preparationNotice({...job,brief:{choices:[{k:'hb',title:'Straight laminate',unit:'packs'}]}},q),'');
 });
 test('customer email, print/acceptance template and booking notes carry the visible cost disclosure, without sizes or duplicate notice',()=>{
@@ -16,4 +16,5 @@ test('customer email, print/acceptance template and booking notes carry the visi
  assert.ok(L.prepNotes(job,shop).some(x=>x.includes('£280.00')));
  for(const m of source.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);
 });
+
 

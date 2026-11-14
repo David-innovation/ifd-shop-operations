@@ -10,6 +10,13 @@ async function boot(){
  const send=async(key='quote_send_1')=>app.commands.run('msg.send',{jobId:'trial',key,kind:'quote',channel:'email',rev:'q1',subject:'TEST quote',to:'customer@example.test',body:'Hello David\nSubfloor inspection\nOld flooring prevented inspection. Additional preparation must be agreed.\nTo go ahead, reply.',byName:'TEST'},{id:'owner',role:'owner'});
  return {app,sent,clock,base,job,send,get:()=>app.store.getDoc('jobs/trial').data,close(){app.close();fs.rmSync(dir,{recursive:true,force:true});}};
 }
+test('actual outbound herringbone HTML retains preparation estimate through the privacy-safe message snapshot',async()=>{
+ const s=await boot();try{
+  s.app.store.updateDoc(docPath('jobs/trial'),{brief:{choices:[{k:'hb',title:'Herringbone laminate',unit:'packs'}]},rooms:{r:{name:'Living room',want:'hb',len:4,wid:5,area:20,spec:{floor:'flooring',fitting:true}}}});
+  await s.send();const m=s.sent[0];assert.match(m.html,/Only payable if preparation is required/);assert.match(m.html,/£280.00/);assert.match(m.html,/No preparation needed/);assert.match(m.html,/£0.00/);assert.match(m.html,/If preparation is not required, you do not pay for it/);assert.match(m.text,/£280.00/);assert.match(m.text,/If preparation is not required, you do not pay for it/);assert.ok(m.html.indexOf('Only payable if preparation')<m.html.indexOf('ACCEPT MY QUOTE'));
+  const saved=Object.values(s.get().msgs)[0].quoteEmail;assert.equal(saved.job.rooms,undefined);assert.equal(saved.preparation.estimate.screed,280);
+ }finally{s.close();}
+});
 test('branded quote uses saved figures, acceptance GET is read-only, POST is explicit and idempotent without stock/payment/diary mutations',async()=>{
  const s=await boot();try{
   const sent=await s.send();assert.equal(sent.ok,true);const m=s.sent[0];assert.match(m.html,/Your home\. Our expertise/);assert.match(m.html,/£1,330\.12/);assert.match(m.html,/£181\.55/);assert.match(m.html,/£1,511\.67/);assert.match(m.html,/Old flooring prevented inspection/);assert.doesNotMatch(m.html,/<script>/);assert.match(m.html,/ACCEPT MY QUOTE/);assert.match(m.html,/Please check your fitting before paying/);assert.match(m.text,/Please only pay your fitter once all agreed fitting work is complete/);
