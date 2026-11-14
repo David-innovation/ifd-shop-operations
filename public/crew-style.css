@@ -77,3 +77,11 @@ body.crew{background:#08090b;color:#f7f7f8;font-family:Inter,'Segoe UI',system-u
 .crew-diary #diaryBack{color:#e7e7ed;background:transparent;border-color:#383944}
 @media(min-width:650px){.crew-diary{padding-top:36px}.crew-diary #diaryView .diary-day{padding:20px}.crew-diary .brand-name{font-size:34px}}
 @media(prefers-reduced-motion:reduce){.crew *, .crew *::before{animation:none!important;transition:none!important}}
+.crew-diary #herringboneInspections details{background:#121318;color:#f5f5f7;border:1px solid #555661;border-radius:12px;padding:12px}
+.crew-diary #herringboneInspections summary{background:#202128;color:#fff;border:1px solid #5b5c68;border-radius:8px;padding:14px}
+.crew-diary #herringboneInspections details p,.crew-diary #herringboneInspections details small{color:#e0e1e7}
+.crew-diary #herringboneInspections details h3,.crew-diary #herringboneInspections details h4,.crew-diary #herringboneInspections details strong{color:#fff}
+.crew-diary [aria-label="Reschedule calendar"]{background:#141519;color:#f4f4f6;border:1px solid #6e2835;border-radius:12px;padding:12px}
+.crew-diary [aria-label="Reschedule calendar"] small{color:#c9cad2}
+.crew-diary [aria-label="Reschedule calendar"] button{background:#24252c;color:#fff;border:1px solid #62636d}
+.crew-diary [aria-label="Reschedule calendar"] button[aria-pressed="true"]{background:#a3122b;border-color:#ff8294}
