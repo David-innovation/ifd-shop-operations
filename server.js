@@ -24,7 +24,7 @@ function create(opts){
   const appBody = fs.readFileSync(path.join(__dirname, 'app', 'ifd-shop-operations.html'), 'utf8');
   /* which build of the screens this is, so a screen left open can tell when it has been replaced */
   const VERSION = crypto.createHash('sha256').update(appBody + pub('shim.js')).digest('hex').slice(0, 12);
-  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '"><script src="/walkin-measures.js"></script><script src="/walkin-stairs-core.js"></script><script src="/walkin-stairs.js"></script><script src="/shim.js"></script><script src="/reschedule.js"></script><script src="/slot-alerts.js" defer></script><script src="/trade-link.js" defer></script></head><body>' + appBody + '</body></html>';
+  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '">' + ['walkin-measures.js','walkin-stairs-core.js','walkin-stairs.js','shim.js','reschedule.js'].map(name=>'<script>'+(name==='walkin-stairs-core.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-stairs.js'),'utf8'):name==='walkin-measures.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-measures.js'),'utf8'):pub(name)).replace(/<\/script/gi,'<\\/script')+'</script>').join('') + '<script src="/slot-alerts.js" defer></script><script src="/trade-link.js" defer></script></head><body>' + appBody + '</body></html>';
   const db = st.db;
   /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
   const L = rules.load(appBody);
