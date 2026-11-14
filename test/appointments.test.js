@@ -10,7 +10,7 @@ test('fitter slot API enforces assignments, fixed wording, dates, test mode and 
  try{
  app.ensureUser('Lennox','07700900003','fitter');app.ensureUser('Other','07700900004','fitter');
  const user=await login('07700900003'),other=await login('07700900004');
- const j={status:'open',type:'Fitting',diary:true,date:'2026-11-12',fitter:'Lennox',ref:'ZZ-SLOT',customer:{name:'ZZ TEST slot',phone:'07700900555',address:'Test shop'},total:900,fitterDue:200};
+ const j={status:'open',type:'Fitting',diary:true,date:'2026-11-12',fitter:'Lennox',ref:'ZZ-SLOT',customer:{name:'ZZ TEST slot',phone:'07700900555',address:'Test shop'},total:900,fitterDue:200,notes:'Materials £700. Keep doorway clear.',rooms:{a:{name:'Lounge',len:4,wid:5,underlayProduct:{title:'Foam',price:45}}},fitterWork:{issues:{one:{reason:'other',state:'resolved',approvalNote:'Customer approved £280 for plywood',amount:280}}}};
  app.store.setDoc(docPath('jobs/slot'),j);app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['07700900555']}});
  assert.equal((await call('/api/appointments')).status,401);
  assert.equal((await call('/api/slot-deadlines',user)).status,403);
@@ -23,7 +23,7 @@ test('fitter slot API enforces assignments, fixed wording, dates, test mode and 
  assert.equal((await call('/api/fitter-messages/admin',user)).status,403);
  assert.equal((await call('/api/fitter-performance',user)).status,403);
  assert.deepEqual((await call('/api/my-messages?fitterId=other',user)).data.messages,[]);
- const listing=(await call('/api/appointments',user)).data;assert.equal(listing.slots.length,6);assert.equal(listing.jobs.length,1);assert.equal(listing.jobs[0].total,undefined);
+ const listing=(await call('/api/appointments',user)).data;assert.equal(listing.slots.length,6);assert.equal(listing.jobs.length,1);assert.equal(listing.jobs[0].total,undefined);assert.equal(listing.jobs[0].details.fitterDue,200);assert.equal(listing.jobs[0].details.rooms[0].underlayProduct.price,undefined);assert.equal(listing.jobs[0].work.issues[0].amount,undefined);assert.doesNotMatch(JSON.stringify(listing),/£700|£280/);assert.equal((await call('/document?job=slot&kind=invoice',user)).status,403);assert.equal((await call('/document?job=slot',user)).status,403);
  for(const p of listing.jobs[0].previews){assert.ok(p.length<=160);assert.match(p,/STAFF TEST/);assert.doesNotMatch(p,/£|payment|total/i);}
  const body={jobId:'slot',date:j.date,slot:'8-10am',key:'slot_test_123'};
  assert.equal((await call('/api/appointments/send',other,body)).status,403);

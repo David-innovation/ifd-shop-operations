@@ -24,7 +24,7 @@ test('inspection preparation flows to one revised quote and fitter instructions 
  assert.throws(()=>api.save({...body(),action:'price'},u),e=>e.status===403);api.save({...body(),action:'price'},shop);
  const priced=get(),q=L.quoteOf(priced);assert.equal(q.total,1092.16);assert.equal(q.lines.filter(l=>l.key==='prep').length,1);assert.equal(q.lines.find(l=>l.key==='prep').price,280);assert.equal(L.round2(q.areas.reduce((s,a)=>s+a.total,0)),1092.16);assert.equal(L.quoteParts(q).shopTotal,652.16);assert.equal(L.quoteParts(q).fitTotal,440);
  assert.equal(api.save({...body(),action:'price'},shop).duplicate,true);assert.equal(L.quotesOf(get()).length,2);assert.deepEqual(priced.lines,j.lines);assert.equal(priced.diary,undefined);assert.equal(L.herringboneInspection(priced).blocked,true);
- const details=require('../lib/fitter-details').details(priced,L);assert.equal(details.preparation.amount,280);assert.equal(details.preparation.agreed,false);assert.match(details.visits[0].sub.condition,/requires plywood/);
+ const details=require('../lib/fitter-details').details(priced,L);assert.equal(priced.preparationRequired.amount,280);assert.equal(details.preparation.amount,undefined);assert.equal(details.preparation.area,20);assert.equal(details.preparation.agreed,false);assert.match(details.visits[0].sub.condition,/requires plywood/);
  const html=require('../lib/quote-email').html({job:priced,q,L});assert.match(html,/Plywood floor preparation/);assert.match(html,/£280.00/);assert.match(html,/already includes/);
  }finally{st.close();fs.rmSync(dir,{recursive:true,force:true});}
 });

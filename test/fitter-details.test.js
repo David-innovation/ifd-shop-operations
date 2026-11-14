@@ -7,3 +7,9 @@ test('job sheet preserves room and shared quantities, missing facts and estimato
 });
 
 test('pricing-only carpet and service rows are excluded from the fitter material list',()=>{const d=D.details({lines:{roll:{title:'Velvet Dreams',qty:117,unit:'m',w:4,hold:'draft'},priced:{title:'Carpet',qty:1,unit:'items',hold:'none'},underlay:{title:'Underlay',qty:34.15,unit:'m²',hold:'pick'},fit:{title:'Fitting',qty:1,hold:'none'}}},L);assert.equal(d.pickList.map(x=>x.title).join('|'),'Velvet Dreams|Underlay');assert.equal(d.pickList[0].cutLength,11.7);});
+
+test('fitter receives only their collection amount, including nested products and preparation',()=>{
+ const j={type:'Fitting',total:1147.16,fitterDue:440,customer:{name:'TEST'},notes:'Customer package £470; keep access clear',preparationRequired:{method:'plywood',area:20,rate:14,amount:280,note:'Lay plywood',quoteRev:'q'},rooms:{a:{name:'Lounge',len:4,wid:5,underlayProduct:{title:'Foam',price:45,packPrice:45,coverage:15},takeoff:{underlayM2:20,price:90}}},lines:{a:{title:'Oak',qty:12,unit:'packs',price:242.16}},quotes:{q:{total:1147.16}},pay:{a:{amount:707.16}}};
+ const d=D.details(j,L),wire=JSON.stringify(d);
+ assert.equal(d.fitterDue,440);assert.equal(d.preparation.area,20);assert.equal(d.preparation.amount,undefined);assert.equal(d.preparation.rate,undefined);assert.equal(d.rooms[0].underlayProduct.coverage,15);assert.equal(d.rooms[0].underlayProduct.price,undefined);assert.equal(d.items[0].qty,12);assert.doesNotMatch(wire,/1147.16|707.16|242.16|£470/);assert.equal(j.preparationRequired.amount,280);assert.equal(j.rooms.a.underlayProduct.price,45);
+});
