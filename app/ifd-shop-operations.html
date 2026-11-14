@@ -2082,9 +2082,10 @@ const TABS = [
   {id:'today', label:'Today'}, {id:'jobs', label:'Jobs'}, {id:'sale', label:'New sale', cls:'only-phone sale'},
   {id:'diary', label:'Diary'}, {id:'documents',label:'Quotes & invoices',cls:'only-desk'}, {id:'catalogue',label:'Catalogue',cls:'only-desk'}, {id:'measures', label:'Measures', cls:'only-desk'}, {id:'stock', label:'Stock'}, {id:'cut', label:'Cutting', cls:'only-desk'}, {id:'deliveries', label:'Deliveries', cls:'only-desk'},
   {id:'tasks', label:'Tasks', cls:'only-desk'}, {id:'feedback',label:'Fitter feedback',cls:'only-desk'}, {id:'activity', label:'Activity', cls:'only-desk'}, {id:'setup', label:'Setup', cls:'only-desk'},
-  {id:'more', label:'More', cls:'only-phone'}
+  {id:'help', label:'Staff help'}, {id:'more', label:'More', cls:'only-phone'}
 ];
 const VIEWS = {};
+VIEWS.help=function(){return {nodes:[h('h1',{text:'Staff help'}),h('p',{text:'Search the shared handbook or print it for the shop. This help desk does not access private chats.'}),h('a',{class:'btn pri',href:'/staff-help',text:'Open the staff help desk'})]};};
 VIEWS.feedback=function(){
  const body=h('div',{class:'sec'}),month=h('input',{class:'in',type:'month',value:L.todayISO().slice(0,7),'aria-label':'Feedback month'}),fitter=h('select',{class:'in','aria-label':'Filter fitter'});let showTests=false,onlyPending=false;
  const rows=()=>jobsArr().flatMap(job=>Object.entries(job.customerFeedback||{}).map(([event,r])=>({job,event,...r})));

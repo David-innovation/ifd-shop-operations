@@ -4,6 +4,15 @@ const { create } = require('../server'), fake = require('../testkit/fake-shopify
 const fakeMail = require('../testkit/fake-mail'), fakeTwilio = require('../testkit/fake-twilio');
 
 const OWNER = '+447700900001', SHOPM = '+447700900002', FITTER = '+447700900003';
+test('staff handbook is available to shop staff but blocked for unauthenticated and field accounts',async()=>{
+ const s=await boot();try{
+  const guest=await s.req('GET','/api/staff-help');assert.notEqual(guest.status,200);
+  const shop=await s.signIn(SHOPM);assert.equal((await s.req('GET','/staff-help',undefined,shop)).status,200);
+  const data=await s.req('GET','/api/staff-help',undefined,shop);assert.equal(data.status,200);assert.ok(data.json.length>=10);
+  assert.ok(data.json.every(x=>x.title&&Array.isArray(x.steps)&&x.steps.length));
+  s.app.ensureUser('Trial fitter',FITTER,'fitter');const fitter=await s.signIn(FITTER);assert.equal((await s.req('GET','/api/staff-help',undefined,fitter)).status,403);assert.equal((await s.req('GET','/staff-help',undefined,fitter)).status,403);
+ }finally{s.stop();}
+});
 async function boot(extra, o){
   const dir = (o && o.dir) || fs.mkdtempSync(path.join(os.tmpdir(), 'ifd-')), shopify = fake.make(), texts = [], clock = {t:Date.parse('2026-11-10T09:00:00Z')};
   /* with {messaging:true} the system is given a mail server and a text service to send through: stand-ins that keep what they are handed */

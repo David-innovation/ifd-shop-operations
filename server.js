@@ -374,6 +374,8 @@ function create(opts){
     }
     /* everything below is the shop's own screens. A fitter or estimator is refused here, whatever their page asks for. */
     if (!shopUser) return fail(res, 403, 'forbidden', 'This sign-in cannot use the shop’s screens.');
+    if(p==='/staff-help'&&req.method==='GET')return page(res,pub('staff-help.html'));
+    if(p==='/api/staff-help'&&req.method==='GET')return send(res,200,require('./lib/staff-help.json'));
     if(p==='/still-to-pay'&&req.method==='GET')return page(res,pub('still-to-pay.html'));
     if(p==='/api/still-to-pay'&&req.method==='GET'){const channel=url.searchParams.get('channel'),tests=user.role==='owner'&&url.searchParams.get('tests')==='1';if(!['trade','retail'].includes(channel))return fail(res,400,'channel','Choose retail or trade.');return send(res,200,{channel,owner:user.role==='owner',rows:channel==='trade'?trade.outstanding(user,tests):outstanding.list(user,tests)});}
     if(p==='/api/still-to-pay'&&req.method==='POST'){const b=await readJson(req);if(b.channel==='retail')return send(res,200,await outstanding.action(user,b));if(b.channel!=='trade')return fail(res,400,'channel','Choose retail or trade.');const methods={preview:'reminderPreview',send:'reminderSend',resolve:'reminderResolve',pay:'payment',void:'voidPayment'};if(!methods[b.action])return fail(res,400,'action','Choose a payment action.');return send(res,200,await trade[methods[b.action]](user,b));}
