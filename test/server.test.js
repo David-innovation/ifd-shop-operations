@@ -41,7 +41,7 @@ async function boot(extra, o){
     return {status:r.status, json, text, headers:r.headers};
   };
   const codeFor = m => { const t = texts.filter(x => x.to === m).pop(); return t ? /code: (\d{6})/.exec(t.body)[1] : ''; };
-  const signIn = async mobile => { await req('POST', '/api/login/code', {mobile}); const r = await req('POST', '/api/login/verify', {mobile, code:codeFor(normaliseMobile(mobile))}); assert.strictEqual(r.status, 200); return r.headers.get('set-cookie').split(';')[0]; };
+  const signIn = async mobile => { if(normaliseMobile(mobile)===SHOPM){const db=app.store.db,u=db.prepare("SELECT * FROM users WHERE mobile='password:shared-shop'").get(),pw='Fixture-only silver forest lantern'; const auth=require('../lib/shop-password').make({db,now:()=>clock.t,shopUser:()=>u,audit:()=>{},revoke:()=>{}});if(!auth.status().configured)await auth.set({role:'owner'},{password:pw,confirm:pw});const r=await req('POST','/api/login/password',{username:'shop',password:pw});assert.equal(r.status,200);return r.headers.get('set-cookie').split(';')[0];} await req('POST', '/api/login/code', {mobile}); const r = await req('POST', '/api/login/verify', {mobile, code:codeFor(normaliseMobile(mobile))}); assert.strictEqual(r.status, 200); return r.headers.get('set-cookie').split(';')[0]; };
   const cmd = (name, body, cookie) => req('POST', '/api/cmd', Object.assign({cmd:name}, body), cookie);
   const job = id => app.store.getDoc('jobs/' + id).data;
   return {app, base, req, cmd, job, texts, clock, shopify, mailbox, twilio, codeFor, signIn, dir, stop:() => { app.close(); if (mailbox) mailbox.close(); fs.rmSync(dir, {recursive:true, force:true}); }};
@@ -196,15 +196,16 @@ test('sign-in by texted code', async () => {
     const cookie = setc.split(';')[0];
     assert.deepStrictEqual((await s.req('GET', '/api/me', undefined, cookie)).json, {id:(await s.req('GET', '/api/me', undefined, cookie)).json.id, name:'David', role:'owner'});
     assert.strictEqual((await s.req('POST', '/api/login/verify', {mobile:OWNER, code})).status, 401, 'a used code does not work again');
+    s.app.ensureUser("Field test",FITTER,"fitter");
     // five wrong tries kill the code
-    await s.req('POST', '/api/login/code', {mobile:SHOPM}); const c2 = s.codeFor(SHOPM), bad = c2 === '999999' ? '888888' : '999999';
-    for (let i = 0; i < 5; i++) assert.strictEqual((await s.req('POST', '/api/login/verify', {mobile:SHOPM, code:bad})).status, 401);
-    assert.strictEqual((await s.req('POST', '/api/login/verify', {mobile:SHOPM, code:c2})).status, 401, 'locked after five wrong tries');
+    await s.req('POST', '/api/login/code', {mobile:FITTER}); const c2 = s.codeFor(FITTER), bad = c2 === '999999' ? '888888' : '999999';
+    for (let i = 0; i < 5; i++) assert.strictEqual((await s.req('POST', '/api/login/verify', {mobile:FITTER, code:bad})).status, 401);
+    assert.strictEqual((await s.req('POST', '/api/login/verify', {mobile:FITTER, code:c2})).status, 401, 'locked after five wrong tries');
     // codes run out
-    s.clock.t += 16 * 60000; await s.req('POST', '/api/login/code', {mobile:SHOPM}); const c3 = s.codeFor(SHOPM); s.clock.t += 11 * 60000;
-    assert.strictEqual((await s.req('POST', '/api/login/verify', {mobile:SHOPM, code:c3})).status, 401, 'a code older than ten minutes is refused');
+    s.clock.t += 16 * 60000; await s.req('POST', '/api/login/code', {mobile:FITTER}); const c3 = s.codeFor(FITTER); s.clock.t += 11 * 60000;
+    assert.strictEqual((await s.req('POST', '/api/login/verify', {mobile:FITTER, code:c3})).status, 401, 'a code older than ten minutes is refused');
     // no more than three texts to one number in a quarter of an hour
-    s.clock.t += 16 * 60000; const before = s.texts.length; for (let i = 0; i < 5; i++) await s.req('POST', '/api/login/code', {mobile:SHOPM});
+    s.clock.t += 16 * 60000; const before = s.texts.length; for (let i = 0; i < 5; i++) await s.req('POST', '/api/login/code', {mobile:FITTER});
     assert.strictEqual(s.texts.length - before, 3);
     // sign out
     assert.strictEqual((await s.req('POST', '/api/logout', {}, cookie)).status, 200); assert.strictEqual((await s.req('GET', '/api/me', undefined, cookie)).status, 401);
@@ -587,7 +588,7 @@ test('messages: with no mail server or text service set up nothing is sent and n
       const r = await s.cmd('msg.send', {jobId:'n1', kind:'other', channel:ch, to:ch === 'email' ? 'zed@example.test' : '07700 900555', subject:'x', body:'Hello', rev:'', byName:'Sam', key:'nosetup' + ch}, shop);
       assert.strictEqual(r.status, 409); assert.strictEqual(r.json.error.code, 'not_set_up'); assert.match(r.json.error.message, /has not been set up yet, so nothing was sent/);
     }
-    assert.strictEqual(s.job('n1').msgs, undefined); assert.strictEqual(s.texts.length, 2, 'only the two sign-in codes were ever texted');
+    assert.strictEqual(s.job('n1').msgs, undefined); assert.strictEqual(s.texts.length, 1, 'only the owner sign-in code was texted; shop uses a password');
     // caught mid-send by a restart: it is marked as not known to have gone, for a person to check, rather than sent or silently dropped
     s.app.store.updateDoc(docPath('jobs/n1'), {msgs:{mstuck:{kind:'quote', channel:'email', to:'zed@example.test', body:'Hello', rev:'qa', byName:'Sam', state:'queued', at:'2026-11-10T09:00:00.000Z'}}});
     const dir = s.dir; s.app.close();

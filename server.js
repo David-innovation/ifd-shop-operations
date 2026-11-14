@@ -51,8 +51,8 @@ function create(opts){
     const id = 'u_' + crypto.randomBytes(9).toString('hex'); q.addUser.run(id, name, m, role, iso()); return id;
   }
   ensureUser(env.OWNER_NAME || 'Owner', env.OWNER_MOBILE, 'owner');
-  ensureUser('Shop', env.SHOP_MOBILE, 'shop');
-  const shopPassword=require('./lib/shop-password').make({db,now,shopUser:()=>q.userByMobile.get(sms.normaliseMobile(env.SHOP_MOBILE)||''),audit:(...a)=>st.audit(...a),revoke:id=>q.dropSessionsOf.run(id)});
+  const sharedShopId=require('./lib/shared-shop').ensure(db,sms.normaliseMobile(env.SHOP_MOBILE),iso());
+  const shopPassword=require('./lib/shop-password').make({db,now,shopUser:()=>q.userById.get(sharedShopId),audit:(...a)=>st.audit(...a),revoke:id=>q.dropSessionsOf.run(id)});
 
   /* ---------- small helpers ---------- */
   const ipSends = new Map(), listeners = new Set();
