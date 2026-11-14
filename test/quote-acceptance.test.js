@@ -22,6 +22,17 @@ test('shop fees reach the actual outbound email and VAT invoice while fitter pay
   const fee=r.invoice.lines.find(l=>/arrangement/.test(l.description));assert.equal(fee.gross,30);assert.equal(fee.net,25);assert.equal(fee.vat,5);assert.equal(r.invoice.lines.find(l=>l.description==='Delivery').gross,25);
  }finally{s.close();}
 });
+test('isolated live fee acceptance is idempotent and exposes unchanged fitter payment',async()=>{
+ const s=await boot();try{
+  const id='cmwggd6hcrsm6ke',d=docPath('jobs/'+id),lines=[{label:'Flooring',price:242.16},{label:'Underlay',price:90},{label:'Beading',price:40},{label:'Plywood floor preparation',price:280},{label:'Fitting',price:440},{key:'arrangement',label:'Fitting arrangement & support',price:30},{key:'delivery',label:'Delivery',price:25}];
+  s.app.store.setDoc(d,{test:true,status:'open',type:'Fitting',customer:{name:'ZZ TEST David — herringbone preparation'},quotes:{q3:{n:3,at:'2026-11-14',lines,charges:{version:1,orderType:'Fitting'}}}});
+  await assert.rejects(s.app.commands.run('trial.fees.accept',{jobId:id},{id:'f',role:'fitter'}),e=>e.status===403);
+  const a=await s.app.commands.run('trial.fees.accept',{jobId:id},{id:'owner',role:'owner'}),saved=s.app.store.getDoc(d.path).data;
+  assert.equal(a.shopTotal,707.16);assert.equal(a.fitterDue,440);assert.equal(a.total,1147.16);
+  const b=await s.app.commands.run('trial.fees.accept',{jobId:id},{id:'owner',role:'owner'});assert.equal(b.duplicate,true);assert.deepEqual(s.app.store.getDoc(d.path).data,saved);
+  assert.equal(saved.pay,undefined);assert.equal(saved.drafts,undefined);assert.equal(saved.diary,false);assert.equal(Object.values(saved.lines).filter(l=>/arrangement/.test(l.title)).length,1);assert.equal(Object.values(saved.lines).filter(l=>l.title==='Delivery').length,1);assert.equal(s.app.rules.fitterDue(saved),440);assert.equal(s.app.rules.shopTotal(saved),707.16);
+ }finally{s.close();}
+});
 test('actual outbound herringbone HTML retains preparation estimate through the privacy-safe message snapshot',async()=>{
  const s=await boot();try{
   s.app.store.updateDoc(docPath('jobs/trial'),{brief:{choices:[{k:'hb',title:'Herringbone laminate',unit:'packs'}]},rooms:{r:{name:'Living room',want:'hb',len:4,wid:5,area:20,spec:{floor:'flooring',fitting:true}}}});

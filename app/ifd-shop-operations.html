@@ -4055,6 +4055,7 @@ function dayDialog(job){
 function acceptDialog(job,preferredType){
   if (!needShop() || !needDb()) return;
   const q = L.quoteOf(job); if (!q) return;
+  if(job.test===true&&job.id==='cmwggd6hcrsm6ke'&&!job.accepted){openModal(dlg('Stock-free fee trial',h('p',{text:'Accept this fictional quote to check the shop/fitter split. No Shopify stock, payment or fitting booking is created.'}),[btn('Cancel',closeModal),btn('Accept practice quote',async()=>{try{await runCmd('trial.fees.accept',{jobId:job.id});closeModal();openSheet(job.id);}catch(e){toast(explain(e),true);}},'pri')]));return;}
   if(job.test===true&&job.id==='ZZ-MEASURE-COMBINED-esttrial_'+S.me.id&&!job.accepted){openModal(dlg('Stock-free trial order',h('p',{text:'This accepts only your fictional job, records a clearly labelled simulated materials payment, and passes its approved cuts and accessories to warehouse preparation. No real stock or money changes.'}),[btn('Cancel',closeModal),btn('Continue stock-free trial',async()=>{try{await runCmd('trial.accept',{jobId:job.id});closeModal();openSheet(job.id);}catch(e){toast(explain(e),true);}},'pri')]));return;}
   const s = sayer(), c = {...(job.customer || {})}, b = L.briefOf(job), rooms = L.roomsOf(job), runs = L.pricingOf(job).stairs;
   const F = {type:L.TYPES.includes(preferredType)?preferredType:job.walkin&&L.TYPES.includes(job.type)?job.type:'', busy:false, saved:null}, items = [], covered = {};
