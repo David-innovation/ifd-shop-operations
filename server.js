@@ -106,6 +106,7 @@ function create(opts){
   const quoteAcceptance=require('./lib/quote-acceptance').make({st,L,now,broadcast,baseUrl:env.PUBLIC_URL||env.RENDER_EXTERNAL_URL||'https://ifd-shop-operations.onrender.com'});
   const feedback=require('./lib/fitter-feedback').make({st,now,broadcast,baseUrl:env.PUBLIC_URL||env.RENDER_EXTERNAL_URL||'https://ifd-shop-operations.onrender.com'});
   const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, quoteAcceptance, feedback, pollMs:opts.pollMs});
+  const salesLeads=require('./lib/sales-leads').make({st,L,now,broadcast});
   const outstanding=require('./lib/retail-outstanding').make({st,L,cmds,mailer,now,broadcast});
   cmds.start();
   const textCredit=require('./lib/text-credit').make({st,texter,mailer,now,broadcast});textCredit.start();
@@ -163,10 +164,12 @@ function create(opts){
     const body = await readJson(req);
     if (what === 'add'){
       const c = store.collPath(body.coll); if (!c || !body.data || typeof body.data !== 'object') return fail(res, 400, 'invalid_argument', 'Bad path.');
+      if(c==='leads')return fail(res,403,'use_command','Use Sales leads.');
       if(c==='deliveries')supplierMail.guard(body.data);
       const id = st.newId(), d = store.docPath(c + '/' + id); st.setDoc(d, body.data); st.audit(user.id, 'add', d.path); broadcast(c); return send(res, 200, {id:id});
     }
     const d = store.docPath(body.path); if (!d) return fail(res, 400, 'invalid_argument', 'Bad path.');
+    if(d.coll==='leads')return fail(res,403,'use_command','Use Sales leads to preserve contact history.');
     if(d.coll==='deliveries'){const current=st.getDoc(d.path).data;if(what==='delete'&&current?.supplierSend)return fail(res,409,'supplier','Keep the supplier email history; close the delivery instead.');if(what!=='delete')supplierMail.guard(body.data,current);}
     if (what === 'delete'){ st.deleteDoc(d.path); st.audit(user.id, 'delete', d.path); broadcast(d.coll); return send(res, 200, {ok:true}); }
     if (!body.data || typeof body.data !== 'object' || Array.isArray(body.data)) return fail(res, 400, 'invalid_argument', 'Nothing to save.');
@@ -425,6 +428,9 @@ function create(opts){
     if(p.startsWith('/trade/document/')&&req.method==='GET')return page(res,trade.preview(user,p.slice('/trade/document/'.length)));
     if(p==='/trade-documents.js'&&req.method==='GET')return send(res,200,pub('trade-documents.js'),{'content-type':'application/javascript'});
     if(p.startsWith('/api/trade/invoice/')){const id=p.slice('/api/trade/invoice/'.length);if(req.method==='POST')return send(res,200,trade.attach(user,id,await readBody(req,10*1024*1024)));if(req.method==='GET'){const f=trade.download(user,id);return send(res,200,f.body,{'content-type':'application/pdf','content-disposition':'attachment; filename="'+f.name+'"','cache-control':'private, no-store'});}}
+    if(p==='/api/sales-leads'&&req.method==='GET')return send(res,200,salesLeads.list(user));
+    if(p==='/api/sales-leads'&&req.method==='POST')return send(res,200,salesLeads.action(user,await readJson(req)));
+    if(p==='/api/sales-leads/convert'&&req.method==='POST')return send(res,200,salesLeads.convert(user,await readJson(req)));
     if(p==='/api/text-credit'&&req.method==='GET')return send(res,200,textCredit.status());
     if(p==='/api/text-credit'&&req.method==='POST')return send(res,200,await textCredit.check());
     if(p==='/api/supplier-mail'&&req.method==='POST'){const b=await readJson(req);if(['contacts','contact.save'].includes(b.action))return send(res,200,supplierMail.contacts(b,user));if(b.action==='send')return send(res,200,await supplierMail.send(b,user));if(b.action==='settle')return send(res,200,supplierMail.settle(b,user));if(['placed','eta'].includes(b.action))return send(res,200,supplierMail.record(b,user));if(b.action==='draft')return send(res,200,supplierMail.draft(b,user));if(b.action==='enable')return send(res,200,await supplierMail.enable(b,user));if(b.action==='check')return send(res,200,await supplierMail.poll());return fail(res,400,'invalid_argument','Unknown supplier action.');}
