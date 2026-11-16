@@ -122,3 +122,9 @@ test('actual Shopify Zenith Carpet record prices full cuts and shows carpet-only
  const laminate={title:'Zenith Plank 8mm Waterproof Straight Laminate',productType:'laminate flooring',coverage:{value:'2.55'}};assert.equal(L.isRoll(v,laminate),false);assert.equal(x.box.catalogueGoods(laminate,{id:'lam',price:60.69}).ppm,0);
  for(const row of require('../lib/supplier-ranges').list())assert.equal(x.box.catalogueCormarPrice({title:row.name+' Carpet — Cormar',productType:'Carpet'}),row.sellingPrice);
 });
+
+test('carpet colours appear once and measured widths resolve to correct Shopify variants',async()=>{
+ const x=harness(),p={title:'Zenith Carpet — Cormar',productType:'Carpet',status:'ACTIVE',variants:{nodes:[{id:'caribou4',title:'Caribou / 4m',price:0},{id:'caribou5',title:'Caribou / 5m',price:0},{id:'white4',title:'Chalk White / 4m',price:0},{id:'white5',title:'Chalk White / 5m',price:0}]}};
+ const choices=x.box.catalogueColourOptions(p);assert.equal(choices.length,2);assert.equal(choices[0].title,'Caribou');x.box.catalogueQuote(p,choices[0]);x.input('Length value for room 1','6');x.input('Width value for room 1','3.9');assert.match(x.text(),/Carpet: £590.97/);
+ x.button('Add room').onclick();x.button('Same as last room').onclick();x.input('Length value for room 2','6');x.input('Width value for room 2','4.1');x.input('catalogueCustomer','ZZ TEST colours');x.input('cataloguePhone','07700900998');await x.button('Save sizes and review quote').onclick();const j=x.saved[0];assert.equal(j.brief.choices.find(c=>c.k===j.rooms.r0.want).variantId,'caribou4');assert.equal(j.brief.choices.find(c=>c.k===j.rooms.r1.want).variantId,'caribou5');assert.equal(j.rooms.r0.area,23.4);assert.equal(j.rooms.r1.area,24.6);
+});
