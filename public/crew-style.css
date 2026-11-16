@@ -85,33 +85,3 @@ body.crew{background:#08090b;color:#f7f7f8;font-family:Inter,'Segoe UI',system-u
 .crew-diary [aria-label="Reschedule calendar"] small{color:#c9cad2}
 .crew-diary [aria-label="Reschedule calendar"] button{background:#24252c;color:#fff;border:1px solid #62636d}
 .crew-diary [aria-label="Reschedule calendar"] button[aria-pressed="true"]{background:#a3122b;border-color:#ff8294}
-
-/* A daylight workspace for measuring; the branded frame stays dark. */
-body.crew.estimator-light{background:#f6f3ee;color:#20232a;color-scheme:light;--crew-muted:#555e69}
-.crew.estimator-light>.brand{background:#101116;margin:-22px -20px 24px;padding:28px 24px;border-radius:0 0 18px 18px}
-.crew.estimator-light h1,.crew.estimator-light h2,.crew.estimator-light h3{color:#a5112d}
-.crew.estimator-light p,.crew.estimator-light small,.crew.estimator-light label{color:#505965}
-.crew.estimator-light button,.crew.estimator-light input,.crew.estimator-light select,.crew.estimator-light textarea{background:#fff;color:#20232a;border-color:#bcc2cb;box-shadow:none}
-.crew.estimator-light textarea{width:100%;min-height:110px}
-.crew.estimator-light input[type=checkbox]{accent-color:#bd1734;min-width:24px;width:24px;height:24px;min-height:24px;flex:0 0 24px}
-.crew.estimator-light article,.crew.estimator-light #diaryView .diary-job,.crew.estimator-light #diaryView .diary-day,.crew.estimator-light .profile-card{background:#fff;color:#20232a;border:1px solid #ddd7d0;box-shadow:0 5px 22px #30202008}
-.crew.estimator-light article summary{background:#f9eeef;color:#92132b;border:1px solid #ead0d5;font-size:15px}
-.crew.estimator-light article section{border-color:#ded8d1}
-.crew.estimator-light article .preview{background:#edf6f2;color:#245b45;border-color:#b8d8c7}
-.crew.estimator-light .estimator-visit>section,.crew.estimator-light .estimator-visit>details{margin:20px 0;padding:16px;border:1px solid #e2dcd6;border-radius:14px;background:#fff}
-.crew.estimator-light .estimator-visit details>p{padding:0 12px}
-.crew.estimator-light .estimator-visit label{flex-wrap:wrap}
-.crew.estimator-light .estimator-visit label small{margin-left:auto;font-size:12px;background:#fff1d1;color:#785000;padding:4px 8px;border-radius:6px}
-.crew.estimator-light .drawing-head{background:#fff0f2;color:#a5112d;border-bottom:1px solid #ebcbd2}
-.crew.estimator-light .drawing-product{background:#eaf3fa;color:#234c68;border-bottom:1px solid #cee0ee}
-.crew.estimator-light .drawing-tabs{background:#faf8f5}
-.crew.estimator-light button[aria-pressed=true],.crew.estimator-light button.send{background:#bd1734;color:#fff;border-color:#bd1734}
-.crew.estimator-light .drawing-save,.crew.estimator-light .measure-handover>button{background:#bd1734;color:#fff;border-color:#bd1734}
-.crew.estimator-light #diaryBack,.crew.estimator-light #out{color:#85162a;background:#fff;border-color:#d6bfc3}
-.crew.estimator-light #diaryView .diary-job span,.crew.estimator-light #diaryView .diary-job small{color:#505965}
-.crew.estimator-light #crewBottom{background:#111217;color:#fff}
-.crew.estimator-light #crewBottom button{background:transparent;color:#ddd;border-color:transparent}
-.crew.estimator-light #crewBottom button[aria-pressed=true]{color:#ff5a77}
-.crew.estimator-light .drawing-tabs .room-state{display:block;margin-top:4px;padding:2px 6px;border-radius:5px;background:#fff0c8;color:#745000;font-size:11px}
-.crew.estimator-light .drawing-tabs .room-state.saved{background:#dff3e8;color:#22623e}
-@media(max-width:520px){.crew.estimator-light article{padding:12px}.crew.estimator-light .estimator-visit>section,.crew.estimator-light .estimator-visit>details{padding:10px}.crew.estimator-light .estimator-visit label small{margin-left:36px}}
