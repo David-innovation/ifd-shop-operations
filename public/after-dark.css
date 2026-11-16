@@ -60,3 +60,52 @@ body.crew-diary::before{top:16px;height:170px}
 /* Internal Floor Pilot product identity; customer documents do not load this stylesheet. */
 .pilot-credit{display:block;font:9px/1.4 Inter,'Segoe UI',sans-serif;letter-spacing:.08em;color:#bdbdc8;text-transform:none}.pilot-signature{display:block;font:30px/1.1 Allura,'Segoe Script','Snell Roundhand','Brush Script MT',cursive;letter-spacing:0;color:#fff;font-weight:400;text-transform:none;margin-top:3px}.crew .pilot-credit{margin:10px 0 0 20px}.crew-auth .pilot-credit{margin-left:0}.crew-diary>.brand{height:auto;min-height:175px;padding-bottom:24px}.crew-diary.job-open>.brand{height:auto;min-height:150px}.crew-diary .brand-name{font-size:23px;letter-spacing:2px}.brand .pilot-credit{display:block}.top .brand{gap:6px}.top .pilot-signature{font-size:25px}@media(max-width:480px){.top .brand{font-size:17px}.top .pilot-credit{font-size:8px}.top .pilot-signature{font-size:23px}}
 body.crew:has(dialog[open]) > .brand{visibility:hidden}
+
+/* Phone usability: retain the crew design while keeping actions and forms reachable. */
+.crew-diary :is(main,article,section,details,fieldset,.reschedule-form){min-width:0}
+.crew-diary :is(h2,h3,h4,strong,summary,label,button,a){overflow-wrap:anywhere}
+.crew-diary :is(input,select,textarea){max-width:100%;min-width:0}
+.crew-diary button,.crew-diary summary,.crew-diary a{touch-action:manipulation}
+.crew-diary textarea{min-height:100px;resize:vertical}
+.crew-diary #diaryView .week-controls button,
+.crew-diary .availability>button,.crew-diary .next-booked{min-height:44px;font-size:13px}
+.crew-diary .work-task label{min-height:44px}
+.crew-diary input[type=checkbox]{flex-shrink:0}
+.crew-diary dialog{overscroll-behavior:contain}
+.crew-diary .drawing-modal :is(input,select,textarea){font-size:16px}
+.crew-diary canvas[aria-label="Measurement confirmation signature"]{height:160px}
+.crew-diary [aria-label="Reschedule calendar"]>div:first-of-type{display:flex;flex-wrap:wrap;gap:8px}
+.crew-diary [aria-label="Reschedule calendar"]>div:first-of-type button{flex:1 1 120px}
+@media(max-width:600px){
+ body.crew-diary{width:100%;padding:0 12px calc(110px + env(safe-area-inset-bottom))}
+ .crew-diary article{padding:12px}
+ .crew-diary article :is(p,small),.crew-diary .work-label{font-size:14px}
+ .crew-diary article summary{font-size:15px;min-height:48px;padding:12px}
+ .crew-diary article button{max-width:100%;white-space:normal}
+ .crew-diary article>button,.crew-diary article section>button{margin:4px 0}
+ .crew-diary article>button:not(.send){width:100%}
+ .crew-diary #diaryView .job-top{flex-wrap:wrap}
+ .crew-diary #diaryView .job-top b{font-size:18px}
+ .crew-diary #diaryView .diary-job>strong{font-size:21px}
+ .crew-diary #crewBottom button{min-width:0;padding-left:6px;padding-right:6px}
+ .crew-diary .drawing-tools{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .crew-diary .room-drawing .drawing-tools button{font-size:14px!important;padding:10px 4px!important;min-height:48px}
+ .crew-diary .drawing-tabs{scrollbar-width:thin}
+ .crew-diary .drawing-tabs button{flex-shrink:0}
+ .crew-diary .drawing-head{padding:10px}
+ .crew-diary .drawing-head strong{flex:1 1 100%}
+ .crew-diary .drawing-head button{flex:1 1 120px;white-space:normal}
+ .crew-diary .drawing-expanded{inset:0;width:100%;max-width:none;max-height:100dvh;border-radius:0;padding-bottom:env(safe-area-inset-bottom)!important}
+ .crew-diary .drawing-modal{width:calc(100% - 16px);max-width:100%;max-height:calc(100dvh - 16px);padding:16px 12px}
+ .crew-diary .drawing-modal fieldset{min-width:0}
+ .crew-diary .drawing-modal button{max-width:100%;white-space:normal;min-height:44px}
+ .crew-diary .measure-handover,.crew-diary .measure-review-room{padding:10px}
+ .crew-diary [aria-label="Reschedule calendar"]{padding:6px}
+ .crew-diary [aria-label="Reschedule calendar"] button{min-height:48px}
+ .crew-diary .customer-sign button.customer-sign-back{width:44px;min-height:44px}
+ .crew-diary .customer-sign button.customer-sign-clear{min-height:44px;min-width:44px}
+}
+
+/* Width includes page padding; reschedule labels must not stretch checkboxes. */
+body.crew-diary{box-sizing:border-box}
+.crew-diary .reschedule-form input[type=checkbox]{width:22px!important;max-width:22px;display:inline-block!important;margin:8px}
