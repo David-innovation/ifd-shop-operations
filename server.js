@@ -125,11 +125,11 @@ function create(opts){
     if (seen.n > 10) return fail(res, 429, 'rate_limited', 'Too many tries. Wait a quarter of an hour.');
     const user = q.userByMobile.get(mobile);
     /* the answer is the same whether or not the number is known, so nobody can use this to find out who has an account */
-    if (user && user.active){
+    if (user && user.active && (body.mode!=='estimator'||user.role==='estimator')){
       const c = q.code.get(mobile), fresh = !c || now() - c.win > WINDOW_MS, sent = fresh ? 1 : c.sent + 1;
       if (sent <= SENDS_PER_WINDOW){
         const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-        q.putCode.run(mobile, hash(mobile + ':' + code + (body.mode==='fitter'?':fitter':'')), now() + CODE_MINUTES * 60000, sent, fresh ? now() : c.win);
+        q.putCode.run(mobile, hash(mobile + ':' + code + (['fitter','estimator'].includes(body.mode)?':'+body.mode:'')), now() + CODE_MINUTES * 60000, sent, fresh ? now() : c.win);
         try { await sendText(mobile, 'IFD Shop Operations sign-in code: ' + code + '. It lasts ' + CODE_MINUTES + ' minutes. Nobody from the shop will ask you for it.'); }
         catch (e){ log('TEXT FAILED to ' + mobile + ': ' + (e && e.message)); }
       }
@@ -141,8 +141,8 @@ function create(opts){
     const bad = () => fail(res, 401, 'bad_code', 'That code is not right or has run out. Ask for a new one.');
     if (!mobile || code.length !== 6) return bad();
     const user = q.userByMobile.get(mobile), c = q.code.get(mobile);
-    if (!user || !user.active || !c || !c.hash || c.expires < now() || c.tries >= CODE_TRIES) return bad();
-    const want = Buffer.from(c.hash, 'hex'), got = Buffer.from(hash(mobile + ':' + code + (body.mode==='fitter'?':fitter':'')), 'hex');
+    if (!user || !user.active || (body.mode==='estimator'&&user.role!=='estimator') || !c || !c.hash || c.expires < now() || c.tries >= CODE_TRIES) return bad();
+    const want = Buffer.from(c.hash, 'hex'), got = Buffer.from(hash(mobile + ':' + code + (['fitter','estimator'].includes(body.mode)?':'+body.mode:'')), 'hex');
     if (want.length !== got.length || !crypto.timingSafeEqual(want, got)){ q.tryCode.run(mobile); return bad(); }
     q.dropCode.run(mobile);                                   /* a code works once */
     const signedUser=body.mode==='fitter'&&user.role==='owner'?{...user,id:'trial_'+user.id,role:'fitter'}:user;
@@ -273,7 +273,7 @@ function create(opts){
     if (p === '/after-dark.css') return send(res,200,pub('after-dark.css'),{'content-type':'text/css; charset=utf-8'});
     if (p === '/after-dark-wave.svg') return send(res,200,pub('after-dark-wave.svg'),{'content-type':'image/svg+xml'});
     if (p === '/shim.js') return send(res, 200, pub('shim.js'), {'content-type':'text/javascript; charset=utf-8'});
-    if (p === '/fitter' && req.method === 'GET') return page(res,pub('login.html'));
+    if (['/fitter','/estimator'].includes(p) && req.method === 'GET') return page(res,pub('login.html'));
     if (req.method === 'GET' && (p === '/' || p === '/login')){
       if (!user) return page(res, pub('login.html'));
       if (p === '/login'){ res.writeHead(302, {location:'/'}); return res.end(); }
@@ -291,6 +291,12 @@ function create(opts){
     if (p === '/api/logout' && req.method === 'POST'){ const t = cookieOf(req); if (t) q.dropSession.run(hash(t)); res.setHeader('set-cookie', 'ifd_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' + (secure ? '; Secure' : '')); return send(res, 200, {ok:true}); }
     if (!user && p === '/appointments' && req.method === 'GET') return page(res, pub('login.html'));
     if (!user) return fail(res, 401, 'signed_out', 'Sign in first.');
+    if(p==='/estimator-access'&&req.method==='GET'){if(user.role!=='owner')return fail(res,403,'forbidden','Only the owner can manage estimator access.');return page(res,pub('estimator-access.html'));}
+    if(p==='/api/estimator-access'){
+      if(user.role!=='owner')return fail(res,403,'forbidden','Only the owner can manage estimator access.');
+      const access=require('./lib/estimator-access').make({st,q,ensureUser,appointments,now,broadcast,texter,baseUrl:env.PUBLIC_URL||env.APP_URL||'https://ifd-shop-operations.onrender.com'});
+      return send(res,200,req.method==='GET'?access.list():await access.action(await readJson(req),user));
+    }
     if(p==='/document'&&req.method==='GET'){
       if(!shopUser)return fail(res,403,'forbidden','Only shop staff can view quotes and invoices.');
       const id=url.searchParams.get('job')||'';if(!/^[\w-]+$/.test(id))return fail(res,400,'job','Choose a job.');
