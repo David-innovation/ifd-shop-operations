@@ -3845,7 +3845,7 @@ async function quoteDialog(job,flow={}){
     if (more.length){ more.forEach(z => rows.push(mk(z, ''))); draw(); } else recalc();
   }
   draw(); drawDisc();
-  const save = btn('Save the quote', async () => {
+  const saveQuote = async () => {
     const lines = rows.map(r => { const f = L.round2(Number(r.price) || 0), pr = L.discounted(r.label, f, pct), l = {label:String(r.label || '').trim(), price:pr}; if (r.key) l.key = r.key; if (pr < f) l.full = f; if (r.calc) l.calc = r.calc; if (r.pick) l.pick = r.pick; const z=cat[r.key]||{}; if(r.key==='bars'&&z.barItems)l.barItems=JSON.parse(JSON.stringify(z.barItems)); if(r.needQty||z.needQty){l.needQty=r.needQty||z.needQty;l.needUnit=r.needUnit||z.needUnit;} return l; }).filter(l => l.price > 0), name = who.value.trim(), errs = [];
     if (!lines.length) errs.push('Type at least one price.');
     if (lines.some(l => !l.label)) errs.push('Every price needs to say what it is for.');
@@ -3863,7 +3863,7 @@ async function quoteDialog(job,flow={}){
     pt.quotes[k] = q; save.disabled = true;
     try { await patchJob(job.id, pt, 'Quote of ' + L.money(q.total) + ' saved by ' + name + ': ' + lines.map(l => l.label + ' ' + L.money(l.full || l.price)).join(', ') + (off > 0 ? '. ' + pct + '% discount on the shop’s part, ' + L.money(off) + ' off' : '')); toast('Quote saved');const next=Object.assign({},job,{quotes:Object.assign({},job.quotes,pt.quotes)});if(job.cuttingSpec&&!L.cuttingApproved(job))await approveCuttingDialog(next,true);else if(job.walkin){if(L.roomsOf(job).some(r=>(L.specOf(r)||{}).floor==='carpet')){const reviewed=await runCmd('walkin.review',{jobId:job.id});next.cuttingApproval=reviewed.cuttingApproval;next.quotes[k]=reviewed.quote;}walkinQuoteActions(next);}else sendQuoteDialog(next,Object.assign({k:k},q)); }
     catch (e){ save.disabled = false; dbFail(e); }
-  }, 'pri');
+  };const save=btn('Save the quote',saveQuote,'pri');
   openModal(dlg('Price the job', h('div', {class:'sec', id:'quoteForm'},
     h('div', {class:'card tight'}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '')}), h('p', {class:'small muted', text:[c.phone, [c.address, c.postcode].filter(Boolean).join(', ')].filter(Boolean).join(' · ')})),
     h('div', {class:'card'}, h('h3', {}, 'What was measured'), measuredBlock(job)),
@@ -3874,7 +3874,7 @@ async function quoteDialog(job,flow={}){
       lvtBorder, h('p', {class:'subh', text:'Discount'}), discSeg, sums,
       h('div', {class:'qtotal'}, h('span', {text:'Total'}), total)),
     field('Your name. Kept on the job, not shown to the customer', who), s.box), [btn('Cancel', closeModal), save]));
-  await lookUp();if(flow.autoSave&&who.value.trim()&&Math.abs(netSum()-Number(job.walkinAgreedTotal))<0.005)await save.onclick();
+  await lookUp();if(flow.autoSave&&who.value.trim()&&Math.abs(netSum()-Number(job.walkinAgreedTotal))<0.005)await saveQuote();
 }
 /* ---------- sending a message to the customer ----------
    The system sends it and says how far it got. Copying it, or opening it in an app, only prepares it and is never
