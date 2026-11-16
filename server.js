@@ -383,7 +383,7 @@ function create(opts){
       return send(res,200,await appointments.work[action](await readJson(req),user));
     }
     if (p === '/api/appointments/test' && req.method === 'POST') return send(res,200,appointments.createTest(user,await readJson(req)));
-    if(p.startsWith('/api/appointments/estimator/')&&req.method==='POST'){const action=p.split('/').pop();if(!['catalogue','selectProduct','attachment','drawing','configureMeasure','submitMeasure','measureExample'].includes(action))return fail(res,404,'not_found','Unknown estimator action.');return send(res,200,await estimatorTools[action](await readJson(req),user));}
+    if(p.startsWith('/api/appointments/estimator/')&&req.method==='POST'){const action=p.split('/').pop();if(!['catalogue','selectProduct','attachment','drawing','configureMeasure','submitMeasure','measureExample','prepareRooms','visitNotes','reviewMeasure'].includes(action))return fail(res,404,'not_found','Unknown estimator action.');return send(res,200,await estimatorTools[action](await readJson(req),user));}
     if(p.startsWith('/api/appointments/drawing/')&&req.method==='GET'){
       const bits=p.slice('/api/appointments/drawing/'.length).split('/'),jobId=decodeURIComponent(bits[0]||''),roomKey=decodeURIComponent(bits[1]||''),j=st.getDoc('jobs/'+jobId).data;
       if(!j||!(appointments.allowed(j,user)||Object.keys(j.pre||{}).some(k=>{const v=appointments.visitJob(j,k);return v&&appointments.allowed(v,user);})))return fail(res,403,'forbidden','This is not your assigned job.');
