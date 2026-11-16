@@ -87,3 +87,21 @@ test('changing back to fitting restores room fitting selections and price',()=>{
 test('area breakdown preserves different product prices and shares packs and minimums only once',()=>{const x=harness(),room=(name,want,area)=>({name,len:area,wid:1,area,want,spec:{floor:'flooring',fitting:true,underlay:true},underlayProduct:{id:'foam',title:'Foam',cov:15,pack:45}}),j={type:'Fitting',walkin:true,rooms:{a:room('Living','a',12),b:room('Bed','b',9)},brief:{choices:[{k:'a',title:'Oak laminate',type:'laminate',unit:'packs'},{k:'b',title:'Other laminate',type:'laminate',unit:'packs'}]}},goods={a:{cov:2,pack:20},b:{cov:2,pack:40}},prices={fitLaminate:5,fitStraightMin:150},whole=L.catalogue(j,prices,goods,{}),areas=x.box.catalogueAreaCosts(j,prices,goods,whole);assert.equal(areas.a.lines.find(x=>x.label==='Flooring').amount,140);assert.equal(areas.b.lines.find(x=>x.label==='Flooring').amount,200);for(const line of L.quoteRows(j,goods)){assert.equal(L.round2(Object.values(areas).reduce((n,a)=>n+(a.lines.find(x=>x.label===line.label)?.amount||0),0)),whole[line.key].amount);}assert.equal(areas.a.total+areas.b.total,636.5);assert.ok(areas.a.lines.some(x=>/Allocated share/.test(x.text)));});
 
 test('room catalogue searches partial names automatically while typing',async()=>{const x=harness(),queries=[];x.box.sq=async(q,a)=>{queries.push(a.q);return {products:{nodes:[],pageInfo:{hasNextPage:false}}};};x.box.catalogueQuote({title:'Oak laminate',productType:'laminate',coverage:{value:'2'},status:'ACTIVE'},{id:'oak',price:'20'});x.button('Browse full catalogue for room 1').onclick();x.input('Find product for room 1','Gr');x.input('Find product for room 1','Graph');await new Promise(r=>setTimeout(r,350));assert.equal(queries.at(-1),'status:active Graph*');assert.equal(queries.filter(q=>q==='status:active Gr*').length,0);});
+
+test('Cormar width is chosen with measurements and retained separately for each room',async()=>{
+ const x=harness();x.box.catalogueQuote({title:'Cormar Apollo Plus — Test',productType:'Carpet roll',internalId:'cormar-apollo-plus',internalKey:'cormar-apollo-plus|test',ppm:{value:JSON.stringify({amount:21.38})}},{id:'',price:0});
+ x.input('Length value for room 1','3');x.input('Width value for room 1','3');x.input('catalogueCustomer','ZZ TEST');x.input('cataloguePhone','07700900998');
+ await x.button('Save sizes and review quote').onclick();assert.equal(x.saved.length,0);
+ const width=(i,w)=>x.nodes().find(n=>n.p['aria-label']==='Carpet roll width room '+i).p.onchange({target:{value:w}});
+ width(1,'4');assert.match(x.text(),/Carpet: £265.11/);x.button('Add room').onclick();x.button('Same as last room').onclick();width(2,'5');x.input('Length value for room 2','3');x.input('Width value for room 2','3');await x.button('Save sizes and review quote').onclick();
+ assert.equal(x.saved.length,1);const j=x.saved[0];assert.deepEqual(Array.from(L.roomWidths(j,j.rooms.r0)),[4]);assert.deepEqual(Array.from(L.roomWidths(j,j.rooms.r1)),[5]);
+});
+
+
+test('carpet extras are limited to underlay gripper and door bars while fitting follows fulfilment',()=>{
+ const x=harness();x.box.catalogueQuote({title:'Carpet',productType:'Carpet roll',ppm:{value:JSON.stringify({amount:22})}},{id:'carpet',rollWidth:{value:'4'},price:8.8});
+ const labels=x.nodes().filter(n=>n.tag==='input'&&n.type==='checkbox').map(n=>n.p['aria-label']).filter(Boolean);
+ assert.deepEqual(labels,['Underlay required room 1','Gripper required room 1']);
+ assert.ok(!x.nodes().some(n=>n.p['aria-label']==='Flooring to flooring room 1'));
+ x.input('Length value for room 1','3');x.input('Width value for room 1','3');assert.match(x.text(),/Fitting: £120.00/);x.button('Collection').onclick();assert.doesNotMatch(x.text(),/Fitting: £120.00/);
+});
