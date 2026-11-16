@@ -101,7 +101,7 @@ test('Cormar width is chosen with measurements and retained separately for each 
 test('carpet extras are limited to underlay gripper and door bars while fitting follows fulfilment',()=>{
  const x=harness();x.box.catalogueQuote({title:'Carpet',productType:'Carpet roll',ppm:{value:JSON.stringify({amount:22})}},{id:'carpet',rollWidth:{value:'4'},price:8.8});
  const labels=x.nodes().filter(n=>n.tag==='input'&&n.type==='checkbox').map(n=>n.p['aria-label']).filter(Boolean);
- assert.deepEqual(labels,['Underlay required room 1','Gripper required room 1']);
+ assert.deepEqual(labels,['Underlay required room 1','Gripper required room 1','Door bars required room 1']);
  assert.ok(!x.nodes().some(n=>n.p['aria-label']==='Flooring to flooring room 1'));
  x.input('Length value for room 1','3');x.input('Width value for room 1','3');assert.match(x.text(),/Fitting: £120.00/);x.button('Collection').onclick();assert.doesNotMatch(x.text(),/Fitting: £120.00/);
 });
@@ -133,3 +133,12 @@ test('carpet colours appear once and measured widths resolve to correct Shopify 
 test('walk-in price and discount are agreed before customer details and survive save',async()=>{
  const x=harness();x.box.catalogueQuote({title:'Oak laminate',productType:'laminate',coverage:{value:'2'},status:'ACTIVE'},{id:'oak',price:'20'});assert.equal(x.button('Save customer and quote').hidden,true);assert.ok(x.button('10%'));x.input('Length value for room 1','3');x.input('Width value for room 1','4');x.button('10%').onclick();assert.match(x.text(),/Estimated total: £229.00/);x.button('Agree price \/ continue').onclick();assert.equal(x.button('Save customer and quote').hidden,false);assert.equal(x.saved.length,0);x.input('catalogueCustomer','ZZ TEST price first');x.input('cataloguePhone','07700900998');await x.button('Save customer and quote').onclick();assert.equal(x.saved[0].walkinDiscount,10);assert.equal(x.saved[0].walkinAgreedTotal,229);assert.equal(x.review.walkinDiscount,10);
 });
+
+
+test('carpet door-bar checkbox opens choices and removal clears its price',()=>{
+ const x=harness();x.box.catalogueQuote({title:'Test carpet',productType:'Carpet roll',ppm:{value:JSON.stringify({amount:20})}},{id:'test',rollWidth:{value:'4'},price:8});x.input('Length value for room 1','3');x.input('Width value for room 1','3');
+ const toggle=value=>x.nodes().find(n=>n.p['aria-label']==='Door bars required room 1').p.onchange({target:{checked:value}});toggle(true);
+ const detail=x.nodes().find(n=>n.tag==='details'&&n.kids.some(k=>k.text==='Door bars for this room'));assert.equal(detail.hidden,false);assert.equal(detail.open,true);
+ for(const [label,value] of [['Premium bar type','217'],['Premium bar colour','BDB'],['Premium bar size','9']])x.nodes().find(n=>n.p['aria-label']===label).value=value; x.button('Add premium bar').onclick();assert.match(x.text(),/Door bars: £16.99/);toggle(false);assert.doesNotMatch(x.text(),/Door bars: £16.99/);
+});
+
