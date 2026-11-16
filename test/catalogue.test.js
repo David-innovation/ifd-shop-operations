@@ -1,4 +1,5 @@
 'use strict';
+// Supplier-sheet prices must also apply to matching website catalogue colours.
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'../app/ifd-shop-operations.html'),'utf8'),L=require('../lib/rules').load(html);
 function harness(){class N{constructor(tag,p={},kids=[]){this.tag=tag;this.p=p;Object.assign(this,p);this.value=p.value||'';this.checked=!!p.checked;this.kids=kids.flat(Infinity).filter(Boolean);}append(...x){this.kids.push(...x.flat(Infinity).filter(Boolean));}replaceChildren(...x){this.kids=x.flat(Infinity).filter(Boolean);}}
@@ -180,3 +181,23 @@ test('supplier picker searches both suppliers and blocks unknown widths',async()
 
 test('staff dead cuts persist but estimator measurements retain allowance',()=>{const j={rooms:{a:{len:5.3,wid:3.9,source:'customer',cutAllowance:0,want:'c',spec:{floor:'carpet',dir:'len'}}},brief:{choices:[{k:'c',title:'Test carpet',w:4,widths:[4],unit:'m'}]}};assert.equal(L.planFor(j,j.rooms.a).best.cut,5.3);assert.equal(L.supplyPlan(j).groups[0].cut,5.3);j.rooms.a.source='estimator';assert.equal(L.planFor(j,j.rooms.a).best.cut,5.4);assert.equal(L.supplyPlan(j).groups[0].cut,5.4);});
 
+
+test('Furlong catalogue colours use supplied sheet prices and retain exact range',async()=>{
+ const x=harness(),p={title:'Avondale Twist Carpet — Furlong Flooring',productType:'Carpet',actualName:{value:'Furlong Flooring Avondale'}},v={id:'website-zero',title:'Plains / Nimbus',price:'0'};
+ assert.equal(x.box.catalogueGoods(p,v).ppm,22.25);
+ x.box.catalogueQuote(p,v);x.input('Length value for room 1','5.3');x.input('Width value for room 1','3.9');assert.match(x.text(),/Carpet: £471.70/);
+ x.input('catalogueCustomer','ZZ TEST Furlong matched');x.input('cataloguePhone','07700900001');await x.button('Save customer and quote').onclick();
+ const j=x.saved[0],c=j.brief.choices[0];assert.match(c.internalId,/avondale-plains/);assert.match(c.title,/Nimbus/);assert.equal(c.variantId,'');assert.equal(L.supplyPlan(j).groups[0].sq,21.2);
+});
+test('Furlong tiers match colour qualifiers and discontinued ranges disappear',()=>{
+ const x=harness(),p={title:'Bliss Saxony Carpet — Furlong Flooring',productType:'Carpet',actualName:{value:'Furlong Flooring Bliss'}};
+ assert.equal(x.box.catalogueFurlongRange(p,{title:'Bliss / Foggy Night'}).name,'Bliss');
+ assert.equal(x.box.catalogueFurlongRange(p,{title:'Bliss Comfort / Foggy Night'}).name,'Bliss Comfort');
+ const q={title:'Carefree Twist & Ultra Carpet — Furlong Flooring',productType:'Carpet',actualName:{value:'Furlong Flooring Carefree'}};
+ assert.equal(x.box.catalogueFurlongRange(q,{title:'Twist / Husky'}).name,'Carefree Twist');
+ assert.equal(x.box.catalogueFurlongRange(q,{title:'Ultra / Husky'}).name,'Carefree Ultra');
+ const gone={title:'Amesbury Contract Carpet — Furlong Flooring',productType:'Carpet',variants:{nodes:[{title:'Stone',price:0}]}};
+ assert.equal(x.box.catalogueColourOptions(gone).length,0);
+ const tiles={title:'Bedford Carpet Tiles — Furlong Flooring',productType:'Carpet Tiles'};
+ assert.equal(x.box.catalogueFurlongRange(tiles,{title:'Beige'}),null);
+});
