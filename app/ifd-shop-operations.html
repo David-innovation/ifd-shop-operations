@@ -3116,10 +3116,11 @@ function lineBlock(job, l){
     else state.append(chip('No bay yet', 'warn'));
     if (l.cutBy) state.append(chip('Cut by ' + l.cutBy));
     if (l.returned) state.append(chip('Put back into stock'));
-  } else state.append(chip(HOLD_TEXT.none));
+  } else {state.append(chip(HOLD_TEXT.none));if(l.cutBy)state.append(chip('Cut by '+l.cutBy));}
   return h('div', {class:'ln'},
     h('div', {class:'ln-top'}, h('b', {text:l.title + (l.sub ? ' · ' + l.sub : '')}), h('span', {class:'num', text:needs || l.qty > 1 ? L.fmtQty(l.qty, l.unit) : ''})),
     state,
+    job.test===true&&S.me.role==='owner'&&l.unit==='m'&&l.hold==='none'&&l.cuttingApproval&&!l.variantId&&!l.picked ? btn('Practice cut: '+(l.rooms||l.k),()=>cutDialog(job,l),'sm') : null,
     live ? h('p', {class:'small muted', text:'Shopify right now: ' + L.fmtQty(live.available, l.unit) + ' free to sell, ' + L.fmtQty(live.on_hand, l.unit) + ' on hand.'}) : null,
     l.hold === 'pick' ? h('p', {class:'small muted', text:'Picking and checking this does not change Shopify stock: it is not linked to a Shopify product.'}) : null,
     l.acc ? h('p', {class:'small muted', text:'For ' + String(l.acc.label).toLowerCase() + ': ' + L.fmtQty(l.acc.need, l.acc.unit) + ' needed. Reserved on the Shopify draft. It comes off Shopify stock when the order is fulfilled in Shopify, not when it is ticked here.'}) : null,
