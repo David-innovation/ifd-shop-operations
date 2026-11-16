@@ -428,6 +428,7 @@ function create(opts){
     if(p.startsWith('/trade/document/')&&req.method==='GET')return page(res,trade.preview(user,p.slice('/trade/document/'.length)));
     if(p==='/trade-documents.js'&&req.method==='GET')return send(res,200,pub('trade-documents.js'),{'content-type':'application/javascript'});
     if(p.startsWith('/api/trade/invoice/')){const id=p.slice('/api/trade/invoice/'.length);if(req.method==='POST')return send(res,200,trade.attach(user,id,await readBody(req,10*1024*1024)));if(req.method==='GET'){const f=trade.download(user,id);return send(res,200,f.body,{'content-type':'application/pdf','content-disposition':'attachment; filename="'+f.name+'"','cache-control':'private, no-store'});}}
+    if(p==='/api/supplier-ranges'&&req.method==='GET')return send(res,200,{rows:require('./lib/supplier-ranges').list()});
     if(p==='/api/sales-leads'&&req.method==='GET')return send(res,200,salesLeads.list(user));
     if(p==='/api/sales-leads'&&req.method==='POST')return send(res,200,salesLeads.action(user,await readJson(req)));
     if(p==='/api/sales-leads/convert'&&req.method==='POST')return send(res,200,salesLeads.convert(user,await readJson(req)));
