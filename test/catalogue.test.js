@@ -113,3 +113,12 @@ test('carpet uses full 4m or 5m roll widths and blocks a too-narrow roll',async(
  x.nodes().find(n=>n.p['aria-label']==='Carpet roll width room 1').p.onchange({target:{value:'5'}});assert.match(x.nodes().map(n=>n.textContent||'').join(' '),/Carpet charged: 6.10 × 5.00 m = 30.50 m²/);assert.match(x.text(),/Carpet: £610.00/);await x.button('Save sizes and review quote').onclick();assert.equal(x.saved.length,1);assert.equal(x.saved[0].rooms.r0.wid,4.1);
 });
 
+
+test('actual Shopify Zenith Carpet record prices full cuts and shows carpet-only extras',async()=>{
+ const x=harness(),p={title:'Zenith Easy-Clean Twist Carpet — Cormar',productType:'Carpet',status:'ACTIVE'},v={id:'zenith-caribou-4',title:'Caribou / 4m',price:'0.00'};
+ assert.equal(L.isRoll(v,p),true);assert.equal(x.box.catalogueChoice(p,v).w,4);assert.equal(x.box.catalogueGoods(p,v).ppm,24.22);x.box.catalogueQuote(p,v);x.input('Length value for room 1','5.3');x.input('Width value for room 1','4');
+ assert.match(x.text(),/Carpet: £523.15/);assert.doesNotMatch(x.text(),/Beading required|Underlay for this room|Uplift and disposal|Move furniture/);
+ x.nodes().find(n=>n.p['aria-label']==='Underlay required room 1').p.onchange({target:{checked:true}});assert.ok(x.nodes().some(n=>n.p['aria-label']==='Carpet underlay room 1'));x.input('catalogueCustomer','ZZ TEST Zenith');x.input('cataloguePhone','07700900998');await x.button('Save sizes and review quote').onclick();assert.equal(x.saved[0].brief.choices[0].unit,'m');assert.equal(x.saved[0].rooms.r0.spec.floor,'carpet');assert.equal(x.saved[0].rooms.r0.area,21.2);
+ const laminate={title:'Zenith Plank 8mm Waterproof Straight Laminate',productType:'laminate flooring',coverage:{value:'2.55'}};assert.equal(L.isRoll(v,laminate),false);assert.equal(x.box.catalogueGoods(laminate,{id:'lam',price:60.69}).ppm,0);
+ for(const row of require('../lib/supplier-ranges').list())assert.equal(x.box.catalogueCormarPrice({title:row.name+' Carpet — Cormar',productType:'Carpet'}),row.sellingPrice);
+});
