@@ -54,6 +54,7 @@ async function refreshSlotDeadline(){try{const fresh=await api('/api/appointment
 function renderDiary(d){
  clearInterval(slotWarningTimer);drawSlotWarning(d);drawInspectionWarning(d);if(['fitter','estimator'].includes(d.role))slotWarningTimer=setInterval(refreshSlotDeadline,60000);
 
+ document.body.classList.toggle('estimator-light',d.role==='estimator'||d.jobs.some(j=>j.visitId&&j.id+':'+j.visitId===diarySelected));
  diaryData=d;if(!diaryDay)diaryDay=d.today;if(!diaryWeek)diaryWeek=diaryMonday(diaryDay);
  for(const id of ['diaryView','diaryBack','crewBottom'])document.getElementById(id)?.remove();
  const cards=[...jobs.querySelectorAll(':scope > article')];if(!cards.some(c=>c.dataset.jobKey===diarySelected))diarySelected='';
