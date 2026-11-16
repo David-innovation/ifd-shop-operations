@@ -105,3 +105,11 @@ test('carpet extras are limited to underlay gripper and door bars while fitting 
  assert.ok(!x.nodes().some(n=>n.p['aria-label']==='Flooring to flooring room 1'));
  x.input('Length value for room 1','3');x.input('Width value for room 1','3');assert.match(x.text(),/Fitting: £120.00/);x.button('Collection').onclick();assert.doesNotMatch(x.text(),/Fitting: £120.00/);
 });
+
+test('carpet uses full 4m or 5m roll widths and blocks a too-narrow roll',async()=>{
+ const x=harness();x.box.catalogueQuote({title:'Cormar test',productType:'Carpet roll',internalId:'test',internalKey:'test|colour',ppm:{value:JSON.stringify({amount:20})}},{id:'',rollWidth:{value:'4'},price:8});
+ x.input('Length value for room 1','6');x.input('Width value for room 1','3.9');assert.match(x.nodes().map(n=>n.textContent||'').join(' '),/Carpet charged: 6.10 × 4.00 m = 24.40 m²/);assert.match(x.nodes().map(n=>n.textContent||'').join(' '),/23.4 m² \(underlay\)/);assert.match(x.text(),/Carpet: £488.00/);
+ x.input('Width value for room 1','4.1');x.input('catalogueCustomer','ZZ TEST');x.input('cataloguePhone','07700900998');await x.button('Save sizes and review quote').onclick();assert.equal(x.saved.length,0);
+ x.nodes().find(n=>n.p['aria-label']==='Carpet roll width room 1').p.onchange({target:{value:'5'}});assert.match(x.nodes().map(n=>n.textContent||'').join(' '),/Carpet charged: 6.10 × 5.00 m = 30.50 m²/);assert.match(x.text(),/Carpet: £610.00/);await x.button('Save sizes and review quote').onclick();assert.equal(x.saved.length,1);assert.equal(x.saved[0].rooms.r0.wid,4.1);
+});
+
