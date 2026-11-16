@@ -85,3 +85,14 @@ body.crew{background:#08090b;color:#f7f7f8;font-family:Inter,'Segoe UI',system-u
 .crew-diary [aria-label="Reschedule calendar"] small{color:#c9cad2}
 .crew-diary [aria-label="Reschedule calendar"] button{background:#24252c;color:#fff;border:1px solid #62636d}
 .crew-diary [aria-label="Reschedule calendar"] button[aria-pressed="true"]{background:#a3122b;border-color:#ff8294}
+
+/* Structured estimator booking brief. */
+.crew .estimator-booking .booking-contact,.crew .estimator-booking .booking-rooms,.crew .estimator-booking .booking-notes{padding:16px;margin:12px 0;background:#191a20;border:1px solid #363741;border-radius:12px}
+.crew .estimator-booking h3{font-size:16px;margin:0 0 12px;color:#fff}
+.crew .estimator-booking .booking-contact p{margin:3px 0;padding:0;color:#d0d1da}
+.crew .estimator-booking .booking-contact a{display:inline-block;color:#ff91a4;margin-top:8px;min-height:30px}
+.crew .estimator-booking .booking-room{display:grid;gap:5px;padding:13px 12px;margin:8px 0;background:#22232a;border-left:3px solid #d7193e;border-radius:7px;overflow-wrap:anywhere}
+.crew .estimator-booking .booking-room strong{font-size:15px;color:#fff}
+.crew .estimator-booking .booking-room span{font-size:13px;color:#c8cad4;line-height:1.5}
+.crew .estimator-booking .booking-notes p{font-size:13px;line-height:1.6;color:#c8cad4;padding:0;margin:10px 0}
+
