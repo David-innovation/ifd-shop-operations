@@ -48,6 +48,13 @@ function addFitterWork(card,j,shop){
 }
 
 function dimensionedCarpetCut(b){
+ if(b.shapeDiagram){
+  const box=el('div'),image=el('div');image.innerHTML=b.shapeDiagram;image.style.cssText='overflow:auto;background:white;border-radius:8px';
+  const svg=image.querySelector('svg');svg.style.cssText='display:block;width:100%;min-width:820px';image.tabIndex=0;image.setAttribute('aria-label','Actual shape cutting plan — scroll to read dimensions');
+  const toggle=el('button','Fit whole cutting picture');toggle.onclick=()=>{const fit=svg.style.minWidth==='0px';svg.style.minWidth=fit?'820px':'0px';toggle.textContent=fit?'Fit whole cutting picture':'Enlarge cutting measurements';};
+  box.append(toggle,image,el('p','Trace the numbered shape edges. Outer length × width is NOT a rectangular cut. All allowances are included. Do not cut across another piece.'));
+  const list=el('details');list.append(el('summary','Every cutting edge and position'));for(const e of b.shapeEdges||[])list.append(el('p',e.label+' · '+e.name+': '+(e.length/100).toFixed(2)+'m; start '+(e.x/100).toFixed(2)+', '+(e.y/100).toFixed(2)+'m; end '+(e.x2/100).toFixed(2)+', '+(e.y2/100).toFixed(2)+'m from top-left.'));box.append(list);return box;
+ }
  const ns='http://www.w3.org/2000/svg',scale=2,left=100,top=120,W=b.w*scale,H=b.l*scale,svg=document.createElementNS(ns,'svg');
  const add=(tag,attrs,text)=>{const n=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v);if(text!==undefined)n.textContent=text;svg.append(n);return n;},m=n=>(n/100).toFixed(2)+'m';
  svg.setAttribute('viewBox','0 0 '+(W+left+70)+' '+(H+top+70));svg.setAttribute('role','img');svg.setAttribute('aria-label',b.id+' dimensioned cutting diagram; length '+m(b.l)+', width '+m(b.w)+'. Measurements include allowances.');svg.classList.add('dimensioned-carpet-cut');svg.style.cssText='display:block;width:100%;min-width:820px;background:#101014;border-radius:8px';
@@ -78,7 +85,7 @@ function renderFitterDetails(box,j){
  line(wrap,'Carpet',plan.material);line(wrap,plan.status==='approved'?'Approved carpet total':'Proposed carpet total',plan.area.toFixed(2)+'m²');if(plan.status!=='approved'&&plan.saving>0){line(wrap,'Separate-cut comparison',plan.baselineArea.toFixed(2)+'m²');line(wrap,'Potential carpet saving',plan.saving.toFixed(2)+'m²');}wrap.append(el('p','All arrows point down the roll: no pieces are rotated. Exact room measurements and underlay stay unchanged. Room pieces include 10cm length and width fitting allowance; stair pieces include 5cm along pile and 10cm across.'));
  for(const b of plan.bins){const group=el('div');group.style.cssText='margin:20px 0;padding:14px;border:1px solid #d62338;border-radius:12px';group.append(el('h4',b.id+' — '+(b.l/100).toFixed(1)+' × '+(b.w/100).toFixed(1)+'m'),el('p','↓ Pile direction / length down the diagram'));
  group.append(el('p','Scroll the picture sideways on your phone to read every measurement. White edges show the piece boundaries; width is marked across and length down each piece. Measure from the top-left corner using the edge positions. Do not measure from the screen.'),dimensionedCarpetCut(b));
- for(const p of b.pieces)group.append(el('p',p.name+': '+(p.l/100).toFixed(2)+' × '+(p.w/100).toFixed(2)+'m; from left '+(p.x/100).toFixed(2)+'m, from top '+(p.y/100).toFixed(2)+'m. ↓'));
+ for(const p of b.pieces)group.append(el('p',p.name+(p.shape?' — SHAPED PIECE, outer size only: ':': ')+(p.l/100).toFixed(2)+' × '+(p.w/100).toFixed(2)+'m; from left '+(p.x/100).toFixed(2)+'m, from top '+(p.y/100).toFixed(2)+'m. ↓'));
  group.append(el('small','Grey areas are remaining offcuts. Keep each piece labelled with its room and pile arrow.'));wrap.append(group);}
  wrap.append(el('p',plan.notes));}}
  const pick=section('Materials to take — whole job');if(d.cuttingStale)line(pick,'STOP — cutting plan changed','Shop must approve a new plan and review stock before cutting.');if(d.review)line(pick,'STOP — shop review required',d.review);if(!d.pickList?.length)line(pick,'Confirmed materials',null);for(const x of d.pickList||[])item(pick,x);pick.append(el('small','Use these recorded order quantities. Required coverage is shown separately from whole stock units. Do not add extra material without shop approval.'));
