@@ -1,0 +1,5 @@
+'use strict';
+(()=>{const a=document.createElement('a');a.href='/inbox';a.style.cssText='display:block;margin:12px auto;max-width:1120px;border:1px solid #96334a;border-radius:12px;padding:16px;background:#21151b;color:#fff;text-decoration:none;font-weight:700';a.textContent='Shop inbox — checking…';
+function attach(){if(!a.isConnected)document.querySelector('#view')?.before(a);}
+async function refresh(){try{const r=await fetch('/api/operations-inbox/status');if(!r.ok)throw Error();const d=await r.json();attach();const failed=d.accounts.filter(x=>!x.configured||!x.ok||!x.at||Date.now()-Date.parse(x.at)>5*60000);a.textContent='Shop inbox — '+d.pending+' not dealt with'+(!d.enabled?' · Monitoring off':failed.length?' · '+failed.map(x=>x.label).join(' / ')+' connection needs attention':'');}catch{a.textContent='Shop inbox — could not refresh; open to check';}}
+document.addEventListener('DOMContentLoaded',()=>{attach();new MutationObserver(attach).observe(document.body,{childList:true,subtree:true});refresh();setInterval(refresh,60000);});})();

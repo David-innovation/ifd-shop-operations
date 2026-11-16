@@ -24,7 +24,7 @@ function create(opts){
   const appBody = fs.readFileSync(path.join(__dirname, 'app', 'ifd-shop-operations.html'), 'utf8');
   /* which build of the screens this is, so a screen left open can tell when it has been replaced */
   const VERSION = crypto.createHash('sha256').update(appBody + pub('shim.js')).digest('hex').slice(0, 12);
-  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '">' + ['walkin-measures.js','walkin-stairs-core.js','walkin-stairs.js','shim.js','reschedule.js'].map(name=>'<script>'+(name==='walkin-stairs-core.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-stairs.js'),'utf8'):name==='walkin-measures.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-measures.js'),'utf8'):pub(name)).replace(/<\/script/gi,'<\\/script')+'</script>').join('') + '<script src="/slot-alerts.js" defer></script><script src="/trade-link.js" defer></script></head><body>' + appBody + '</body></html>';
+  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '">' + ['walkin-measures.js','walkin-stairs-core.js','walkin-stairs.js','shim.js','reschedule.js'].map(name=>'<script>'+(name==='walkin-stairs-core.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-stairs.js'),'utf8'):name==='walkin-measures.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-measures.js'),'utf8'):pub(name)).replace(/<\/script/gi,'<\\/script')+'</script>').join('') + '<script src="/slot-alerts.js" defer></script><script src="/trade-link.js" defer></script><script src="/inbox-alert.js" defer></script></head><body>' + appBody + '</body></html>';
   const db = st.db;
   /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
   const L = rules.load(appBody);
@@ -107,6 +107,7 @@ function create(opts){
   const feedback=require('./lib/fitter-feedback').make({st,now,broadcast,baseUrl:env.PUBLIC_URL||env.RENDER_EXTERNAL_URL||'https://ifd-shop-operations.onrender.com'});
   const cmds = commands.make({st, L, texter, mailer, now, log, broadcast, quoteAcceptance, feedback, pollMs:opts.pollMs});
   const salesLeads=require('./lib/sales-leads').make({st,L,now,broadcast});
+  const operationsInbox=require('./lib/operations-inbox').make({st,env,now,broadcast,mailer,salesLeads,reader:opts.inboxReader});operationsInbox.start();
   const outstanding=require('./lib/retail-outstanding').make({st,L,cmds,mailer,now,broadcast});
   cmds.start();
   const textCredit=require('./lib/text-credit').make({st,texter,mailer,now,broadcast});textCredit.start();
@@ -256,6 +257,7 @@ function create(opts){
       }catch(e){return page(res,'<html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font:18px/1.6 Arial;max-width:600px;margin:60px auto;padding:24px"><h1>Innovation Flooring Direct</h1><p>'+require('./lib/quote-email').esc(e.message||'Please contact the shop.')+'</p><a href="mailto:sales@innovationflooringdirect.com">Contact our sales team</a></body></html>',e.status||500);}
     }
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
+    if(p==='/inbox-alert.js')return send(res,200,pub('inbox-alert.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/reschedule.js') return send(res,200,pub('reschedule.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/estimator-tools.js') return send(res,200,pub('estimator-tools.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/room-drawing-model.js') return send(res,200,fs.readFileSync(path.join(__dirname,'lib/room-drawing.js')),{"content-type":"text/javascript; charset=utf-8"});
@@ -416,6 +418,10 @@ function create(opts){
     if(p==='/api/goods-in/office'&&req.method==='GET')return send(res,200,goodsIn.list(user,true));
     if(p==='/api/goods-in/cost'&&req.method==='POST')return send(res,200,await goodsIn.setCost(user,await readJson(req)));
     if(p==='/api/goods-in/valuation'&&req.method==='GET')return send(res,200,await goodsIn.valuation(user));
+    if(p==='/inbox'&&req.method==='GET')return page(res,pub('operations-inbox.html'));
+    if(p==='/api/operations-inbox/status'&&req.method==='GET')return send(res,200,operationsInbox.status(user));
+    if(p==='/api/operations-inbox'&&req.method==='GET')return send(res,200,operationsInbox.list(user,Object.fromEntries(url.searchParams)));
+    if(p==='/api/operations-inbox'&&req.method==='POST')return send(res,200,await operationsInbox.action(user,await readJson(req)));
     if(p==='/staff-help'&&req.method==='GET')return page(res,pub('staff-help.html'));
     if(p==='/api/staff-help'&&req.method==='GET')return send(res,200,require('./lib/staff-help.json'));
     if(p==='/still-to-pay'&&req.method==='GET')return page(res,pub('still-to-pay.html'));
@@ -479,7 +485,7 @@ function create(opts){
     handle(req, res).catch(e => { if (res.headersSent) return res.end(); if (e && e.status) return send(res, e.status, {error:Object.assign({code:e.code, message:e.message}, e.more || {})}); log('ERROR ' + (e && e.stack || e)); fail(res, 500, 'server_error', 'Something went wrong on the server.'); });
   });
   const beat = setInterval(() => listeners.forEach(r => { try { r.write(': keep\n\n'); } catch (e) {} }), 25000); beat.unref();
-  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ textCredit.stop();trade.close(); clearInterval(beat); cmds.stop(); supplierMail.stop(); performance.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
+  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ textCredit.stop();trade.close(); clearInterval(beat); cmds.stop(); supplierMail.stop(); operationsInbox.stop(); performance.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
     /* for the owner's tools and the tests */
     disableUser(id){ const u = q.userById.get(id); if (u){ q.setUser.run(u.name, u.role, 0, id); q.dropSessionsOf.run(id); } } };
 }
