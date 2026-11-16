@@ -4394,17 +4394,19 @@ function orderDetailsDialog(job, l){
 function cutDialog(job, l){
   if (!needDb() || !needCmd()) return;
   const s = sayer(), len = (Number(l.qty) / 10).toFixed(1), why = L.cutBlocks(job, l), held = why.length > 0, owner = S.me.role === 'owner';
-  const pick = bayPicker('cutBay', l.bay || '', 'Choose where it is'), who = h('input', {class:'in', id:'cutBy', type:'text', placeholder:'Your first name', value:myName(), autocomplete:'off'});
+  const pick = bayPicker('cutBay', l.bay || '', 'Choose where it is'), who = h('input', {class:'in', id:'cutBy', type:'text', placeholder:'Enter your name for this cut', value:'', autocomplete:'off'});
+  const cutNames=(l.cuts||[]).length>1?l.cuts.map((c,i)=>({label:(c.label||'Cut '+(i+1))+' · '+Number(c.length??c.len).toFixed(2)+' × '+Number(c.width??c.w??l.w).toFixed(2)+'m · '+(c.pieces?.map(p=>p.name).join(', ')||c.room||''),input:h('input',{class:'in',type:'text',placeholder:'Who cut this piece?',autocomplete:'off',maxlength:60})})):[];
   const reason = h('textarea', {class:'in', id:'cutWhy', placeholder:'Why it is being cut anyway'});
   const save = btn(held ? 'Cut it anyway' : 'Save: it is cut', async () => {
     const bay = String(pick.value || '').trim().toUpperCase(), name = who.value.trim(), errs = [];
     if (!bay) errs.push('Say where the cut piece is now.');
     else if (!L.isFinalBay(bay)) errs.push('GOODS-IN is not a final place. Choose where the cut piece has been put.');
     if (!name) errs.push('Type your name.');
+    cutNames.forEach(c=>{if(!c.input.value.trim())errs.push('Enter the cutter for '+c.label);});
     if (held && reason.value.trim().length < 10) errs.push('Say why it is being cut anyway.');
     if (errs.length){ s.say(errs.join(' '), true); return; }
     myName(name); save.disabled = true;
-    try { await runCmd('cut', {jobId:job.id, lineK:l.k, bay:bay, byName:name, override:held ? {reason:reason.value.trim()} : null}); closeModal(); toast(held ? 'Cut saved, with the override on the job' : 'Cut saved'); }
+    try { await runCmd('cut', {jobId:job.id, lineK:l.k, bay:bay, byName:name, cutByNames:cutNames.length?cutNames.map(c=>c.input.value.trim()):[name], override:held ? {reason:reason.value.trim()} : null}); closeModal(); toast(held ? 'Cut saved, with the override on the job' : 'Cut saved'); }
     catch (e){ save.disabled = false; s.say(cmdSay(e), true); }
   }, held ? 'danger' : 'pri');
   const head = h('p', {}, h('b', {text:len + ' m' + (l.w ? ' off the ' + l.w + ' m roll' : '')}), ' of ' + l.title + ', for ' + ((job.customer || {}).name || 'this job') + ' ' + (job.ref || '') + '.');
@@ -4415,7 +4417,7 @@ function cutDialog(job, l){
   }
   openModal(dlg(held ? 'Cut it despite the hold' : 'Cut done', h('div', {class:'sec', id:'cutForm'}, head, holdBox,
     held ? h('p', {class:'muted', text:'As the owner you can have it cut anyway. Your reason is written on the job with your name.'}) : h('p', {class:'muted', text:'Roll it up, label it with the customer’s name and job number, then say where you have put it.'}),
-    held ? field('Reason', reason) : null, field('Where is it now', pick), field('Cut by', who), s.box), [btn('Cancel', closeModal), save], true));
+    held ? field('Reason', reason) : null, field('Where is it now', pick), field(cutNames.length?'Recorded by':'Cut by — required', who),cutNames.map(c=>field(c.label+' — cut by',c.input)),h('p',{class:'muted',text:'Record the person who actually cut the carpet. Their name, cut sizes, date, time and storage bay stay on the job history.'}), s.box), [btn('Cancel', closeModal), save], true));
 }
 /* ---------- something other than carpet has been picked for a job ---------- */
 function pickAll(){
