@@ -5,6 +5,7 @@
 const http = require('node:http'), fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const store = require('./lib/store'), shopifyLib = require('./lib/shopify'), sms = require('./lib/sms'), mail = require('./lib/mail'), rules = require('./lib/rules'), commands = require('./lib/commands');
 
+const financePrivacy=require('./lib/owner-finance');
 const SHOP_ROLES = ['owner', 'shop'];                       /* full shop screens */
 const ROLES = ['owner', 'shop', 'fitter', 'estimator', 'warehouse'];
 const CODE_MINUTES = 10, CODE_TRIES = 5, SENDS_PER_WINDOW = 3, WINDOW_MS = 15 * 60000;
@@ -61,7 +62,7 @@ function create(opts){
   const ipSends = new Map(), listeners = new Set();
   function send(res, status, body, headers){
     const h = Object.assign({'cache-control':'no-store', 'x-content-type-options':'nosniff', 'referrer-policy':res.getHeader('referrer-policy')||'same-origin', 'x-frame-options':'DENY'}, headers || {});
-    if (typeof body === 'object' && !Buffer.isBuffer(body)){ body = JSON.stringify(body); h['content-type'] = 'application/json; charset=utf-8'; }
+    if (typeof body === 'object' && !Buffer.isBuffer(body)){ body = JSON.stringify(res.financeRestricted?financePrivacy.redact(body):body); h['content-type'] = 'application/json; charset=utf-8'; }
     res.writeHead(status, h); res.end(body);
   }
   const page = (res, html, status) => send(res, status || 200, html, {'content-type':'text/html; charset=utf-8',
@@ -157,6 +158,8 @@ function create(opts){
 
   /* ---------- records ---------- */
   async function dbRoute(req, res, url, user, what){
+    const protectedPath=value=>financePrivacy.privateCollections.has(String(value||'').split('/')[0]);
+    if(user.role!=='owner'&&(protectedPath(url.searchParams.get('path'))||protectedPath(url.searchParams.get('coll'))))return fail(res,403,'forbidden','Owner access only.');
     if (req.method === 'GET' && what === 'doc'){ const d = store.docPath(url.searchParams.get('path')); if (!d) return fail(res, 400, 'invalid_argument', 'Bad path.'); return send(res, 200, st.getDoc(d.path)); }
     if (req.method === 'GET' && what === 'list'){
       const c = store.collPath(url.searchParams.get('coll')); if (!c) return fail(res, 400, 'invalid_argument', 'Bad path.');
@@ -164,6 +167,8 @@ function create(opts){
     }
     if (req.method !== 'POST') return fail(res, 405, 'bad_request', 'Not allowed.');
     const body = await readJson(req);
+    if(user.role!=='owner'&&(protectedPath(body.path)||protectedPath(body.coll)||financePrivacy.hasPrivate(body.data)))return fail(res,403,'forbidden','Owner costs cannot be changed by staff.');
+    if(what==='set'&&user.role!=='owner'&&body.path&&financePrivacy.hasPrivate(st.getDoc(body.path).data))return fail(res,403,'forbidden','Update the operational fields without replacing private records.');
     if (what === 'add'){
       const c = store.collPath(body.coll); if (!c || !body.data || typeof body.data !== 'object') return fail(res, 400, 'invalid_argument', 'Bad path.');
       if(c==='leads')return fail(res,403,'use_command','Use Sales leads.');
@@ -229,6 +234,7 @@ function create(opts){
   /* ---------- the router ---------- */
   async function handle(req, res){
     const url = new URL(req.url, 'http://x'), p = url.pathname, authUser=userOf(req);
+    res.financeRestricted=authUser?.role!=='owner';
     const trial=authUser?.role==='owner'&&/(?:^|;\s*)ifd_trial=1(?:;|$)/.test(req.headers.cookie||'');
     const user=trial?{...authUser,id:'trial_'+authUser.id,name:authUser.name+' - fitter trial',role:'fitter',trial:true}:authUser, shopUser=user&&SHOP_ROLES.includes(user.role);
     if(p.startsWith('/floor-plan/')&&req.method==='GET'){res.setHeader('referrer-policy','no-referrer');res.setHeader('cache-control','no-store');res.setHeader('x-robots-tag','noindex, nofollow');const html=require('./lib/customer-floor-plan').read(st,p.slice(12),now);return html?page(res,html):fail(res,404,'not_found','This floor plan link is not available. Please contact the shop.');}
@@ -374,6 +380,10 @@ function create(opts){
       q.dropSession.run(hash(cookieOf(req)));setSession(res,{...authUser,id:fitterId,role:'fitter'});
       res.setHeader('set-cookie',[res.getHeader('set-cookie'),'ifd_trial=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(secure?'; Secure':'')]);return send(res,200,{ok:true,enabled:true});
     }
+    res.financeRestricted=user.role!=='owner';
+    if(['/owner-overview','/api/owner-overview','/buying-report','/api/buying-report','/buying-comparison','/api/buying-comparison','/goods-in-office','/api/goods-in/office','/api/goods-in/cost','/api/goods-in/valuation'].includes(p)&&user.role!=='owner')return fail(res,403,'forbidden','Owner access only.');
+    if(p==='/owner-overview'&&req.method==='GET')return page(res,pub('owner-overview.html'));
+    if(p==='/api/owner-overview'){const f=financePrivacy.make({st,L,now});try{if(req.method==='GET')return send(res,200,f.report(user,Object.fromEntries(url.searchParams)));if(req.method==='POST')return send(res,200,f.save(user,await readJson(req)));}catch(e){return fail(res,e.status||409,'owner_overview',e.message);}}
     if (p === '/api/me') return send(res, 200, {id:user.id, name:user.name, role:user.role});
     if(p==='/surplus-stock'||p==='/api/surplus-stock'){if(!shopUser)return fail(res,403,'forbidden','Shop access required.');if(p==='/surplus-stock'&&req.method==='GET')return page(res,pub('surplus-stock.html'));const surplus=require('./lib/surplus-stock').make({st,shop,L});try{if(req.method==='GET')return send(res,200,{rows:surplus.rows()});if(req.method==='POST')return send(res,200,await surplus.plan((await readJson(req)).lines));}catch(e){return fail(res,409,'surplus',e.message);}return fail(res,405,'method','Not allowed.');}
     if(p==='/buying-report'||p==='/api/buying-report'){if(!shopUser)return fail(res,403,'forbidden','Only shop staff can view sales and buying savings.');if(p==='/buying-report'&&req.method==='GET')return page(res,pub('buying-report.html'));const report=require('./lib/buying-report').make({st,L,now,broadcast});try{if(req.method==='GET')return send(res,200,report.report(url.searchParams.get('month')||''));if(req.method==='POST'){const b=await readJson(req);if(b.action==='confirm')return send(res,200,report.confirm(b,user));if(b.action==='void')return send(res,200,report.voidEntry(b,user));}}catch(e){return fail(res,409,'buying_report',e.message);}return fail(res,400,'action','Unknown reporting action.');}
