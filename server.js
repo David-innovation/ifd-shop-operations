@@ -24,7 +24,7 @@ function create(opts){
   const appBody = fs.readFileSync(path.join(__dirname, 'app', 'ifd-shop-operations.html'), 'utf8');
   /* which build of the screens this is, so a screen left open can tell when it has been replaced */
   const VERSION = crypto.createHash('sha256').update(appBody + pub('shim.js')).digest('hex').slice(0, 12);
-  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '">' + ['walkin-measures.js','walkin-stairs-core.js','walkin-stairs.js','shim.js','reschedule.js'].map(name=>'<script>'+(name==='walkin-stairs-core.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-stairs.js'),'utf8'):name==='walkin-measures.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-measures.js'),'utf8'):pub(name)).replace(/<\/script/gi,'<\\/script')+'</script>').join('') + '<script src="/slot-alerts.js" defer></script><script src="/trade-link.js" defer></script><script src="/inbox-alert.js" defer></script></head><body>' + appBody + '</body></html>';
+  const appHtml = () => SKEL + '<meta name="ifd-version" content="' + VERSION + '">' + ['walkin-measures.js','walkin-stairs-core.js','walkin-stairs.js','shim.js','reschedule.js'].map(name=>'<script>'+(name==='walkin-stairs-core.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-stairs.js'),'utf8'):name==='walkin-measures.js'?fs.readFileSync(path.join(__dirname,'lib','walkin-measures.js'),'utf8'):pub(name)).replace(/<\/script/gi,'<\\/script')+'</script>').join('') + '<script src="/slot-alerts.js" defer></script><script src="/trade-link.js" defer></script><script src="/inbox-alert.js" defer></script><script src="/buying-link.js" defer></script></head><body>' + appBody + '</body></html>';
   const db = st.db;
   /* the same rules the screens use, and the two ways a message can leave: the text service and the mail server */
   const L = rules.load(appBody);
@@ -258,6 +258,7 @@ function create(opts){
       }catch(e){return page(res,'<html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font:18px/1.6 Arial;max-width:600px;margin:60px auto;padding:24px"><h1>Innovation Flooring Direct</h1><p>'+require('./lib/quote-email').esc(e.message||'Please contact the shop.')+'</p><a href="mailto:sales@innovationflooringdirect.com">Contact our sales team</a></body></html>',e.status||500);}
     }
     if (p === '/healthz') return send(res, 200, 'ok', {'content-type':'text/plain'});
+    if(p==='/buying-link.js')return send(res,200,pub('buying-link.js'),{'content-type':'text/javascript; charset=utf-8'});
     if(p==='/inbox-alert.js')return send(res,200,pub('inbox-alert.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/reschedule.js') return send(res,200,pub('reschedule.js'),{'content-type':'text/javascript; charset=utf-8'});
     if (p === '/estimator-tools.js') return send(res,200,pub('estimator-tools.js'),{'content-type':'text/javascript; charset=utf-8'});
@@ -370,6 +371,7 @@ function create(opts){
       res.setHeader('set-cookie',[res.getHeader('set-cookie'),'ifd_trial=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'+(secure?'; Secure':'')]);return send(res,200,{ok:true,enabled:true});
     }
     if (p === '/api/me') return send(res, 200, {id:user.id, name:user.name, role:user.role});
+    if(p==='/buying-comparison'||p==='/api/buying-comparison'){if(!shopUser)return fail(res,403,'forbidden','Only shop staff can view supplier costs.');if(p==='/buying-comparison'&&req.method==='GET')return page(res,pub('buying-comparison.html'));const buying=require('./lib/buying-comparison').make({st,L,now});if(req.method==='GET')return send(res,200,buying.get());if(req.method==='POST'){try{return send(res,200,buying.run(await readJson(req),user));}catch(e){return fail(res,409,'buying_comparison',e.message);}}return fail(res,405,'method','Not allowed.');}
     if (p === '/appointments' && req.method === 'GET') { if (!shopUser && !['fitter','estimator'].includes(user.role)) return fail(res,403,'forbidden','This page is for fitters, estimators and shop staff.'); return page(res,pub('appointments.html')); }
     if(p==='/api/my-messages'&&req.method==='GET')return send(res,200,fitterMessages.own(user));
     if(p==='/api/my-messages/action'&&req.method==='POST')return send(res,200,fitterMessages.action(user,await readJson(req)));
