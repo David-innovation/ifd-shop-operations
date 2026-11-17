@@ -10,16 +10,16 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  const login=async mobile=>{await call('/api/login/code',null,{mobile});const r=await fetch(base+'/api/login/verify',{method:'POST',headers:{'x-ifd':'1','content-type':'application/json'},body:JSON.stringify({mobile,code:/code: (\d{6})/.exec(codes.at(-1))[1]})});return r.headers.get('set-cookie').split(';')[0];};
  try{
  const landing=await fetch(base+'/appointments');assert.equal(landing.status,200);assert.match(landing.headers.get('content-type'),/text\/html/);assert.match(await landing.text(),/Text me a code/);assert.equal((await call('/api/appointments')).status,401);
- app.ensureUser('Lennox','07700900003','fitter');app.ensureUser('Other','07700900004','fitter');app.ensureUser('Surveyor','07700900005','estimator');const me=await login('07700900003'),other=await login('07700900004'),est=await login('07700900005'),owner=await login('07700900001');
+ app.ensureUser('Stiv','07700900003','fitter');app.ensureUser('Other','07700900004','fitter');app.ensureUser('Surveyor','07700900005','estimator');const me=await login('07700900003'),other=await login('07700900004'),est=await login('07700900005'),owner=await login('07700900001');
  app.store.setDoc(docPath('settings/main'),{msgs:{testOnly:true,allow:['07700900555','test@example.test']}});
- const j={status:'open',type:'Fitting',diary:true,date:'2026-11-12',fitter:'Lennox',ref:'ZZ-WORK',customer:{name:'ZZ TEST',phone:'07700900555',email:'test@example.test'},lines:{a:{title:'Laminate flooring',qty:10}},total:500,fitterDue:100,pay:{sample:{amount:400}},drafts:{d:{id:'unchanged'}}};app.store.setDoc(docPath('jobs/work'),j);app.store.setDoc(docPath('jobs/private'),{...j,fitter:'Other',customer:{name:'PRIVATE CUSTOMER'},ref:'PRIVATE'});
+ const j={status:'open',type:'Fitting',diary:true,date:'2026-11-12',fitter:'Stiv',ref:'ZZ-WORK',customer:{name:'ZZ TEST',phone:'07700900555',email:'test@example.test'},lines:{a:{title:'Laminate flooring',qty:10}},total:500,fitterDue:100,pay:{sample:{amount:400}},drafts:{d:{id:'unchanged'}}};app.store.setDoc(docPath('jobs/work'),j);app.store.setDoc(docPath('jobs/private'),{...j,fitter:'Other',customer:{name:'PRIVATE CUSTOMER'},ref:'PRIVATE'});
  const current=()=>app.store.getDoc('jobs/work').data;
  const run=(action,data={},cookie=me)=>call('/api/appointments/work/'+action,cookie,{jobId:'work',date:current().date,version:current().fitterWork?.version||0,...data});
  for(const action of ['checklist','issue','schedule','notify','diary','approve'])assert.equal((await run(action,{},other)).status,403);
  assert.equal((await run('diary',{},est)).status,403);assert.equal((await run('diary')).data.jobs.length,0);
  app.store.updateDoc(docPath('jobs/work'),{customer:{postcode:'G81 1XP'}});
  app.store.setDoc(docPath('jobs/area'),{...j,date:'2026-11-20',customer:{name:'Own nearby job',postcode:'G81 2AA'},fitterWork:{slot:'8-10am',duration:60}});
- app.store.setDoc(docPath('timeoff/calendar-test'),{name:'Lennox',days:{'2026-11-21':{off:true}}});
+ app.store.setDoc(docPath('timeoff/calendar-test'),{name:'Stiv',days:{'2026-11-21':{off:true}}});
  assert.equal((await run('calendar',{duration:60},other)).status,403);
  const cal=await run('calendar',{duration:60});assert.equal(cal.status,200);assert.equal(cal.data.area,'G81');assert.ok(!JSON.stringify(cal.data).includes('PRIVATE CUSTOMER'));
  const day=cal.data.days.find(d=>d.date==='2026-11-20');assert.equal(day.sameArea,true);assert.ok(!day.slots.includes('8-10am'));assert.ok(day.slots.includes('1-3pm'));assert.deepEqual(cal.data.days.find(d=>d.date==='2026-11-21').slots,[]);
@@ -37,13 +37,13 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  assert.equal((await run('issue',{key:'beading_task',reason:'beading',note:'Finish lounge beading'})).status,200);assert.ok(W.completionProblems(current()).length);
  let b={key:'return_visit',purpose:'return',newDate:'2026-11-13',slot:'8-10am',duration:60,note:'Finish the remaining beading',agreed:true};
  assert.equal((await run('schedule',{...b,agreed:false})).status,400);
- app.store.setDoc(docPath('timeoff/lennox'),{name:'Lennox',days:{'2026-11-13':{off:true}}});assert.equal((await run('schedule',b)).status,409);app.store.updateDoc(docPath('timeoff/lennox'),{days:{'2026-11-13':{off:false}}});
+ app.store.setDoc(docPath('timeoff/lennox'),{name:'Stiv',days:{'2026-11-13':{off:true}}});assert.equal((await run('schedule',b)).status,409);app.store.updateDoc(docPath('timeoff/lennox'),{days:{'2026-11-13':{off:false}}});
  app.store.setDoc(docPath('jobs/conflict'),{...j,date:b.newDate});assert.equal((await run('schedule',b)).status,409);app.store.updateDoc(docPath('jobs/conflict'),{status:'cancelled'});
  const result=await run('schedule',b);assert.equal(result.status,200);assert.equal(result.data.state,'sent');assert.equal(result.data.emailState,'sent');assert.equal(sent.length,1);assert.equal(emails.length,1);assert.match(sent[0].body,/finishing visit/);assert.equal(current().date,b.newDate);assert.equal(current().arrival.slot,b.slot);
  assert.equal(current().fitterWork.events[b.key].byRole,'fitter');assert.equal(current().fitterWork.events[b.key].reviewed,false);
  assert.equal((await run('reviewMove',{event:b.key},me)).status,403);
  assert.equal((await run('reviewMove',{event:b.key},owner)).status,200);assert.equal(current().fitterWork.events[b.key].reviewed,true);
- assert.deepEqual(current().lines,j.lines);assert.deepEqual(current().pay,j.pay);assert.deepEqual(current().drafts,j.drafts);assert.equal(current().fitter,'Lennox');
+ assert.deepEqual(current().lines,j.lines);assert.deepEqual(current().pay,j.pay);assert.deepEqual(current().drafts,j.drafts);assert.equal(current().fitter,'Stiv');
  assert.equal((await run('schedule',b)).data.duplicate,true);await run('notify',{event:b.key});assert.equal(sent.length,1);assert.equal(emails.length,1);
  assert.equal((await run('issue',{resolve:'beading_task',note:'Beading fitted and checked'})).status,200);
  assert.equal((await run('issue',{key:'prep_task',reason:'screed',note:'Smoothing required in lounge',extraCharge:false})).status,200);
@@ -97,3 +97,4 @@ test('fitter owns checklist and return scheduling, with privacy, conflicts, appr
  assert.equal((await call('/api/appointments/work/visitReview',est,{jobId:'measuremove',event:vb.key})).status,403);assert.equal((await call('/api/appointments/work/visitReview',shopOwner,{jobId:'measuremove',event:vb.key})).status,200);
  }finally{app.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
+

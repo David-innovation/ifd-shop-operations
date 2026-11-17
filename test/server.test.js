@@ -125,7 +125,7 @@ test('accepted jobs enter diary only after preparation and checking, and explici
 test('pack quotes combine identical variants, preserve exact quantities and gate automatic diary handover', async () => {
   const s=await boot();try{
     const L=s.app.rules, owner=await s.signIn(OWNER), variant='gid://shopify/ProductVariant/701';
-    const job=testJob({date:'2026-11-20',diaryAuto:true,pay:{p:{amount:227.4}},brief:{choices:[{k:'a',title:'Oak laminate',variantId:variant},{k:'b',title:'Oak laminate',variantId:variant}]},rooms:{a:{name:'Bedroom',area:12,want:'a',status:'verified',spec:{floor:'flooring'}},b:{name:'Hall',area:8,want:'b',status:'verified',spec:{floor:'flooring'}}},lines:{}});
+    const job=testJob({fitter:'Stiv',date:'2026-11-20',diaryAuto:true,pay:{p:{amount:227.4}},brief:{choices:[{k:'a',title:'Oak laminate',variantId:variant},{k:'b',title:'Oak laminate',variantId:variant}]},rooms:{a:{name:'Bedroom',area:12,want:'a',status:'verified',spec:{floor:'flooring'}},b:{name:'Hall',area:8,want:'b',status:'verified',spec:{floor:'flooring'}}},lines:{}});
     const goods={a:{cov:1.836,pack:20.18},b:{cov:1.836,pack:20.18}}, plan=L.packPlan(job,goods,{});
     assert.equal(plan.groups.length,1);assert.equal(plan.groups[0].packs,12);assert.equal(plan.groups[0].required,22);
     assert.equal(L.catalogue(job,{},goods,{}).flooring.amount,242.16);
@@ -846,4 +846,19 @@ test('owner financial access cannot be bypassed through routes, raw documents or
  }finally{s.stop();}
 });
 test('distant single-area measure is held on every save route and only owner can release booking',async()=>{const s=await boot();try{const shop=await s.signIn(SHOPM),owner=await s.signIn(OWNER),visit={v:{kind:'measure',status:'booked',who:'Estimator',date:'2026-11-20'}},j={source:'measure',status:'open',type:'Fitting',customer:{name:'Practice distance',postcode:'G81 1DX'},brief:{rooms:[{name:'Bedroom'}]},rooms:{},pre:{},lines:{},pay:{},total:0,travelCheck:{roadMiles:21,routeChecked:true,postcode:'G811DX',roughSizes:'3 × 4m',shopEstimate:400,fitterEstimate:120,fitterTravel:0,customerInformed:true},travelReview:{state:'pending',requestedVisits:visit}};assert.equal((await s.req('POST','/api/db/add',{coll:'jobs',data:{...j,pre:visit}},shop)).status,409);assert.equal((await s.req('POST','/api/db/set',{path:'jobs/travel-check',data:j},shop)).status,200);assert.deepEqual(s.job('travel-check').pre,{});assert.equal((await s.req('POST','/api/db/update',{path:'jobs/travel-check',data:{pre:visit}},shop)).status,409);assert.equal((await s.req('POST','/api/measure-travel',{id:'travel-check',action:'approve',reason:'Customer knows total'},shop)).status,403);assert.equal((await s.req('POST','/api/measure-travel',{id:'travel-check',action:'approve',reason:'Customer knows total'},owner)).status,200);assert.equal((await s.req('POST','/api/db/update',{path:'jobs/travel-check',data:{pre:visit}},shop)).status,200);assert.equal(s.job('travel-check').travelReview.fee,40);assert.equal((await s.req('POST','/api/db/update',{path:'jobs/travel-check',data:{quotes:{q:{lines:[{key:'floor',label:'Carpet',price:400}]}}}},shop)).status,409);}finally{s.stop();}});
+
+test('fitting teams enforce roles, reservations and confirmed customer booking protection',async()=>{
+ const s=await boot();try{const owner=await s.signIn(OWNER),shop=await s.signIn(SHOPM);s.app.ensureUser('John King',FITTER,'fitter');const fitter=await s.signIn(FITTER);
+ assert.equal((await s.req('GET','/fitting-teams',undefined,fitter)).status,403);assert.equal((await s.req('GET','/api/fitting-teams',undefined,fitter)).status,403);
+ const list=await s.req('GET','/api/fitting-teams',undefined,shop);assert.equal(list.status,200);assert.ok(list.json.rows.some(p=>p.name==='John King'&&p.priority.glue===1));
+ const j={status:'open',type:'Fitting',diary:false,customer:{name:'Practice'},rooms:{a:{type:'glue-down LVT',area:100}},lines:{},pay:{},total:0};s.app.store.setDoc(docPath('jobs/teampractice'),j);
+ const b={action:'assign',jobId:'teampractice',skills:['glue'],fitter:'John King',start:'2026-11-13'};
+ assert.equal((await s.req('POST','/api/fitting-teams',b,fitter)).status,403);const a=await s.req('POST','/api/fitting-teams',b,shop);assert.equal(a.status,200);assert.equal(a.json.dates.length,5);assert.ok(!a.json.dates.includes('2026-11-15'));assert.equal(s.job('teampractice').diary,false);
+ const collision=await s.req('POST','/api/db/set',{path:'jobs/teamcollision',data:{...j,fitter:'John King',date:'2026-11-17'}},shop);assert.equal(collision.status,409);
+ assert.equal((await s.req('POST','/api/db/update',{path:'jobs/teampractice',data:{fittingReservation:{dates:[]}}},shop)).status,409);
+ assert.equal((await s.req('POST','/api/db/set',{path:'fittingTeams/forged',data:{name:'John King',skills:['glue']}},shop)).status,403);
+ const review=await s.req('POST','/api/fitting-teams',{action:'review',jobId:'teampractice',version:1,days:2,note:'Checked straight plank and preparation'},fitter);assert.equal(review.status,200);assert.equal(s.job('teampractice').fittingReservation.shopUnread,true);
+ s.app.store.updateDoc(docPath('jobs/teampractice'),{diary:true});assert.equal((await s.req('POST','/api/fitting-teams',b,owner)).status,409);
+ }finally{s.stop();}
+});
 

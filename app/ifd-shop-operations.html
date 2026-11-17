@@ -1509,7 +1509,7 @@ window.IFDLogic = (function(){
     (jobs || []).forEach(function(j){
       if (!j || j.status !== 'open') return;
       var c = j.customer || {}, o = outwardOf(c.postcode), nm = c.name || 'No name';
-      if (j.fitter === person && j.date === date && !(j.id === skipJob && !skipVisit) && j.type !== 'Collection' && linesOf(j).length) out.push({id:j.id, name:nm, out:o, what:j.type || 'Job', slot:j.slot || '', hsl:hasHSL(j), visit:false});
+      if (j.fitter === person && (j.fittingReservation?.dates||[j.date]).includes(date) && !(j.id === skipJob && !skipVisit) && j.type !== 'Collection' && linesOf(j).length) out.push({id:j.id, name:nm, out:o, what:j.type || 'Job', slot:j.slot || '', hsl:hasHSL(j), visit:false});
       preOf(j).forEach(function(v){ if (v.status === 'booked' && v.who === person && v.date === date && !(j.id === skipJob && skipVisit && v.k === skipVisit)) out.push({id:j.id, name:nm, out:o, what:PRE_KINDS[v.kind], slot:v.slot || '', hsl:false, visit:true}); });
     });
     return out;
@@ -2721,7 +2721,7 @@ VIEWS.diary = function(){
     const visits = []; live.forEach(j => L.preOf(j).forEach(v => { if (!cur || v.who === cur) visits.push({job:j, v:v}); }));
     const week = h('div', {class:'week'});
     days.forEach(d => {
-      const mine = js.filter(j => j.date === d).sort((a, b) => String(a.slot).localeCompare(String(b.slot)));
+      const mine = js.filter(j => (j.fittingReservation?.dates||[j.date]).includes(d)).sort((a, b) => String(a.slot).localeCompare(String(b.slot)));
       const pre = visits.filter(x => x.v.date === d).sort((a, b) => String(a.v.slot).localeCompare(String(b.v.slot)));
       const count = [mine.length ? mine.length + (mine.length === 1 ? ' job' : ' jobs') : '', pre.length ? pre.length + (pre.length === 1 ? ' visit' : ' visits') : ''].filter(Boolean).join(', ');
       const offHere = cur ? isOff(cur, d) : false, offWho = cur ? [] : Object.keys(S.off).filter(n => isOff(n, d)).sort();
@@ -3219,7 +3219,7 @@ function drawSheet(){
   const diaryCard = h('div', {class:'card'}, h('h3', {}, job.type === 'Fitting' ? 'Installation: when and who' : 'When and who',
       job.diary ? (held ? chip('In the diary, awaiting checks', 'bad') : chip('In the diary', 'ok')) : held && L.validISO(job.date) ? chip('Date pencilled in, awaiting checks', 'warn') : chip('Not in the diary', open ? 'warn' : '')),
     typeSeg,
-    hslTick, field(job.type === 'Fitting' ? 'Fitter' : 'Who is doing it', fitSel), dayPick.node, slotSeg, areaDet,
+    hslTick, job.type==='Fitting'?teamLink(job):null, field(job.type === 'Fitting' ? 'Fitter' : 'Who is doing it', fitSel), dayPick.node, slotSeg, areaDet,
     open&&job.type==='Fitting'&&job.diary?btn('Reschedule job',()=>rescheduleDialog(job),'pri'):null, diaryAct, confirmLine);
 
   const pays = Object.keys(job.pay || {}).map(k => job.pay[k]).sort((a, b) => String(a.at).localeCompare(String(b.at)));
@@ -3552,7 +3552,7 @@ function dayStrip(input, o){
     const out = [];
     openJobs().forEach(j => {
       const nm = (j.customer || {}).name || 'No name';
-      if (j.date === d && j.id !== (o.skipJob || '') && L.linesOf(j).length) out.push(nm + ' (' + (j.fitter || 'nobody yet') + ', ' + (j.type || 'job').toLowerCase() + (j.slot ? ' ' + j.slot : '') + ')');
+      if ((j.fittingReservation?.dates||[j.date]).includes(d) && j.id !== (o.skipJob || '') && L.linesOf(j).length) out.push(nm + ' (' + (j.fitter || 'nobody yet') + ', ' + (j.type || 'job').toLowerCase() + (j.slot ? ' ' + j.slot : '') + ')');
       L.preOf(j).forEach(x => { if (x.status === 'booked' && x.date === d && !(j.id === o.skipJob && o.skipVisit && x.k === o.skipVisit)) out.push(nm + ' (' + (x.who || 'nobody yet') + ', ' + L.PRE_KINDS[x.kind].toLowerCase() + (x.slot ? ' ' + x.slot : '') + ')'); });
     });
     return out;
@@ -4079,6 +4079,7 @@ function chaseDialog(job){
 }
 /* ---------- who and when, for a fitting or a delivery ----------
    Choosing the person brings up their own diary to pick the day from. A fitting has to have a fitter. */
+function teamLink(job){return h('a',{href:'/fitting-teams?job='+encodeURIComponent(job.id),text:'Find a skilled fitter · priorities & availability',class:'btn'});}
 function whenPicker(job, P, getType, init){
   const c = job.customer || {}, i0 = init || {};
   const date = h('input', {class:'in', id:P + 'Date', type:'date', value:L.validISO(i0.date) ? i0.date : ''});
@@ -4104,7 +4105,7 @@ function whenPicker(job, P, getType, init){
     strip.refresh();area.refresh();
   }
   refresh();
-  return {who:who,area:area.node, days:h('div',{},leadNote,strip.node), refresh:refresh, fitter:() => sel.value, date:() => (L.validISO(date.value) ? date.value : ''),
+  return {who:h('div',{},teamLink(job),who),area:area.node, days:h('div',{},leadNote,strip.node), refresh:refresh, fitter:() => sel.value, date:() => (L.validISO(date.value) ? date.value : ''),
     setMin:m => { min = L.validISO(m) ? m : ''; if (min) strip.show(min); }, clear:() => { if (date.value){ date.value = ''; strip.refresh(); } },
     problems:needDay => {
       const fit = getType() === 'Fitting', out = [], f = sel.value, d = L.validISO(date.value) ? date.value : '';
