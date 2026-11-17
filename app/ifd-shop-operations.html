@@ -4101,14 +4101,14 @@ function whenPicker(job, P, getType, init){
   const o = {install:true, clear:true, skipJob:job.id, needPerson:false, hsl:() => getType() === 'Fitting' && L.hasHSL(job), person:() => sel.value, post:() => c.postcode || ''};
   const strip = dayStrip(date, o), leadNote=h('p',{class:'banner warn',text:'Ordered-in products: allow at least 10 calendar days for stock to arrive before fitting. Confirm delivery with the supplier.'}), who = h('label', {class:'fld'}, lab, sel);
   const area=areaBox(()=>c.postcode,d=>{const problem=check(d);if(problem){toast(problem,true);return;}date.value=d;strip.show(d);strip.refresh();},{skipJob:job.id,person:()=>sel.value,empty:'Enter the customer postcode first.'});
-  let min = '';
+  let min = '', onPerson=()=>{};
   const check = d => {
     if (!d) return '';
     const f = sel.value, fit = getType() === 'Fitting';
     return (min && d < min ? 'The carpet is not due in until ' + L.fmtDay(min) + '. Pick that day or a later one.' : '') || offMsg(f, d) || (fit && f ? hslMsg(Object.assign({}, job, {type:'Fitting', fitter:f, date:d}), f, d) : '');
   };
   date.addEventListener('change', () => { const m = check(date.value); if (m){ toast(m, true); date.value = ''; strip.refresh(); } });
-  sel.addEventListener('change', () => { const m = check(date.value); if (m){ toast(m, true); date.value = ''; } strip.refresh();area.refresh(); });
+  sel.addEventListener('change', () => { date.value = ''; strip.refresh();area.refresh(); onPerson(); });
   function refresh(){
     const fit = getType() === 'Fitting';
     lab.textContent = fit ? 'Fitter' : 'Who is delivering, if it is decided';
@@ -4117,7 +4117,7 @@ function whenPicker(job, P, getType, init){
     strip.refresh();area.refresh();
   }
   refresh();
-  return {who:h('div',{},teamLink(job),who),area:area.node, days:h('div',{},leadNote,strip.node), refresh:refresh, fitter:() => sel.value, date:() => (L.validISO(date.value) ? date.value : ''),
+  return {onPerson:fn=>{onPerson=fn;},who:h('div',{},h('h3',{text:'1. Choose the fitter / team'}),who,teamLink(job)),area:area.node, days:h('div',{},leadNote,strip.node), refresh:refresh, fitter:() => sel.value, date:() => (L.validISO(date.value) ? date.value : ''),
     setMin:m => { min = L.validISO(m) ? m : ''; if (min) strip.show(min); }, clear:() => { if (date.value){ date.value = ''; strip.refresh(); } },
     problems:needDay => {
       const fit = getType() === 'Fitting', out = [], f = sel.value, d = L.validISO(date.value) ? date.value : '';
@@ -4130,19 +4130,25 @@ function whenPicker(job, P, getType, init){
 /* the day for a fitting or a delivery, picked once the carpet's arrival date is known, or changed later */
 function dayDialog(job){
   if (!needDb()) return;
-  const s = sayer(), c = job.customer || {}, fit = job.type === 'Fitting', eta = L.onOrder(job).map(l => l.due).sort().pop() || '';
-  const when = whenPicker(job, 'day', () => job.type, {fitter:job.fitter, date:L.validISO(job.date) ? job.date : ''});
+  const s = sayer(), c = {...(job.customer || {})}, fit = job.type === 'Fitting', eta = L.onOrder(job).map(l => l.due).sort().pop() || '';
+  const when = whenPicker({...job,customer:c}, 'day', () => job.type, {fitter:job.fitter, date:L.validISO(job.date) ? job.date : ''});
   when.setMin(eta);
+  const postcode=h('input',{class:'in',value:c.postcode||'',placeholder:'Customer postcode',autocomplete:'postal-code'});
+  const location=h('div',{class:'card'},h('h3',{text:'2. Confirm the customer postcode'}),postcode);
+  const ready=()=>/^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/.test((c.postcode||'').trim().toUpperCase());
+  function showDiary(){location.hidden=fit&&!when.fitter();when.area.hidden=when.days.hidden=(fit&&!when.fitter())||!ready();when.refresh();}
+  postcode.addEventListener('input',()=>{c.postcode=postcode.value.trim().toUpperCase();when.clear();showDiary();});
+  when.onPerson(showDiary);showDiary();
   const save = btn('Save the day', async () => {
-    const errs = when.problems(true); if (errs.length){ s.say(errs.join(' '), true); return; }
-    const p = {date:when.date(), fitter:when.fitter()};
+    const errs = when.problems(true); if(!ready())errs.push('Enter the customer’s full postcode.'); if (errs.length){ s.say(errs.join(' '), true); return; }
+    const p = {date:when.date(), fitter:when.fitter(),customer:c};
     save.disabled = true;
     try { await patchJob(job.id, p, (fit ? 'Fitting' : 'Delivery') + ' set for ' + L.fmtDay(p.date) + (p.fitter ? ' with ' + p.fitter : '')); closeModal(); toast('Day saved'); }
     catch (e){ save.disabled = false; dbFail(e); }
   }, 'pri');
   openModal(dlg(fit ? 'Pick the fitting day' : 'Pick the delivery day', h('div', {class:'sec', id:'dayForm'},
     h('p', {}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '') + '. '}), eta ? 'The carpet is due in ' + L.fmtDay(eta) + ', so pick that day or a later one.' : ''),
-    when.who, when.days, s.box), [btn('Not yet', closeModal), save]));
+    when.who, location, when.area, when.days, s.box), [btn('Not yet', closeModal), save]));
 }
 /* ---------- the customer said yes ----------
    The job becomes a fitting, a delivery or a collection, and the carpet is allocated there and then. From our own rolls
@@ -4209,7 +4215,7 @@ function acceptDialog(job,preferredType){
   const when = whenPicker({...job,customer:c}, 'acc', () => F.type, {fitter:job.fitter || '', date:L.validISO(job.date) && job.date >= L.todayISO() ? job.date : ''}),   /* a fitter or a day already pencilled on the job carries over */ whenNote = h('p', {class:'small', id:'accWhenNote', style:'font-weight:600'});
   const postcode=h('input',{class:'in',id:'accPostcode',placeholder:'e.g. G81 1DX',value:c.postcode||'',oninput:e=>{c.postcode=e.target.value.trim().toUpperCase();when.clear();drawWhen();}}),address=h('input',{class:'in',id:'accAddress',value:c.address||'',placeholder:'House number and street',oninput:e=>{c.address=e.target.value.trim();}});
   const postcodeReady=()=>/^[A-Z]{1,2}[0-9][A-Z0-9]?\s*[0-9][A-Z]{2}$/i.test(c.postcode||'');
-  const locationBox=h('div',{class:'card'},h('h3',{text:'1. Where is the job?'}),field('Customer postcode — find our next visit to the area',postcode),field('Customer address',address),h('p',{class:'small',text:'Enter the postcode first. Check nearby bookings, then choose the fitter and a suitable day. Same area does not automatically mean spare capacity.'}));
+  const locationBox=h('div',{class:'card'},h('h3',{text:'2. Confirm the customer postcode'}),field('Customer postcode — find our next visit to the area',postcode),field('Customer address',address),h('p',{class:'small',text:'Check this customer’s postcode against the selected fitter’s diary. You will see their nearby work and available days. Same area does not automatically mean spare capacity.'}));
   const anyOrder = () => items.some(it => it.how === 'order');
   const qFit = L.quoteFitting(q), qTotal = L.quoteTotal(q);
   /* Each line of the quote is goods, a service, or an accessory. An accessory either comes from a Shopify product that
@@ -4269,17 +4275,18 @@ function acceptDialog(job,preferredType){
      Carpet that is being ordered in has no day yet: that is picked once its arrival date is known. */
   function drawWhen(){
     const t = F.type, ord = anyOrder(), fit = t === 'Fitting', del = t === 'Delivery';
-    locationBox.hidden=t==='Collection';when.area.hidden=!(fit||del)||!postcodeReady()||ord;when.who.hidden = !(fit || (del && !ord))||!postcodeReady(); when.days.hidden = !((fit || del) && !ord)||!postcodeReady(); fitRow.hidden = !fit; drawSplit();
+    locationBox.hidden=t==='Collection'||(fit&&!when.fitter());when.area.hidden=!(fit||del)||!postcodeReady()||(ord&&!fit)||(fit&&!when.fitter());when.who.hidden = !(fit || (del && !ord)); when.days.hidden = !(fit || (del&&!ord))||!postcodeReady()||(fit&&!when.fitter()); fitRow.hidden = !fit; drawSplit();
     if (ord || t === 'Collection') when.clear();
     revision.hidden=!((q.charges&&q.charges.orderType!==t)||(job.walkin&&((t!=='Fitting'&&qFit>0)||(t==='Fitting'&&qFit===0))));whenNote.hidden = !t;
     whenNote.textContent = t === 'Collection' ? (ord ? 'Nothing more to pick. The customer collects it once it has arrived.' : 'Nothing more to pick. The carpet goes straight to be cut, and the customer collects it when it is ready.')
       : del ? (ord ? 'The delivery day is picked once the order details and the arrival date are in.' : 'Pick the delivery day.')
-      : fit ? (ord ? 'Choose the fitter. The day is picked once the order details and the arrival date are in.' : 'Choose the fitter. Their diary comes up to pick the day.') : '';
-    if((fit||del)&&!postcodeReady())whenNote.textContent='Enter the customer’s full postcode above to see area bookings and available dates.';
+      : fit ? (ord ? 'View this fitter’s diary to discuss availability. Ordered-in stock: the date is not booked here; confirm its arrival before saving the fitting day.' : 'Choose the fitter. Their diary comes up to pick the day.') : '';
+    if(fit&&!when.fitter())whenNote.textContent='Choose the fitter first. Then confirm the postcode to see their diary.';else if((fit||del)&&!postcodeReady())whenNote.textContent='Confirm the customer’s full postcode to see the selected team’s area bookings and diary.';
     when.refresh();
   }
   const revision=btn('Review quote for this order type',async()=>{try{const rooms=Object.fromEntries(Object.entries(job.rooms||{}).map(([k,r])=>[k,{...r,spec:{...(r.spec||{}),fitting:F.type==='Fitting',...(F.type==='Fitting'?{}:{uplift:false,furniture:false})}}]));await patchJob(job.id,{type:F.type,customer:c,rooms},'Changed order type to '+F.type+'; quote must be reviewed before acceptance.');closeModal();quoteDialog({...job,type:F.type,customer:c,rooms});}catch(e){s.say(explain(e),true);}},'sm');
   const drawType = () => { typeSeg.replaceChildren(); L.TYPES.forEach(t => typeSeg.append(h('button', {type:'button', id:'acc' + t, class:F.type === t ? 'on' : '', onclick:() => { F.type = t; drawType(); drawWhen(); }}, t))); };
+  when.onPerson(drawWhen);
   drawType(); drawWhen();
   const itemsBox = h('div', {id:'accItems'});
   items.forEach((it, i) => {
@@ -4363,7 +4370,7 @@ function acceptDialog(job,preferredType){
   }
   const dialog = dlg('The customer said yes', h('div', {class:'sec', id:'acceptForm'},
     h('div', {class:'card tight'}, h('b', {text:(c.name || 'No name') + '  ' + (job.ref || '')}), h('p', {class:'small muted', text:'Quote of ' + L.money(L.quoteTotal(q)) + ' from ' + (q.byName || 'the shop') + '.'})),
-    h('div', {class:'card'}, h('h3', {}, 'How are they getting it?'), typeSeg,revision),locationBox,h('div',{class:'card'},whenNote,when.area,when.who,when.days,fitRow),
+    h('div', {class:'card'}, h('h3', {}, 'How are they getting it?'), typeSeg,revision),when.who,locationBox,h('div',{class:'card'},whenNote,when.area,when.days,fitRow),
     h('div', {class:'card'}, h('h3', {}, 'Flooring from the quote'),
       takeDone() ? null : h('p', {class:'small muted', text:'Awaiting opening stocktake: the stock figures shown here are not confirmed yet.'}),
       items.length ? itemsBox : h('p', {class:'muted', id:'accNone', text:carpetRooms.length ? 'No carpet was picked for this job when the measure was booked, so there is nothing to allocate here. Add it on the job with Add items once this is saved.' : 'There is no carpet on this job.'}),
