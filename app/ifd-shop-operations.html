@@ -969,6 +969,7 @@ window.IFDLogic = (function(){
   function cuttingApproved(job){return !!(job.cuttingApproval&&job.cuttingApproval.inputKey===cuttingInputKey(job));}
   function supplyPlan(job){
     if(job.cuttingSpec&&cuttingApproved(job))return job.cuttingApproval.supply;
+    if(roomsOf(job).some(function(r){return r.drawing&&r.drawing.doors&&r.drawing.doors.some(function(d){return d.intoCupboard;});}))return {groups:[],problems:['Approve the continuous bedroom and cupboard cutting plan before pricing or allocating carpet.']};
     if(roomsOf(job).some(function(r){return r.walkinStairs;}))return window.IFDStairs.supply(job);
 
     var out = {groups:[], problems:[]}, by = {};
