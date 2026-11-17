@@ -2883,8 +2883,9 @@ function stockColourGroups(products){
   const groups=new Map();
   for(const p of products)for(const v of p.variants?.nodes||[]){
     const roll=L.isRoll(v,p),clean=t=>String(t||'').replace(/\s*[·—-]?\s*per\s*10\s*cm\b/ig,'').replace(/(?:^|[\s/|])\d+(?:\.\d+)?\s*m(?:etres?|eters?)?\b/ig,' ').replace(/\broll\s*#?\s*[A-Z]*-?\d+\b/ig,'').replace(/^[\s·/|—-]+|[\s·/|—-]+$/g,'').replace(/\s+/g,' ').trim();
-    const product=roll?clean(p.title):p.title,colour=v.title==='Default Title'?'':roll?clean(v.title):v.title;
-    const label=product+(colour&&colour!==product?' · '+colour:''),key=label.toLowerCase();
+    const withoutCode=t=>v.rollNumber?.value?String(t||'').split(v.rollNumber.value).join(''):t;
+    const product=roll?clean(withoutCode(p.title)):p.title,colour=v.title==='Default Title'?'':roll?clean(withoutCode(v.title)):v.title;
+    const label=product+(colour&&colour!==product&&!product.toLowerCase().endsWith(' — '+colour.toLowerCase())?' · '+colour:''),key=label.toLowerCase();
     if(!groups.has(key))groups.set(key,{label,items:[]});
     if(!groups.get(key).items.some(x=>x.v.id===v.id))groups.get(key).items.push({p,v});
   }
