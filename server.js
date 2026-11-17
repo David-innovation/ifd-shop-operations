@@ -310,6 +310,7 @@ function create(opts){
       const shop={name:'Innovation Flooring Direct',email:'sales@innovationflooringdirect.com',phone:'0141 952 5200',words:st.getDoc('settings/main').data?.words||{}};
       return page(res,require('./lib/quote-email').html({job,q,L,body:L.quoteMessage(job,q,shop),action:'<style>@media print{.print-action{display:none!important}}</style><p class="print-action" style="text-align:center"><button onclick="window.print()" style="padding:12px 24px">Print / save PDF</button></p><p style="text-align:center">To go ahead, contact the shop quoting this reference.</p>'}));
     }
+    if(p==='/job-layout'&&req.method==='GET'){const id=url.searchParams.get('job')||'',j=st.getDoc('jobs/'+id).data;if(!j||!(shopUser||appointments.allowed(j,user)||Object.keys(j.pre||{}).some(k=>{const v=appointments.visitJob(j,k);return v&&appointments.allowed(v,user);})))return fail(res,403,'forbidden','This is not your assigned job.');return page(res,require('./lib/job-layout').render(shopUser?j:require('./fitter-privacy').project(j),L));}
     if(p==='/cutting-plan'&&req.method==='GET'){
       if(!shopUser)return fail(res,403,'forbidden','Only shop staff can print warehouse cutting plans.');
       const id=url.searchParams.get('job')||'';if(!/^[\w-]+$/.test(id))return fail(res,400,'invalid_job','Choose a job.');
