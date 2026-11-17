@@ -1,0 +1,10 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const AW=require('../lib/aw-ranges'),source=require('../lib/aw-prices.json'),html=fs.readFileSync(require('node:path').join(__dirname,'../app/ifd-shop-operations.html'),'utf8'),L=require('../lib/rules').load(html);
+test('four AW prices include surcharge once, VAT and the exact order supplement',()=>{
+ const rows=AW.list();for(const [id,stock,order,comparison] of [['sirius',23.43,29.42,39.99],['magnificus',24.15,30.14,44.99],['yukon',26.98,32.97,69.99],['orion',20.61,26.60,34.99]]){
+ const a=rows.find(r=>r.id==='aw-'+id),b=rows.find(r=>r.id===a.stockedId);assert.equal(a.sellingPrice,order);assert.equal(b.sellingPrice,stock);assert.equal(a.comparisonPrice,comparison);assert.equal(Math.round((order-stock)*100),599);assert.deepEqual(a.widths,b.widths);
+ for(const r of [a,b]){const ch={k:'c',internalId:r.id,title:r.name,unit:'m',w:4,widths:r.widths,typed:true},j={brief:{choices:[ch]},rooms:{room:{name:'Hall',want:'c',len:5,wid:2,spec:{floor:'carpet'}}}};assert.equal(L.briefOf(j).choices[0].internalId,r.id);const q=L.catalogue(j,{}, {c:{ppm:r.sellingPrice,type:'Carpet roll'}},{});assert.ok(q.carpet.amount>0);assert.match(q.carpet.text,new RegExp(r.sellingPrice.toFixed(2).replace('.','\\.')));}
+ }assert.equal(new Set(rows.map(r=>r.id)).size,rows.length);
+});
+test('other AW products retain cut pricing and hidden tiers do not double the range list',()=>{const rows=AW.list();assert.equal(rows.filter(r=>!r.hiddenPricingVariant).length,source.length);for(const r of rows.filter(r=>!r.pricingSource&&r.pricingVerified))assert.equal(r.sellingPrice,Math.round((r.cost*1.2+10)*100)/100);});
+test('price choice defaults to order-in and all app scripts parse',()=>{assert.ok(html.includes("supply.value='order'"));assert.ok(html.includes("const r=priced();"));for(const m of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g))if(m[1].trim())new vm.Script(m[1].replace(/^import .*$/mg,''));});
