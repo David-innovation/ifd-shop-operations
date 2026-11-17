@@ -3,9 +3,9 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const rows=require('../lib/abingdon-ranges').list(),get=n=>rows.find(r=>r.rangeName===n);
 test('Abingdon source covers all 68 rows, with no invented prices or stock',()=>{
  assert.equal(rows.length,68);assert.equal(new Set(rows.map(r=>r.id)).size,68);
- assert.equal(rows.filter(r=>r.ready).length,58);
+ assert.equal(rows.filter(r=>r.ready).length,61);
  for(const r of rows){assert.equal(r.stockQuantity,undefined);assert.equal(r.sheetDate,'2026-11-16');}
- for(const n of ['Euphoria','Majesty','Mosaic Felt']){assert.equal(get(n).cost,null);assert.equal(get(n).sellingPrice,null);assert.equal(get(n).ready,false);assert.ok(get(n).rollCost>0);}
+ for(const n of ['Euphoria','Majesty','Mosaic Felt']){assert.equal(get(n).cost,get(n).rollCost);assert.equal(get(n).sellingPrice,n==='Mosaic Felt'?13.59:17.19);assert.equal(get(n).ready,true);assert.equal(get(n).priceBasis,'roll');}
  for(const r of rows.filter(r=>r.category==='accessory'))assert.equal(r.sellingPrice,null);
 });
 test('cut rates, widths and pack sizes retain supplier distinctions',()=>{
