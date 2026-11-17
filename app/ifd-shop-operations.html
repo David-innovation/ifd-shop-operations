@@ -1073,7 +1073,7 @@ window.IFDLogic = (function(){
   function wordsOf(shop){ var w = (shop && shop.words) || {}; return {terms:String(w.terms == null ? DEFAULT_TERMS : w.terms).trim(), prep:String(w.prep == null ? DEFAULT_PREP : w.prep).split('\n').map(function(x){ return x.trim(); }).filter(Boolean)}; }
   function signOff(shop){ return [shop.name].concat(shop.address ? [shop.address] : [], shop.phone ? [shop.phone] : [], shop.email ? [shop.email] : []); }
   function quoteRef(job, q){ return ((job && job.ref) || 'Quote') + '-Q' + ((q && q.n) || 1); }
-  function isShopFee(label){ return /arrangement|delivery/i.test(String(label || '')); }
+  function isShopFee(label){ return /arrangement|delivery|distance travel/i.test(String(label || '')); }
   function isFitting(label){ return /fitting/i.test(String(label || '')) && !isShopFee(label); }
   function fittingPackage(q,fitterOverride){var p=quoteParts(q),fee=round2(p.shop.filter(l=>l.key==='arrangement'||/fitting arrangement/i.test(l.label)).reduce((n,l)=>n+num(l.price),0)),fitter=fitterOverride==null?p.fitTotal:num(fitterOverride);return {fee:fee,fitter:fitter,total:round2(fee+fitter)};}
   function quoteFeeNotice(q,fitterOverride){var x=fittingPackage(q,fitterOverride),delivery=quoteLines(q).some(l=>l.key==='delivery'||/^delivery$/i.test(l.label));return (x.fee?'Your agreed fitting package is '+money(x.total)+'. The '+money(x.fee)+' arrangement & support fee (including VAT) is taken from this package and paid to Innovation Flooring Direct as part of your shop invoice. This leaves '+money(x.fitter)+' to pay directly to your independent fitter on completion. The fee is already included in your quoted total — not an additional charge. Do not pay the full package amount to the fitter. Arrangement & support covers coordinating your booking and supporting you throughout installation. ':'')+(delivery?'Delivery is separate from the fitting package and is already included in your quoted total. It is paid to the shop.':''); }
@@ -1131,7 +1131,7 @@ window.IFDLogic = (function(){
     if (p.furniture.length) out.push({key:'furniture', label:'Moving furniture', note:p.furniture.join(', ')});
     if(p.skirting.length)out.push({key:'skirting',label:'Skirting removal and refitting',must:true,note:p.skirting.join(', ')+' — '+fmtM(p.skirtingMetres)+' metres; £5 per metre. '+"Our fitters take care when removing and refitting existing skirting, but marks and disturbed paintwork are unavoidable. Please allow for decorating touch-ups afterwards. Filling nail holes, painting and decorating are not included and remain the customer’s responsibility. This does not affect your statutory rights."});
     ['taping','whipping'].forEach(function(f){if(roomsOf(job).some(function(r){return r.walkinStairs&&r.walkinStairs.coverage==='runner'&&(r.walkinStairs.finish||'taping')===f;}))out.push({key:f==='taping'?'runnerTape':'runnerWhip',label:'Runner '+f,must:true,note:'Both side edges included. Check any additional finished ends or turning shapes.'});});
-    var fees=jobFees(job,{},goods);if(fees.arrangement)out.push({key:'arrangement',label:'Fitting arrangement & support',must:true,note:fees.arrangement.text});if(fees.delivery)out.push({key:'delivery',label:'Delivery',must:true,note:fees.delivery.text});
+    var fees=jobFees(job,{},goods);if(fees.arrangement)out.push({key:'arrangement',label:'Fitting arrangement & support',must:true,note:fees.arrangement.text});if(fees.delivery)out.push({key:'delivery',label:'Delivery',must:true,note:fees.delivery.text});if(fees.travel)out.push({key:'travel',label:'Distance travel — time, fuel and travel',must:true,note:fees.travel.text});if(fees.fitterTravel)out.push({key:'fitterTravel',label:'Additional fitting travel',must:true,note:fees.fitterTravel.text});
     return out;
   }
   /* ---------- the price list and the catalogue ----------
@@ -1154,6 +1154,7 @@ window.IFDLogic = (function(){
     if(job.type==='Fitting'||job.type==='Quote')roomsOf(job).forEach(function(r){var sp=specOf(r);if(!sp||sp.fitting===false)return;var ch=choiceOf(job,r),kind=floorKind(ch?.title,(ch?.type||'')+' '+(goods[ch?.k]?.type||'')),soft=sp.floor==='carpet'||(/vinyl/i.test((ch?.title||'')+' '+(ch?.type||''))&&!kind.lvt&&!kind.glueDown),rate=kind.wood||kind.glueDown?list.arrangeBonded:kind.lvt||kind.laminate?list.arrangeClick:soft?list.arrangeSoft:null,area=roomArea(r);if(rate===null||!(area>0)){missing.push(r.name||'Room');return;}amount+=area*rate;bits.push((r.name||'Room')+': '+fmtM(area)+' m² × '+money(rate));});
     if(bits.length||missing.length)out.arrangement={amount:missing.length?0:round2(amount),needRate:!!missing.length,text:bits.join('; ')+(missing.length?'. Check product and measured area for '+missing.join(', '):'. VAT included. Based on fitted area, not carpet waste. Paid to the shop; fitter payment unchanged.')};
     if(job.type==='Fitting'||job.type==='Delivery'||job.type==='Quote'&&bits.length)out.delivery={amount:list.delivery,text:'One delivery charge per order, including VAT. Included for fitting and delivery; no charge for collection.'};
+    if(job.travelReview?.state==='approved'&&Math.max(briefOf(job).rooms.length,roomsOf(job).length)===1){out.travel={amount:40,text:'£40 including VAT, paid to the shop for time, fuel and travel. Included once if the job proceeds.'};if(Number(job.travelCheck?.fitterTravel)>0)out.fitterTravel={amount:Number(job.travelCheck.fitterTravel),text:'Additional travel payment agreed with the fitter; paid directly to the fitter.'};}
     return out;
   }
   function priceList(saved){
@@ -1279,7 +1280,7 @@ window.IFDLogic = (function(){
   /* ---------- what a quote line is: goods off a roll or in packs, an accessory to pick, or a service ----------
      Fitting, uplift and the like need no stock. Underlay, gripper, door bars and beading are real things that have to be
      picked and checked before the job is ready, with a quantity taken from the measure. */
-  var SERVICE_RE = /fitting|\bfit\b|uplift|dispos|furniture|deliver|prep|labou?r|survey|measur|remov|levell|screed/i;
+  var SERVICE_RE = /travel|fitting|\bfit\b|uplift|dispos|furniture|deliver|prep|labou?r|survey|measur|remov|levell|screed/i;
   function isService(label){ return SERVICE_RE.test(String(label || '')); }
   /* `find` is the Shopify search for products that could supply an accessory. The shop's products carry a tag for what
      they are (accessory_underlay, accessory_gripper, accessory_doorbar, accessory_beading, accessory_adhesive), and an
@@ -2051,7 +2052,7 @@ function startDb(){
       const b = L.backOpen(j), was = L.backOpen(before.get(id));
       if (b && (!was || was.k !== b.k)) toast((b.fitter || 'A fitter') + ' has sent ' + ((j.customer || {}).name || 'a job') + ' back to the shop. See Act now on Today.', true);
     });
-    S.jobs = fresh;
+    S.jobs = fresh;const requestedJob=new URLSearchParams(location.search).get('job');if(requestedJob&&fresh.has(requestedJob)&&!S.ui.openedDeepJob){S.ui.openedDeepJob=true;setTimeout(()=>openSheet(requestedJob),0);}
     wantGeo(openJobs().map(j => (j.customer || {}).postcode));
     if (!snap.metadata.fromCache){ clearTimeout(slow); S.db.state = 'ok'; }
     onData();
@@ -2539,7 +2540,7 @@ VIEWS.today = function(){
     const groups={price:[section('Measured jobs to price',price,priceRow,'priceSec')],send:[section('Customer emails needing attention',emailIssues,j=>h('div',{class:'row'},jobRow(j),h('p',{text:[j.collectionEmailIssue,j.fittingReminderIssue,j.estimatorReminderIssue,j.thankYouIssue,acceptanceEmailProblem(j)].filter(Boolean).join(' ' )})),'thanksSec'),section('Quotes to send',unsent,quotedRow,'quotedSec'),section('Booking confirmations',conf,confirmRow,'confirmSec'),section('Failed or uncertain messages',failed,failedRow,'failedSec')],follow:[section('Quotes needing a call or action',chase,quotedRow,'chaseSec'),section('Arrival times to arrange',ring,ringRow,'ringSec'),section('Visited, no sizes or order yet',noOrder,jobRow,'noOrderSec'),waiting.length>chase.length?h('details',{},h('summary',{text:'Quotes waiting for a reply · '+(waiting.length-chase.length)}),section('Not due a follow-up yet',waiting.filter(j=>L.quoteWait(j,t).state==='waiting'),quotedRow,'waitingSec')):null],attention:[section('Supplier stock missing — fitting within 7 days',stockRisk,j=>h('div',{class:'row'},jobRow(j),...L.supplierMissing(j).map(l=>h('div',{},h('p',{text:l.title+' · expected '+(l.due?L.fmtDay(l.due):'not confirmed')}),btn(l.deliveryId?'Update delivery / chase supplier':'Record supplier order',()=>l.deliveryId?openDelivery(l.deliveryId):orderDialog({jobId:j.id,lineK:l.k}),'sm')))),'supplierRiskSec'),section('Customer feedback needing follow-up',feedbackPending,x=>h('div',{class:'row'},h('div',{},h('b',{text:x.r.rating+'/5 · '+x.r.fitter+' · '+x.job.ref}),h('p',{text:x.r.comment||'Customer requested contact'})),btn('Review feedback',()=>go('feedback'),'sm')),'feedbackSec'),section('Completed fittings — customer signed',completed,j=>h('div',{class:'row'},h('div',{},h('b',{text:(j.customer?.name||'Customer')+' · '+j.ref}),h('p',{text:'Signed '+whenText(j.doneAt)+' · '+j.fitter}),h('small',{text:'Customer signature saved. Open the job to review the record and thank-you email.'})),h('div',{class:'bar'},btn('View signed job',()=>openSheet(j.id),'sm'),btn('Mark completion reviewed',async()=>{try{await runCmd('completion.review',{jobId:j.id});}catch(e){dbFail(e);}},'sm'))),'completedFittingsSec'),section('Quotes accepted online — sales to arrange',online,j=>h('div',{class:'row'},h('div',{},h('b',{text:(j.customer||{}).name+' · '+L.quoteRef(j,L.quoteOf(j))}),h('p',{text:'Accepted '+whenText(j.customerAcceptance.at)+' · '+L.money(j.customerAcceptance.total)}),h('small',{text:'Confirm the order and materials payment before booking fitting.'})),h('div',{class:'bar'},btn('Arrange order',()=>acceptDialog(j),'sm pri'),btn('Open job',()=>openSheet(j.id),'sm'))),'onlineAcceptedSec'),section('Fitter / estimator diary changes',moves,x=>h('div',{class:'row'},h('div',{},h('b',{text:(x.job.customer||{}).name+' · '+x.e.byName}),h('p',{text:L.fmtDay(x.e.from)+' → '+L.fmtDay(x.e.date)+' · '+x.e.slot}),h('p',{text:'Reason: '+(x.e.reason||x.e.note)}),h('small',{text:x.e.at})),h('div',{class:'bar'},btn('Open job',()=>openSheet(x.job.id),'sm'),btn('Mark reviewed',async()=>{try{await S.cap.work(x.visit?'visitReview':'reviewMove',{jobId:x.job.id,event:x.id});}catch(e){dbFail(e);}},'sm'))),'fitterMovesSec'),section('Fitter tasks and approvals',fitterIssues,j=>h('div',{class:'row'},h('div',{},h('b',{text:(j.customer?.name||'Customer')+' · '+j.ref}),h('p',{text:j.fitterWork?.shopAttention||j.retWhy||j.fitterWork?.notificationIssue||'Outstanding fitter tasks'}),h('small',{text:'Incomplete fitting: payment must wait until the agreed work is complete.'})),btn('Open job',()=>openSheet(j.id),'sm')),'fitterTasksSec'),section('Failed or uncertain messages',failed,failedRow,'attentionFailedSec'),section('Sent back from site',act,actRow,'actSec'),h('section',{class:'sec',id:'inboxSec'},h('h2',{},'New from website · '+inbox.length,btn('Check now',refreshInbox,'sm')),S.inbox.state==='error'?h('p',{text:S.inbox.msg}):null,listOf(inbox.map(inboxRow),S.inbox.state==='loading'?'Checking website orders':'No website orders waiting','')),section('Jobs needing attention',att,jobRow,'attentionSec'),section('Checks outstanding',held,checkRow,'checksSec'),section('Ready to book in',ready,jobRow,'readySec'),section('To order',toOrd,orderRow,'orderSec'),section('On order / arrivals to check',onOrd,onOrderRow,'onOrderSec'),section('Warehouse cutting',cuts,x=>cutRow(x,true),'cutSec'),section('Payments outstanding',owed,jobRow,'owedSec'),section('Tasks due',tasks,taskRow,'tasksSec')]};
     const specs=[['price',price.length,'To price','Measured jobs ready for a quote','Open pricing list'],['send',unsent.length+conf.length+failed.length+emailIssues.length,'To send','Quotes, confirmations and message issues','Send messages'],['follow',chase.length+ring.length+noOrder.length,'Follow up','Customers due a call or next step','View follow-ups'],['attention',attentionCount,'Needs attention','Orders, checks, bookings and payments','Review work']];
     const select=k=>{selected=k;draw();body.querySelector('#workList')?.scrollIntoView({behavior:'smooth',block:'start'});};
-    body.replaceChildren();add(body,[h('div',{class:'head'},h('div',{},h('h1',{text:'What needs doing today?'}),h('p',{text:L.fmtDay(t)}),S.me?.role==='owner'?btn('My fitter trial / team access',()=>{location.href='/appointments';},'sm'):null),h('div',{class:'bar'},btn('Book a measure',measureDialog,'pri'),btn('New sale',saleDialog,'pri'))),banners(),
+    body.replaceChildren();add(body,[h('div',{class:'head'},h('div',{},h('h1',{text:'What needs doing today?'}),h('p',{text:L.fmtDay(t)}),S.me?.role==='owner'?btn('My fitter trial / team access',()=>{location.href='/appointments';},'sm'):null),h('div',{class:'bar'},btn('Book a measure',measureDialog,'pri'),btn('New sale',saleDialog,'pri'))),banners(),travelApprovalPanel(),
       stockRisk.length?h('div',{class:'simple-alert'},h('b',{text:stockRisk.length+' jobs: supplier stock missing within 7 days of fitting'}),btn('Check deliveries',()=>{selected='attention';draw();},'sm pri')):null,
       online.length?h('div',{class:'simple-alert'},h('b',{text:online.length+' quotes accepted online — ready for sales'}),btn('View accepted quotes',()=>{selected='attention';draw();},'sm pri')):null,
       urgent?h('div',{class:'simple-alert'},h('b',{text:urgent+' jobs have urgent issues'}),btn('Review urgent issues',()=>{selected='attention';draw();},'sm')):null,
@@ -4538,6 +4539,15 @@ function briefDialog(job){
   }, 'pri');
   openModal(dlg('What the measure is for', h('div', {class:'sec'}, h('p', {class:'small muted', text:'Whoever measures sees this on the visit, without prices. The shop quotes from it once the sizes are in.'}), box.node, s.box), [btn('Cancel', closeModal), save]));
 }
+function measureTravelBox(getBrief,getPost){
+ const miles=h('input',{class:'in',type:'number',min:0,step:'0.1',placeholder:'One-way road miles'}),checked=h('input',{type:'checkbox'}),sizes=h('textarea',{class:'in',placeholder:'For example: bedroom about 3 × 4 metres'}),shop=h('input',{class:'in',type:'number',min:0,step:'0.01'}),fit=h('input',{class:'in',type:'number',min:0,step:'0.01'}),extra=h('input',{class:'in',type:'number',min:0,step:'0.01',value:'0'}),told=h('input',{type:'checkbox'}),total=h('p',{class:'banner warn'}),details=h('div'),route=h('a',{class:'btn sm',target:'_blank',rel:'noopener',text:'Check road mileage in Maps'});
+ const node=h('section',{class:'card'},h('h3',{text:'Single-area journey check'}),h('p',{text:'Only one-area jobs over 20 road miles from 2 South Elgin Place, G81 1XP need David’s approval. Use the road journey distance, not a straight-line distance.'}),field('Road miles each way from the shop',miles),route,h('label',{},checked,' I checked the road mileage for this postcode'),details);
+ details.append(field('Customer’s rough sizes',sizes),field('Estimated materials and shop services (£, including delivery and VAT; excluding the £40 below)',shop),field('Estimated fitting (£)',fit),field('Additional fitter travel (£; zero if none)',extra),total,h('label',{},told,' Customer has been told the full estimate including travel, subject to measuring'));
+ function refresh(){const single=getBrief().rooms.length===1;node.hidden=!single;const distant=Number(miles.value)>20;details.hidden=!distant;route.href='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent('2 South Elgin Place, Clydebank G81 1XP')+'&destination='+encodeURIComponent(getPost())+'&travelmode=driving';total.textContent='Estimated full total: '+L.money((Number(shop.value)||0)+(Number(fit.value)||0)+(Number(extra.value)||0)+40)+' — includes £40 distance travel charge paid to the shop if the job proceeds. No measure is booked until David approves.';}
+ node.addEventListener('input',refresh);refresh();
+ return {node,refresh,invalidate(){checked.checked=false;refresh();},read(){if(getBrief().rooms.length!==1)return null;if(miles.value===''||!checked.checked)throw Error('Check the one-way road mileage for this single-area measure.');const c={roadMiles:Number(miles.value),routeChecked:checked.checked,postcode:getPost().replace(/\s/g,'').toUpperCase(),roughSizes:sizes.value.trim(),shopEstimate:shop.value,fitterEstimate:fit.value,fitterTravel:extra.value,customerInformed:told.checked};if(c.roadMiles>20&&(!c.roughSizes||shop.value===''||fit.value===''||extra.value===''||!told.checked))throw Error('Record rough sizes, all estimated charges and confirmation that the customer knows the full price before requesting approval.');return c;}};
+}
+function travelApprovalPanel(){const rows=openJobs().filter(j=>j.status==='open'&&j.travelReview?.state==='pending');return rows.length?h('div',{class:'card'},h('b',{text:rows.length+' distant single-area measures awaiting owner approval'}),h('p',{text:'Not booked in the estimator diary.'}),h('a',{class:'btn',href:'/measure-approvals',text:S.me.role==='owner'?'Review measure requests':'View pending measure requests'})):h('a',{class:'btn sm',href:'/measure-approvals',text:'Measure approvals'});}
 function measureDialog(lead=null){
   if(!lead?.customer)lead=null;
   if (!needDb()) return;
@@ -4547,6 +4557,7 @@ function measureDialog(lead=null){
   const who = diaryPicker('mWho', '', () => { area.refresh(); dayPick.refresh(); showClash(); }), date = inp('mDate', 'date'); date.min = L.todayISO();
   const notes = h('textarea', {class:'in', id:'mNotes', placeholder:'Parking, access, anything else whoever goes should know'});
   const brief = briefBox(null, 'mb');
+  const travel=measureTravelBox(()=>brief.read(),()=>post.value);brief.node.addEventListener('input',travel.refresh);brief.node.addEventListener('change',travel.refresh);post.addEventListener('input',()=>{travel.invalidate();});brief.node.addEventListener('click',()=>setTimeout(travel.refresh,0));
   if(lead){post.value=lead.customer.postcode||'';name.value=lead.customer.name||'';phone.value=lead.customer.phone||'';email.value=lead.customer.email||'';addr.value=lead.customer.address||'';notes.value=lead.enquiry||'';}
   const kinds = h('div', {class:'radios', role:'radiogroup', 'aria-label':'Kind of visit'}), slotSeg = h('div', {class:'seg sm'}), clash = h('p', {class:'small muted'}), linked = h('p', {class:'small muted'});
   const showClash = () => {
@@ -4593,7 +4604,7 @@ function measureDialog(lead=null){
     if (!L.validISO(date.value) || date.value < L.todayISO()) errs.push('Choose the date of the visit.');
     if (!p) errs.push('Choose whose diary it goes in.');
     if (offMsg(p, date.value)) errs.push(offMsg(p, date.value));
-    const bf = brief.read();
+    const bf = brief.read();let travelCheck=null;try{travelCheck=travel.read();}catch(e){errs.push(e.message);}
     if (kind !== 'subfloor' && !bf.rooms.length) errs.push('Say which rooms are being measured.');
     if (errs.length){ s.say(errs.join(' '), true); return; }
     busy = true; go.disabled = true;
@@ -4604,16 +4615,17 @@ function measureDialog(lead=null){
       customer:{shopifyId:shopifyId, name:name.value.trim(), phone:phone.value.trim(), email:email.value.trim(), address:addr.value.trim(), postcode:L.tidyPost(post.value)},
       type:'Fitting', date:'', slot:'', fitter:'', diary:false, status:'open', shopifyClosed:false, lines:{}, total:0, pay:{}, notes:notes.value.trim(), quote:[], drafts:{},
       sizeCheck:kind === 'subfloor' ? 'fitter' : 'estimator', rooms:{}, pre:pre};
+    if(travelCheck){job.travelCheck=travelCheck;if(travelCheck.roadMiles>20){job.travelReview={state:'pending',requestedVisits:pre,requestedAt:now,requestedBy:S.me.id};job.pre={};}}
     if(lead){job.leadId=lead.id;job.test=lead.test===true;}
     if (bf.rooms.length || bf.choices.length || bf.also.length) job.brief = Object.assign(bf, {at:now, by:S.me.id || ''});
-    try { await createJob(id, job, L.PRE_KINDS[kind] + ' booked for ' + L.fmtDay(date.value) + (slot ? ' ' + slot : '') + ' with ' + p + '. Nothing ordered yet' + (L.briefLine(job) ? '. ' + L.briefLine(job) : '')); closeModal(); toast('Measure booked for ' + L.fmtDay(date.value)); openSheet(id); }
+    try { await createJob(id, job, (job.travelReview?'Approval requested; proposed visit: ':L.PRE_KINDS[kind]+' booked for ') + L.fmtDay(date.value) + (slot ? ' ' + slot : '') + ' with ' + p + '. Nothing ordered yet' + (L.briefLine(job) ? '. ' + L.briefLine(job) : '')); closeModal(); toast(job.travelReview?'Sent to David for approval — no measure booked':'Measure booked for '+L.fmtDay(date.value)); openSheet(id); }
     catch (e){ busy = false; go.disabled = false; dbFail(e); }
   }, 'pri');
   openModal(dlg('Book a measure', h('div', {class:'sec'},
     h('div', {class:'card'}, h('h3', {}, 'The visit'), kinds),
-    h('div', {class:'card', id:'mBrief'}, h('h3', {}, 'What is being measured'), brief.node),
+    h('div', {class:'card', id:'mBrief'}, h('h3', {}, 'What is being measured'), brief.node),field('Customer’s postcode',post),travel.node,
     h('div', {class:'card'}, h('h3', {}, 'Whose diary'), h('p', {class:'small muted', text:'Pick who this is for first. The postcode check below then looks at their diary.'}), who.node),
-    h('div', {class:'card tight'}, h('h3', {}, 'Where and when'), field('Customer’s postcode', post), area.node, dayPick.node, field('Time of day', slotSeg), clash),
+    h('div', {class:'card tight'}, h('h3', {}, 'Where and when'), area.node, dayPick.node, field('Time of day', slotSeg), clash),
     h('div', {class:'card'}, h('h3', {}, 'Customer'), shopOK() ? [custFind, custRes, linked] : null,
       h('div', {class:'grid2'}, field('Name', name), field('Phone', phone)), h('div', {class:'grid2'}, field('Email', email), field('Address', addr)), field('Notes for whoever goes', notes)),
     s.box), [btn('Cancel', closeModal), go]));
@@ -4990,6 +5002,7 @@ function dayLoad(person, date, job, v){
   return out;
 }
 function visitDialog(job, v){
+  const travel=!v&&!job.travelCheck?measureTravelBox(()=>L.briefOf(job),()=>job.customer?.postcode||''):null;
   if (!needDb()) return;
   const s = sayer(), editing = !!v;
   let kind = editing ? v.kind : job.sizeCheck === 'estimator' ? 'measure' : job.sizeCheck === 'fitter' ? 'subfloor' : '', slot = editing ? v.slot || '' : '';
@@ -5012,7 +5025,7 @@ function visitDialog(job, v){
   draw(); showClash();
   openModal(dlg(editing ? 'Change the visit' : 'Book a measure or inspection', h('div', {class:'sec'},
     h('p', {class:'muted', text:'This is a visit before the installation. It can be booked before the stock is in, and it has its own place in the diary.'}),
-    kinds, h('p', {class:'subh', text:'Whose diary'}), who.node, area.node, dayPick.node, field('Time of day', slotSeg), clash, s.box),
+    travel?.node,kinds, h('p', {class:'subh', text:'Whose diary'}), who.node, area.node, dayPick.node, field('Time of day', slotSeg), clash, s.box),
     [btn('Cancel', closeModal), btn(editing ? 'Save the visit' : 'Book the visit', async () => {
       const p = who.value();
       if (!kind){ s.say('Choose the kind of visit.', true); return; }
@@ -5023,7 +5036,7 @@ function visitDialog(job, v){
       if (!editing) Object.assign(rec, {n:L.preOf(job).reduce((m, x) => Math.max(m, x.n || 0), 0) + 1, status:'booked', at:nowISO(), by:S.me.id || ''});
       const text = L.PRE_KINDS[kind] + (editing ? ' changed to ' : ' booked for ') + L.fmtDay(date.value) + (slot ? ' ' + slot : '') + ' with ' + p;
       await who.commit();
-      try { await patchJob(job.id, visitPatch(editing ? v : {k:'v' + uid()}, rec), text); closeModal(); toast(editing ? 'Visit changed' : 'Visit booked for ' + L.fmtDay(date.value)); } catch (e){ dbFail(e); }
+      try {const patch=visitPatch(editing?v:{k:'v'+uid()},rec),c=travel?.read();if(c){patch.travelCheck=c;if(c.roadMiles>20){patch.travelReview={state:'pending',requestedVisits:patch.pre,requestedAt:nowISO(),requestedBy:S.me.id};delete patch.pre;}}await patchJob(job.id,patch,patch.travelReview?'Distant measure requested — awaiting owner approval':text);closeModal();toast(patch.travelReview?'Sent to David for approval':editing?'Visit changed':'Visit booked for '+L.fmtDay(date.value)); } catch (e){ dbFail(e); }
     }, 'pri')], true));
 }
 /* the person who went submits what they found. Nothing is passed or verified unless they say so here. */
@@ -6777,3 +6790,9 @@ async function boot(){
 boot();
 })();
 </script>
+
+
+
+
+
+

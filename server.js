@@ -173,7 +173,7 @@ function create(opts){
       const c = store.collPath(body.coll); if (!c || !body.data || typeof body.data !== 'object') return fail(res, 400, 'invalid_argument', 'Bad path.');
       if(c==='leads')return fail(res,403,'use_command','Use Sales leads.');
       if(c==='deliveries')supplierMail.guard(body.data);
-      const id = st.newId(), d = store.docPath(c + '/' + id); st.setDoc(d, body.data); st.audit(user.id, 'add', d.path); broadcast(c); return send(res, 200, {id:id});
+      const id = st.newId(), d = store.docPath(c + '/' + id); if(c==='jobs')cmds.guardJobWrite(d,body.data,true,user);st.setDoc(d, body.data); st.audit(user.id, 'add', d.path); broadcast(c); return send(res, 200, {id:id});
     }
     const d = store.docPath(body.path); if (!d) return fail(res, 400, 'invalid_argument', 'Bad path.');
     if(d.coll==='leads')return fail(res,403,'use_command','Use Sales leads to preserve contact history.');
@@ -382,6 +382,8 @@ function create(opts){
     }
     res.financeRestricted=user.role!=='owner';
     if(['/owner-overview','/api/owner-overview','/buying-report','/api/buying-report','/buying-comparison','/api/buying-comparison','/goods-in-office','/api/goods-in/office','/api/goods-in/cost','/api/goods-in/valuation'].includes(p)&&user.role!=='owner')return fail(res,403,'forbidden','Owner access only.');
+    if(p==='/measure-approvals'&&req.method==='GET'){if(!['owner','shop'].includes(user.role))return fail(res,403,'forbidden','Shop access only.');return page(res,pub('measure-approvals.html'));}
+    if(p==='/api/measure-travel'){const f=require('./lib/distant-measures').make({st,L,now,broadcast});try{if(req.method==='GET')return send(res,200,f.list(user));if(req.method==='POST')return send(res,200,f.decide(user,await readJson(req)));}catch(e){return fail(res,e.status||409,'travel_approval',e.message);}}
     if(p==='/owner-overview'&&req.method==='GET')return page(res,pub('owner-overview.html'));
     if(p==='/api/owner-overview'){const f=financePrivacy.make({st,L,now});try{if(req.method==='GET')return send(res,200,f.report(user,Object.fromEntries(url.searchParams)));if(req.method==='POST')return send(res,200,f.save(user,await readJson(req)));}catch(e){return fail(res,e.status||409,'owner_overview',e.message);}}
     if (p === '/api/me') return send(res, 200, {id:user.id, name:user.name, role:user.role});
