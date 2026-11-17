@@ -389,7 +389,7 @@ function create(opts){
       const bits=p.slice('/api/appointments/drawing/'.length).split('/'),jobId=decodeURIComponent(bits[0]||''),roomKey=decodeURIComponent(bits[1]||''),j=st.getDoc('jobs/'+jobId).data;
       if(!j||!(appointments.allowed(j,user)||Object.keys(j.pre||{}).some(k=>{const v=appointments.visitJob(j,k);return v&&appointments.allowed(v,user);})))return fail(res,403,'forbidden','This is not your assigned job.');
       const r=j.rooms?.[roomKey];if(!r?.drawing)return fail(res,404,'not_found','Room drawing not found.');
-      return send(res,200,require('./lib/room-drawing').svg(r.drawing,r.name),{'content-type':'image/svg+xml; charset=utf-8','cache-control':'private, no-store','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'"});
+      return send(res,200,require('./lib/room-drawing').svg(r.drawing,r.name,require('./lib/room-plan-options')(j,r,L)),{'content-type':'image/svg+xml; charset=utf-8','cache-control':'private, no-store','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'"});
     }
     if(p.startsWith('/api/appointments/photo/')&&req.method==='GET'){
       const bits=p.slice('/api/appointments/photo/'.length).split('/'),jobId=decodeURIComponent(bits[0]||''),id=bits[1]||'';
@@ -496,3 +496,4 @@ if (require.main === module){
   app.server.listen(port, () => console.log('IFD Shop Operations listening on ' + port));
 }
 module.exports = { create, ROLES, SHOP_ROLES };
+
