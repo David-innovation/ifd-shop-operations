@@ -2879,6 +2879,28 @@ function stockIncomingRows(deliveries,term,variantIds=[]){
 function incomingStockPanel(rows){
   return h('section',{class:'card',style:'border-left:4px solid #d6ad54'},h('h3',{text:'Incoming stock · '+rows.length+' matching lines'}),rows.length?rows.map(r=>h('div',{class:'row static'},h('div',{class:'grow'},h('b',{text:r.title}),h('p',{text:L.fmtQty(r.qty,r.unit)+' still to arrive · '+(r.reserved?'Reserved for '+(r.jobRef||'a customer job'):'For shop stock')}),h('p',{text:(r.placed?'Ordered':'Prepared — not yet confirmed ordered')+' · '+r.supplier+(r.ref?' · '+r.ref:'')}),h('b',{text:r.expected?(r.expected<L.todayISO()?'Overdue — expected ':'Expected arrival: ')+L.fmtDay(r.expected):'Arrival date not confirmed'}),r.review?h('p',{class:'banner warn',text:'Supplier reply needs review — check before promising this date.'}):null),btn('Open order',()=>openDelivery(r.id),'sm'))):h('p',{text:'No outstanding supplier orders recorded for this search.'}),h('small',{class:'muted',text:'Incoming goods are not included in available stock until the warehouse receives them. Dates are supplier estimates.'}));
 }
+function stockColourGroups(products){
+  const groups=new Map();
+  for(const p of products)for(const v of p.variants?.nodes||[]){
+    const roll=L.isRoll(v,p),clean=t=>String(t||'').replace(/\s*[·—-]?\s*per\s*10\s*cm\b/ig,'').replace(/(?:^|[\s/|])\d+(?:\.\d+)?\s*m(?:etres?|eters?)?\b/ig,' ').replace(/\broll\s*#?\s*[A-Z]*-?\d+\b/ig,'').replace(/^[\s·/|—-]+|[\s·/|—-]+$/g,'').replace(/\s+/g,' ').trim();
+    const product=roll?clean(p.title):p.title,colour=v.title==='Default Title'?'':roll?clean(v.title):v.title;
+    const label=product+(colour&&colour!==product?' · '+colour:''),key=label.toLowerCase();
+    if(!groups.has(key))groups.set(key,{label,items:[]});
+    if(!groups.get(key).items.some(x=>x.v.id===v.id))groups.get(key).items.push({p,v});
+  }
+  return [...groups.values()];
+}
+async function openStockColour(group){
+  const body=h('div',{class:'sec'},h('p',{text:'Checking current stock…'}));
+  openModal(dlg(group.label,body,[btn('Close',closeModal)],true));
+  try{
+    const ids=group.items.map(x=>x.v.id),fresh=[];
+    for(let i=0;i<ids.length;i+=20){const d=await sq(Q_VARIANTS,{ids:ids.slice(i,i+20)});fresh.push(...(d.nodes||[]).filter(Boolean));}
+    const rows=group.items.map(x=>({p:x.p,v:fresh.find(v=>v.id===x.v.id)||x.v}));
+    const widths=[...new Set(rows.filter(x=>L.levelFigures(x.v).total.available>0).map(x=>catalogueRollWidth(x.p,x.v)).filter(Boolean))].sort((a,b)=>a-b);
+    body.replaceChildren(...[rows.some(x=>L.isRoll(x.v,x.p))?h('p',{text:widths.length?'Widths in stock: '+widths.map(w=>w+'m').join(' · '):'No roll widths currently recorded as available.'}):null,h('p',{class:'small muted',text:'Individual stock records are listed below. Stock is subject to the opening stocktake.'}),...rows.map(x=>stockCard(x.p,x.v)),incomingStockPanel(stockIncomingRows(Array.from(S.deliveries.values()),group.label,ids))].filter(Boolean));
+  }catch(e){body.replaceChildren(h('p',{class:'banner warn',text:'Could not check the full stock list: '+explain(e)}));}
+}
 function stockSearchView(dashboard=false){
   const out = h('div', {style:'display:contents'});
   let timer, sequence=0, checked='';
@@ -2896,6 +2918,7 @@ function stockSearchView(dashboard=false){
     try {
       let d = await sq(Q_SEARCH, {q:q}), ps = (d.products && d.products.nodes) || [];
       if (!ps.length){ d = await sq(Q_SEARCH, {q:term + ' status:active'}); ps = (d.products && d.products.nodes) || []; }
+      for(const p of ps){let after=null,more=true;const all=new Map((p.variants?.nodes||[]).map(v=>[v.id,v]));while(more){const page=await sq(Q_CATALOGUE_VARIANTS,{id:p.id,after});if(request!==sequence)return;const conn=page.product?.variants;if(!conn)break;for(const v of conn.nodes||[])all.set(v.id,{...v,...(all.get(v.id)||{})});more=!!conn.pageInfo?.hasNextPage;after=conn.pageInfo?.endCursor;if(more&&!after)throw Error('Could not load all product colours. Please try again.');}p.variants={nodes:[...all.values()]};}
       if(request!==sequence)return;
       const words=term.toLowerCase().split(/\s+/).filter(Boolean);
       S.ui.stock = ps.map(p=>({...p,variants:{...p.variants,nodes:(p.variants?.nodes||[]).filter(v=>words.every(w=>[p.title,v.title,v.sku,v.rollNumber?.value].join(' ').toLowerCase().includes(w)))}})).filter(p=>p.variants.nodes.length);
@@ -2905,15 +2928,15 @@ function stockSearchView(dashboard=false){
   }
   S.runStockSearch = run;
   function draw(){
-    out.replaceChildren(); if(!dashboard||S.ui.stock!=null)add(out, banners());
+    out.replaceChildren(); if(!dashboard)add(out, banners());
     if (S.ui.stockBusy){ out.append(h('div', {class:'banner info'}, h('span', {class:'spin'}), h('p', {text:'Checking current stock…'}))); return; }
     if (S.ui.stockMsg) out.append(h('div', {class:'banner warn'}, h('p', {text:S.ui.stockMsg})));
     if(dashboard&&S.ui.stock==null&&!S.ui.stockMsg)return;
     if (S.ui.stock == null){ out.append(h('div', {class:'list'}, h('div', {class:'empty'}, h('b', {text:'Search to see live stock'}), 'Figures come straight from Shopify each time. This page keeps no stock numbers of its own.'))); return; }
-    out.append(incomingStockPanel(stockIncomingRows(Array.from(S.deliveries.values()),S.ui.stockQ,S.ui.stock.flatMap(p=>(p.variants?.nodes||[]).map(v=>v.id)))));
-    if (!S.ui.stock.length){ out.append(h('div', {class:'list'}, h('div', {class:'empty'}, h('b', {text:'Nothing found'}), 'Try fewer words, or the start of the product name.'))); return; }
-    out.append(h('p',{class:'muted',text:'Stock checked '+checked+' · Includes Floor Pilot clearance stock. For a long list, add the colour or roll number to narrow your search.'}));
-    S.ui.stock.slice(0,dashboard?6:100).forEach(p => ((p.variants && p.variants.nodes) || []).forEach(v => out.append(stockCard(p, v))));
+    if (!S.ui.stock.length){ out.append(h('div', {class:'list'}, h('div', {class:'empty'}, h('b', {text:'Nothing found'}), 'Try fewer words, or the start of the product name.')),incomingStockPanel(stockIncomingRows(Array.from(S.deliveries.values()),S.ui.stockQ))); return; }
+    out.append(h('p',{class:'small muted',text:'Choose a product and colour to see widths, individual rolls and deliveries.'}));
+    const list=h('div',{class:'list',style:'max-height:360px;overflow:auto'});
+    stockColourGroups(S.ui.stock).forEach(g=>list.append(btn(g.label+' →',()=>openStockColour(g),'row')));out.append(list);
   }
   return {nodes:[
     h('div', {class:'head'}, h('div', {}, h(dashboard?'h2':'h1', {text:'Quick stock search'}), h('p', {text:'Available now, reserved for jobs and expected deliveries.'})), dashboard?btn('Open full stock page',()=>go('stock'),'sm'):btn('Opening stocktake', () => go('stocktake'), 'sm')),
