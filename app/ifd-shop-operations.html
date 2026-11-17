@@ -2849,9 +2849,9 @@ function stockCard(p, v){
   const fig1 = (n, label, low) => h('div', {class:'fig' + (low ? ' low' : '')}, h('b', {class:'num', text:unit === 'm' ? (n / 10).toFixed(1) : String(n)}), h('small', {text:label}));
   if (fig.tracked){
     figs.append(fig1(fig.total.available, unit === 'm' ? 'metres free to sell' : 'free to sell', fig.total.available <= 0));
-    if (fig.total.on_hand - fig.total.available) figs.append(fig1(fig.total.on_hand - fig.total.available, 'reserved in Shopify'));
+    if (fig.total.on_hand - fig.total.available) figs.append(fig1(fig.total.on_hand - fig.total.available, 'reserved for customers'));
     if (held) figs.append(fig1(held, 'set aside for jobs'));
-    figs.append(fig1(expected, 'should be on the shelf'));
+    figs.append(fig1(expected, 'in stock, including reserved cuts'));
   }
   const tags = h('div', {class:'meta'});
   if (roll){
