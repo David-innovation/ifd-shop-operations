@@ -1,0 +1,7408 @@
+[
+  {
+    "id": "aw-brooklyn",
+    "name": "BROOKLYN",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 10.031700000000003,
+    "rollCost": 5.889198,
+    "standardRollCost": 6.4911,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 3",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Swan Feathers",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Skylight",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "29",
+        "name": "Green Tea",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Biscuit Crumbs",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Putty",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Brushed Cotton",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Oak Apple",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Grey Shingle",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Rapier Steel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Morning Song",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Apollo",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Down Pipe",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-california-dreams",
+    "name": "CALIFORNIA DREAMS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 18.6584,
+    "rollCost": 11.790198,
+    "standardRollCost": 17.691760000000002,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 4",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-coniston",
+    "name": "CONISTON",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 8.55645,
+    "rollCost": 5.889198,
+    "standardRollCost": 6.1960500000000005,
+    "stockistCondition": "",
+    "supplierNote": "Multiple backings listed by manufacturer. 4m common to both; confirm backing before selecting other widths.",
+    "cutNote": "",
+    "widths": [
+      4
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 5",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Cotton",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "04",
+        "name": "Autumn Mist",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "06",
+        "name": "Wispy Skies",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "08",
+        "name": "Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Manor House",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Pebble",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Shoreline",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "38",
+        "name": "Biscuit",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Basalt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Pearl Ashes",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Cocoon Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Charcoal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "04",
+        "name": "Autumn Mist",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "08",
+        "name": "Stone",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Pebble",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "38",
+        "name": "Biscuit",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Cocoon Beige",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Charcoal",
+        "widths": [
+          4
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-harrogate",
+    "name": "HARROGATE",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 10.609998000000001,
+    "rollCost": 7.966350000000001,
+    "standardRollCost": 8.249598,
+    "stockistCondition": "",
+    "supplierNote": "Multiple backings listed by manufacturer. 4m common to both; confirm backing before selecting other widths.",
+    "cutNote": "",
+    "widths": [
+      4
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 6",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "04",
+        "name": "Autumn Mist",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "08",
+        "name": "Stone",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Pebble",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "38",
+        "name": "Biscuit",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Cocoon Beige",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Charcoal",
+        "widths": [
+          4
+        ]
+      },
+      {
+        "code": "03",
+        "name": "Cotton",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "04",
+        "name": "Autumn Mist",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "06",
+        "name": "Wispy Skies",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "08",
+        "name": "Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Manor House",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Pebble",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Shoreline",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "38",
+        "name": "Biscuit",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Basalt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Pearl Ashes",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Cocoon Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Charcoal",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-homfirth",
+    "name": "HOMFIRTH",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 12.970398000000001,
+    "rollCost": 10.019898000000001,
+    "standardRollCost": 10.609998000000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 7",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-hudson",
+    "name": "HUDSON",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.572300000000002,
+    "rollCost": 8.249598,
+    "standardRollCost": 10.031700000000003,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 8",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Swan Feathers",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Skylight",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "29",
+        "name": "Green Tea",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Biscuit Crumbs",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Putty",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Brushed Cotton",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Oak Apple",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Grey Shingle",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Rapier Steel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Morning Song",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Apollo",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Down Pipe",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-island-weave-action-bac",
+    "name": "ISLAND WEAVE  (ACTION BAC)",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 7.069398000000001,
+    "rollCost": 4.42575,
+    "standardRollCost": 5.299098,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 9",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-promenade",
+    "name": "PROMENADE",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 11.790198,
+    "rollCost": 7.659498,
+    "standardRollCost": 9.724848,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 10",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "05",
+        "name": "Frosted Dawn",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "07",
+        "name": "Silver",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Morning Light",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Portland Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Beach",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "41",
+        "name": "Mushroom",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "45",
+        "name": "Silt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "62",
+        "name": "China Clay",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "75",
+        "name": "Shadow",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "76",
+        "name": "Celestial Blue",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Pewter",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Ocean Mist",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Canvas",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Lamp Black",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-soho",
+    "name": "SOHO",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 10.031700000000003,
+    "rollCost": 5.889198,
+    "standardRollCost": 6.4911,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 11",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "05",
+        "name": "Clotted Cream",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Fawn",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Light Sand",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Belgian Biscuit",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Country Linen",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "41",
+        "name": "Skimming Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Gul Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Elephants Breat",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Owlswick",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Battleship Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Elder Bark",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Railings",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-sophistication",
+    "name": "SOPHISTICATION",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.867349999999998,
+    "rollCost": 10.019898000000001,
+    "standardRollCost": 11.495148,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 12",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "05",
+        "name": "Frosted Dawn",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "07",
+        "name": "Silver",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Morning Light",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Portland Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Beach",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "41",
+        "name": "Mushroom",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "45",
+        "name": "Silt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "62",
+        "name": "China Clay",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "75",
+        "name": "Shadow",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "76",
+        "name": "Celestial Blue",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Pewter",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Frost",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Oyster",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Lamp Black",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-stainaway-tweed",
+    "name": "STAINAWAY TWEED",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 10.609998000000001,
+    "rollCost": 7.659498,
+    "standardRollCost": 9.429798,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 13",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "19",
+        "name": "Scarlet",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "24",
+        "name": "Pixie",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Esk",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Eddleston",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "42",
+        "name": "Teviot",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "54",
+        "name": "Amber",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "78",
+        "name": "Blissful",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "84",
+        "name": "Rocket",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "89",
+        "name": "Earth",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "93",
+        "name": "Calder",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Drum",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Ness",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-tribeca",
+    "name": "TRIBECA",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.572300000000002,
+    "rollCost": 8.249598,
+    "standardRollCost": 10.031700000000003,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 14",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "05",
+        "name": "Clotted Cream",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Fawn",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Light Sand",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Belgian Biscuit",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Country Linen",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "41",
+        "name": "Skimming Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Gul Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Elephants Breat",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Owlswick",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Battleship Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Elder Bark",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Railings",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-aries",
+    "name": "ARIES",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 11.790198,
+    "rollCost": 8.839698000000002,
+    "standardRollCost": 9.429798,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 15",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Flint",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Cotton",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Hammock",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Sandstone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Fudge",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Moleskin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "79",
+        "name": "Wedgewood",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "86",
+        "name": "Blush",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Silver Lining",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Steel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Fog",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Jack Black",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-aquarius",
+    "name": "AQUARIUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 15.920898,
+    "rollCost": 12.380298,
+    "standardRollCost": 13.560498,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 16",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Flint",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Cotton",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Hammock",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Sandstone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Fudge",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Moleskin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Silver Lining",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Steel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Fog",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Jack Black",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-aurelius",
+    "name": "AURELIUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 15.920898,
+    "rollCost": 11.200098,
+    "standardRollCost": 13.265448000000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 17",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "02",
+        "name": "Mirage",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "03",
+        "name": "Mist",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "20",
+        "name": "Eucalyptus Leaf",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Mushroom",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Golden Honey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Knightsbridge",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "61",
+        "name": "Hydrangea",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Concrete",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Battleship Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Cheviot Flannel",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Appleton Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Notting Hill Sl",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-canopus",
+    "name": "CANOPUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.99,
+    "rollCost": 11.99,
+    "standardRollCost": 13.48,
+    "stockistCondition": "11.99 Min 3 rolls",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 18",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Cream Tea",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Vanilla",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Cottonbud",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Cupcake",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Rabbits Foot",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Biscuit Crumbs",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Nutmeg",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Morning Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "93",
+        "name": "Seal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Rock Salt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Carriage Wheel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Anthracite",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-cassius",
+    "name": "CASSIUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 14.73564,
+    "rollCost": 11.200098,
+    "standardRollCost": 11.79076,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 19",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "White Swan",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "04",
+        "name": "Oatmeal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "20",
+        "name": "Fern",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Buttermilk",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Mistflower",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Temple",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Acacia",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Golden Honey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "Northern Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "38",
+        "name": "Okra",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Wheat Straw",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "43",
+        "name": "Fletchers Mill",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "75",
+        "name": "Rainlake",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "93",
+        "name": "Silver Thaw",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Duante",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Kale",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Liliul",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Sesame",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-castor",
+    "name": "CASTOR",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 10.96,
+    "rollCost": 8.98,
+    "standardRollCost": 10.4,
+    "stockistCondition": "8.98 Min 3 rolls",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 20",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Cream Tea",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Vanilla",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Cottonbud",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Cupcake",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Rabbits Foot",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Biscuit Crumbs",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Nutmeg",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Morning Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "93",
+        "name": "Seal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Rock Salt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Carriage Wheel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Anthracite",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-centaurus",
+    "name": "CENTAURUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 19.01808,
+    "rollCost": 11.790198,
+    "standardRollCost": 15.71352,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 21",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Flash White",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Shadow White",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Cornsilk",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Vanilla",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Chalk Beige",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Caramel Brown",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Silver Cloud",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Marble Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Cool Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Warm Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Grey Coral",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Onyx Black",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-centurion",
+    "name": "CENTURION",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 10.609998000000001,
+    "rollCost": 7.069398000000001,
+    "standardRollCost": 9.429798,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 22",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Cream",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Granola",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Silkworm",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Shortbread",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Cotswold Stone",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Sandcastle",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Latte",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Silvermoon",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "93",
+        "name": "Steel Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Slate",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Pewter",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Deep Cavern",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-darius",
+    "name": "DARIUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 11.79076,
+    "rollCost": 8.839698000000002,
+    "standardRollCost": 9.43036,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 23",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "White Swan",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "04",
+        "name": "Oatmeal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "20",
+        "name": "Fern",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Buttermilk",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Mistflower",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Temple",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Acacia",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Golden Honey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "Northern Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "38",
+        "name": "Okra",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Wheat Straw",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "43",
+        "name": "Fletchers Mill",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "75",
+        "name": "Rainlake",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "93",
+        "name": "Silver Thaw",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Duante",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Kale",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Liliul",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Sesame",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-magnificus",
+    "name": "MAGNIFICUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 15.920898,
+    "rollCost": 11.79,
+    "standardRollCost": 14.150598000000002,
+    "stockistCondition": "",
+    "supplierNote": "INNOVATION ROLL PRICE £11.21M2",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 24",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Cream",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Granola",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Silkworm",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Shortbread",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Cotswold Stone",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Sandcastle",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Latte",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Silver Moon",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "93",
+        "name": "Steel Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Slate",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Pewter",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Deep Cavern",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-orion",
+    "name": "ORION",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 11.790198,
+    "rollCost": 8.839698000000002,
+    "standardRollCost": 9.429798,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 25",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Linen",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "05",
+        "name": "Cream",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Blanched White",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Sandy Beach",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Biscuit",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "Latte",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Suede",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Silver Chalice",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Lavastone",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Roman Silver",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Grey Plank",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Charcoal",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-septimus",
+    "name": "SEPTIMUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.123824,
+    "rollCost": 7.069398000000001,
+    "standardRollCost": 10.846038,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 26",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Washed Linen",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Baking Day",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Stony Ground",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "High Line",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Sandy Steps",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "38",
+        "name": "Portland Stone",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Perfect Taupe",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Pale Birch",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Pale Graphite",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Grey Pearl",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Soft Silver",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "London Roof",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Iron Ore",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Smoke Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Autumn Moore",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-severus",
+    "name": "SEVERUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 19.544112,
+    "rollCost": 10.609998000000001,
+    "standardRollCost": 16.156938,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 27",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Washed Linen",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Baking Day",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Stony Ground",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "High Line",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Sandy Steps",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "38",
+        "name": "Portland Stone",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Perfect Taupe",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Pale Birch",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Pale Graphite",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Grey Pearl",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Soft Silver",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "London Roof",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Iron Ore",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Smoke Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Autumn Moore",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-sirius",
+    "name": "SIRIUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 14.740697999999998,
+    "rollCost": 11.19,
+    "standardRollCost": 11.790198,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 28",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Linen",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "05",
+        "name": "Cream",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Blanched White",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Sandy Beach",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Biscuit",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "Latte",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Suede",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Silver Chalice",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Lavastone",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Roman Silver",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Grey Plank",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Charcoal",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-taurus",
+    "name": "TAURUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 14.150598000000002,
+    "rollCost": 11.200098,
+    "standardRollCost": 11.790198,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 29",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Flint",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Cotton",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Hammock",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Sandstone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Fudge",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Moleskin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "79",
+        "name": "Wedgewood",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "86",
+        "name": "Blush",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Silver Lining",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Steel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Fog",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Jack Black",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-tiberius",
+    "name": "TIBERIUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.867349999999998,
+    "rollCost": 9.429798,
+    "standardRollCost": 11.495148,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      3,
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 30",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "02",
+        "name": "Mirage",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "03",
+        "name": "Mist",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "20",
+        "name": "Eucalyptus Leaf",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Mushroom",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Golden Honey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Knightsbridge",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "61",
+        "name": "Hydrangea",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Concrete",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Battleship Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Cheviot Flannel",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Appleton Grey",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Notting Hill Sl",
+        "widths": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-obsession",
+    "name": "OBSESSION",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 23.592198,
+    "rollCost": 18.871398000000003,
+    "standardRollCost": 18.871398000000003,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 31",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Ermine",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "28",
+        "name": "Ambleside",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Nougat",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Suede",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "Camel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Gazelle",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "43",
+        "name": "Bistro",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "45",
+        "name": "Mocca",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "75",
+        "name": "Scree",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "84",
+        "name": "Tuscan",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Granite",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Anthracite",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Raven",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-splendour",
+    "name": "SPLENDOUR",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 18.281298000000003,
+    "rollCost": 14.740697999999998,
+    "standardRollCost": 14.740697999999998,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 32",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "15",
+        "name": "Faded Rose",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "20",
+        "name": "Salix",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "Almond",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Latte",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Camel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Zephyr",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "44",
+        "name": "Soft Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "47",
+        "name": "Mellow Mocha",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "New Cotton",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "70",
+        "name": "Cheviot Flanel",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Pewter",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Warm Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Urban Sky",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Ebony",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-serenity",
+    "name": "SERENITY",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 27.132797999999998,
+    "rollCost": 22.411998,
+    "standardRollCost": 22.411998,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 33",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "28",
+        "name": "Salix",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Hammock",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Dove",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "41",
+        "name": "Rolling Fog",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "44",
+        "name": "Havana",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "46",
+        "name": "Silt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "47",
+        "name": "Hessian",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Earth Tone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "62",
+        "name": "Dorchester",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "70",
+        "name": "Gauze",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Slate",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Symphony",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Manhattan",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Charcoal",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-subtlety",
+    "name": "SUBTLETY",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 20.641697999999995,
+    "rollCost": 15.920898,
+    "standardRollCost": 15.920898,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 34",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "09",
+        "name": "Platina",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "16",
+        "name": "Whisper",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "China Clay",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Portobello",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "Cornfield",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Zephyr",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "47",
+        "name": "Moleskin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "70",
+        "name": "Gentle Sky",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Granite",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Marble",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Basalt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Anthracite",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Raven",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-surprise",
+    "name": "SURPRISE",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 22.411998,
+    "rollCost": 17.691198,
+    "standardRollCost": 17.691198,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 35",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "20",
+        "name": "Poseidon",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "27",
+        "name": "Hera",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Nemesis",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "45",
+        "name": "Hades",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "77",
+        "name": "Royale",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Leo",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Gemini",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Taurus",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Raven",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Aries",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-suspense",
+    "name": "SUSPENSE",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 28.903097999999996,
+    "rollCost": 24.182298,
+    "standardRollCost": 24.182298,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 36",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Ermine",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "04",
+        "name": "Fog",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "20",
+        "name": "Ice Floes",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Desert",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "Orchid",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Zephyr",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Mocca",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "57",
+        "name": "Granite",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "58",
+        "name": "Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "59",
+        "name": "Night Sky",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "62",
+        "name": "Nude",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Basalt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Anthracite",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Raven",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-kai",
+    "name": "KAI",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 16.510998,
+    "rollCost": 12.970398000000001,
+    "standardRollCost": 12.970398000000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 37",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-oshun",
+    "name": "OSHUN",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 23.592198,
+    "rollCost": 18.871398000000003,
+    "standardRollCost": 18.871398000000003,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 38",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "16",
+        "name": "Faded Rose",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "29",
+        "name": "Green Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Alabaster",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Beauvais Lilac",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Taupe",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Storm",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "71",
+        "name": "La Seine",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Quartz",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Flint",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Aubusson",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Gargoyle",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-varuna",
+    "name": "VARUNA",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 20.051598000000002,
+    "rollCost": 15.330798000000003,
+    "standardRollCost": 15.330798000000003,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 39",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Nougat",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Platina",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "29",
+        "name": "Lagoon",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Cornfield",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Suede",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Sandstone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Zephyr",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Taupe",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "70",
+        "name": "Caspian",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Atmosphere",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Quartz",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Basalt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Charcoal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Ebony",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-brenta",
+    "name": "BRENTA",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.914558,
+    "rollCost": 10.609998000000001,
+    "standardRollCost": 11.495148,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 40",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "30",
+        "name": "Pure",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Boulder",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Linen",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Sisal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Sphinx",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-dorado",
+    "name": "DORADO",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 17.101098,
+    "rollCost": 11.200098,
+    "standardRollCost": 14.150598000000002,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 41",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "27",
+        "name": "Sage Green",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Blanched Almond",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Doeskin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Barbados",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Attic",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Safari",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "75",
+        "name": "Juniper Ash",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "82",
+        "name": "Buff",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Silver Moon",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Pearl",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Morning Mist",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Shoreline",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Baltic Sea",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Raven",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-ganges",
+    "name": "GANGES",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 11.790198,
+    "rollCost": 7.069398000000001,
+    "standardRollCost": 9.724848,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 42",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "20",
+        "name": "Canopy Green",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Sand Tan",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Spanish Olive",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Bathstone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Teddy Bear",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Rolling Fog",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "London Roof",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "74",
+        "name": "Goa",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Iron Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Chimney Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Wren Feather",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Amsterdam Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Graphite",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Blackjack",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-indus",
+    "name": "INDUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 14.740697999999998,
+    "rollCost": 9.429798,
+    "standardRollCost": 11.495148,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 43",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "27",
+        "name": "Sage Green",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Blanched Almond",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Doeskin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Barbados",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Attic",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Safari",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "75",
+        "name": "Juniper Ash",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "82",
+        "name": "Buff",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Silver Moon",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Pearl",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Morning Mist",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Shoreline",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Baltic Sea",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Raven",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-sarno",
+    "name": "SARNO",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.914558,
+    "rollCost": 10.609998000000001,
+    "standardRollCost": 11.495148,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 44",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "30",
+        "name": "Pure",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Boulder",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Linen",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Sisal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Sphinx",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Natural",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Slate",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-tiber",
+    "name": "TIBER",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.914558,
+    "rollCost": 10.609998000000001,
+    "standardRollCost": 11.495148,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 45",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "30",
+        "name": "Pure",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Boulder",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Linen",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Sisal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Sphinx",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-tigris",
+    "name": "TIGRIS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.867349999999998,
+    "rollCost": 9.14655,
+    "standardRollCost": 11.495148,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 46",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "20",
+        "name": "Canopy Green",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Sand Tan",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Spanish Olive",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Bathstone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Teddy Bear",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "37",
+        "name": "Rolling Fog",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "London Roof",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "74",
+        "name": "Goa",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Iron Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Chimney Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Wren Feather",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Amsterdam Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Graphite",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Blackjack",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-yukon",
+    "name": "YUKON",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 20.051598000000002,
+    "rollCost": 14.150598000000002,
+    "standardRollCost": 17.691198,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 47",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "04",
+        "name": "Vanilla",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "27",
+        "name": "Sage Green",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Blanched Almond",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Barbados",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Attic",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "41",
+        "name": "Lavender",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "49",
+        "name": "Safari",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "77",
+        "name": "Midnight",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "81",
+        "name": "Aragon",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "91",
+        "name": "Pearl",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Morning Mist",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Shoreline",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "98",
+        "name": "Baltic Sea",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Raven",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-orinoco",
+    "name": "ORINOCO",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 17.691198,
+    "rollCost": 12.970398000000001,
+    "standardRollCost": 14.150598000000002,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 48",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Ermine",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "05",
+        "name": "Dove",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Suede",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "35",
+        "name": "Goldleaf",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "36",
+        "name": "Nougat",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Sphinx",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "44",
+        "name": "Havana",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Quartz",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Symphony",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Slate",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Basalt",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "99",
+        "name": "Raven",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-parana",
+    "name": "PARANA",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 7.069398000000001,
+    "standardRollCost": 8.249598,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 49",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-rio-grande",
+    "name": "RIO-GRANDE",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 13.914558,
+    "rollCost": 9.429798,
+    "standardRollCost": 11.495148,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 50",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-arran-action-island-weave",
+    "name": "ARRAN- Action. (Island Weave)",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 8.249598,
+    "rollCost": 4.42575,
+    "standardRollCost": 6.4427118000000005,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 51",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Portland Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "English Toffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Eggshell",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "47",
+        "name": "Stony Ground",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "50",
+        "name": "Crystal Gold",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Glace Sand",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Slate",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Flint",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-arran-recytex-island-weave",
+    "name": "ARRAN -  Recytex (Island Weave)",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 4.42575,
+    "standardRollCost": 6.4427118000000005,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 52",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Portland Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "English Toffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Eggshell",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "47",
+        "name": "Stony Ground",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "50",
+        "name": "Crystal Gold",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Glace Sand",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Slate",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Flint",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-amapa-flatweave",
+    "name": "AMAPA (FLATWEAVE)",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 14.150598000000002,
+    "rollCost": 11.790198,
+    "standardRollCost": 12.970398000000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 53",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-amara",
+    "name": "AMARA",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 4.42575,
+    "standardRollCost": 4.42575,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 54",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-atticus",
+    "name": "ATTICUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 6.1707600000000005,
+    "standardRollCost": 6.732760000000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 55",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-devon",
+    "name": "DEVON",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 6.25,
+    "standardRollCost": 6.5,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "Opening roll orders £5.99",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 56",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-devotion",
+    "name": "DEVOTION",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 7.473545688000001,
+    "standardRollCost": 8.633233812,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 57",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-florida",
+    "name": "FLORIDA",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 5.45807094,
+    "standardRollCost": 6.06587394,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 58",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-fuego",
+    "name": "FUEGO",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 6.4427118000000005,
+    "standardRollCost": 7.2814799400000005,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 59",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-gemini",
+    "name": "GEMINI",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": null,
+    "standardRollCost": 6.49,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 60",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-gloria",
+    "name": "GLORIA",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 8.083779900000001,
+    "standardRollCost": 8.633233812,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 61",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-herringbone-action-island-weave",
+    "name": "HERRINGBONE- Action. (Island Weave)",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 7.07,
+    "rollCost": 4.42575,
+    "standardRollCost": 5.3,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 62",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-kiama",
+    "name": "KIAMA",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 5.889198,
+    "standardRollCost": 6.479298000000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 63",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-kids-broadloom-unlicenced",
+    "name": "KIDS BROADLOOM -UNLICENCED",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 6.3819315,
+    "standardRollCost": 6.67367694,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 64",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-kids-broadloom-licenced",
+    "name": "KIDS BROADLOOM-LICENCED",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 7.40911857,
+    "standardRollCost": 7.889282940000002,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 65",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-lima-flatweave",
+    "name": "LIMA (FLATWEAVE)",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 14.150598000000002,
+    "rollCost": 11.790198,
+    "standardRollCost": 12.970398000000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 66",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-manaus-flatweave",
+    "name": "MANAUS (FLATWEAVE)",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 14.150598000000002,
+    "rollCost": 11.790198,
+    "standardRollCost": 12.970398000000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 67",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-miami",
+    "name": "MIAMI",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 3.8356500000000007,
+    "standardRollCost": 3.8356500000000007,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 68",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-miriade",
+    "name": "MIRIADE",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 6.3819315,
+    "standardRollCost": 7.2814799400000005,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 69",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-monterey",
+    "name": "MONTEREY",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 5.889198,
+    "standardRollCost": 8.633233812,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 70",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "07",
+        "name": "Dolphin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Antique Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Blonde Oak",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Pebble Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "45",
+        "name": "Mistral",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "59",
+        "name": "Night Sky",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Cinder Toffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Caffe Latte",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Atlantic",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "French Grey",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-nobilis",
+    "name": "NOBILIS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": null,
+    "standardRollCost": 4.99,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 71",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-prius",
+    "name": "PRIUS",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": null,
+    "standardRollCost": 3.65,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 72",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-runners-loop-pile",
+    "name": "RUNNERS - LOOP PILE",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 8.13240414,
+    "standardRollCost": 8.520486355500001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 73",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-runners-cut-pile",
+    "name": "RUNNERS CUT PILE",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 12.581522099999999,
+    "standardRollCost": 12.580683331860001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 74",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-san-miguel",
+    "name": "SAN MIGUEL",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 8.67447,
+    "standardRollCost": 11.53610094,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 75",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Pearl",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "05",
+        "name": "Voile",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "29",
+        "name": "Normandy Green",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Cool Ashes",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "33",
+        "name": "Sandstone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "40",
+        "name": "Ginger",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "70",
+        "name": "Gauze",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Aircraft Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Silver",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Dove",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Platinum",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "97",
+        "name": "Granite",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-santa-fe",
+    "name": "SANTA FE",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 7.2814799400000005,
+    "standardRollCost": 7.889282940000002,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 76",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-skye-action-island-weave",
+    "name": "SKYE - Action (Island Weave)",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 7.07,
+    "rollCost": 4.42575,
+    "standardRollCost": 5.3,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 77",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Portland Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "English Toffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Eggshell",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "47",
+        "name": "Stony Ground",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "50",
+        "name": "Crystal Gold",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Glace Sand",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Slate",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Flint",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-skye-recytex-island-weave",
+    "name": "SKYE - Recytex (Island Weave)",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": 7.07,
+    "rollCost": 4.42575,
+    "standardRollCost": 5.3,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 78",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "Portland Stone",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "31",
+        "name": "English Toffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Eggshell",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "47",
+        "name": "Stony Ground",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "50",
+        "name": "Crystal Gold",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Glace Sand",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Slate",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "94",
+        "name": "Flint",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-sunset",
+    "name": "SUNSET",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 7.2814799400000005,
+    "standardRollCost": 7.473545688000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 79",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-tampa",
+    "name": "TAMPA",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 6.8681739,
+    "standardRollCost": 7.2814799400000005,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 80",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "",
+    "colours": [],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-temptation",
+    "name": "TEMPTATION",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 8.8515,
+    "standardRollCost": 10.609998000000001,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 81",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "White Smoke",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "07",
+        "name": "Goose Down",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Grey Orchid",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Oatmeal",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Pebble Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Pastel Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Glacie Coffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "45",
+        "name": "Mistral",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Warm Cinnamon",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "59",
+        "name": "Black Cab",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Cinder Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Caffe Latte",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Atlantic",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "Urban Days",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-tuftex-twist-action",
+    "name": "TUFTEX TWIST - Action",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 4.42575,
+    "standardRollCost": 5.889198,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 82",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "White Mulberry",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "07",
+        "name": "Dolphin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Antique Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Blonde Oak",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Pebble Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Pastel Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Glace Coffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "45",
+        "name": "Mistral",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Warm Cinnamon",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "59",
+        "name": "Night Sky",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Cinder Toffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Caffe Latte",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Atlantic",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "French Grey",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  },
+  {
+    "id": "aw-tuftex-twist-felt",
+    "name": "TUFTEX TWIST - Felt",
+    "supplier": "Associated Weavers",
+    "category": "carpet",
+    "type": "Carpet roll",
+    "roll": true,
+    "unit": "m²",
+    "priceBasis": "cut",
+    "cost": null,
+    "rollCost": 4.42575,
+    "standardRollCost": 5.889198,
+    "stockistCondition": "",
+    "supplierNote": "",
+    "cutNote": "",
+    "widths": [
+      4,
+      5
+    ],
+    "source": "INNOVATION NET PRICELIST NOV_.xlsx, Sheet1 row 83",
+    "sheetDate": "2026-11-17",
+    "surchargeIncluded": true,
+    "widthSource": "https://associated-weavers.co.uk/products/product-search",
+    "colours": [
+      {
+        "code": "03",
+        "name": "White Mulberry",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "07",
+        "name": "Dolphin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Antique Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Blonde Oak",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Pebble Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Pastel Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Glace Coffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "45",
+        "name": "Mistral",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Warm Cinnamon",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "59",
+        "name": "Night Sky",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Cinder Toffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Caffe Latte",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Atlantic",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "French Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "03",
+        "name": "White Mulberry",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "07",
+        "name": "Dolphin",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "09",
+        "name": "Antique Grey",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "30",
+        "name": "Blonde Oak",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "32",
+        "name": "Pebble Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "34",
+        "name": "Pastel Beige",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "39",
+        "name": "Glace Coffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "45",
+        "name": "Mistral",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "53",
+        "name": "Warm Cinnamon",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "59",
+        "name": "Night Sky",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "90",
+        "name": "Cinder Toffee",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "92",
+        "name": "Caffe Latte",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "95",
+        "name": "Atlantic",
+        "widths": [
+          4,
+          5
+        ]
+      },
+      {
+        "code": "96",
+        "name": "French Grey",
+        "widths": [
+          4,
+          5
+        ]
+      }
+    ],
+    "stockStatus": "Not counted — supplier range"
+  }
+]
