@@ -384,6 +384,7 @@ function create(opts){
     }
     res.financeRestricted=user.role!=='owner';
     if(['/owner-overview','/api/owner-overview','/buying-report','/api/buying-report','/buying-comparison','/api/buying-comparison','/goods-in-office','/api/goods-in/office','/api/goods-in/cost','/api/goods-in/valuation'].includes(p)&&user.role!=='owner')return fail(res,403,'forbidden','Owner access only.');
+    if(p==='/fitting-booking-practice'||p==='/api/fitting-booking-practice'){if(!SHOP_ROLES.includes(user.role))return fail(res,403,'forbidden','Shop access only.');if(req.method!=='GET')return fail(res,405,'method','Read only.');return p.startsWith('/api/')?send(res,200,require('./lib/fitting-booking-practice')(st,user,now)):page(res,pub('fitting-booking-practice.html'));}
     if(p==='/fitting-teams'&&req.method==='GET'){if(!SHOP_ROLES.includes(user.role))return fail(res,403,'forbidden','Shop access only.');return page(res,pub('fitting-teams.html'));}
     if(p==='/api/fitting-teams'){if(req.method==='GET')return send(res,200,teams.list(user));const b=await readJson(req);const actions={save:teams.save,recommend:teams.recommend,assign:teams.assign,review:teams.review,acknowledge:teams.acknowledge};if(!Object.hasOwn(actions,b.action))return fail(res,400,'invalid','Unknown action');return send(res,200,actions[b.action](user,b));}
     if(p==='/measure-approvals'&&req.method==='GET'){if(!['owner','shop'].includes(user.role))return fail(res,403,'forbidden','Shop access only.');return page(res,pub('measure-approvals.html'));}
@@ -531,4 +532,3 @@ if (require.main === module){
   app.server.listen(port, () => console.log('IFD Shop Operations listening on ' + port));
 }
 module.exports = { create, ROLES, SHOP_ROLES };
-

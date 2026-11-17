@@ -273,7 +273,7 @@ ol.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .big-pic{max-width:100%;max-height:68vh;border-radius:8px;border:1px solid var(--line);background:var(--paper);align-self:center}
 .pad{width:100%;aspect-ratio:4/3;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);touch-action:none;display:block;cursor:crosshair}
 .dj.pre{box-shadow:inset 4px 0 0 var(--info)}
-.fitter-mode nav.tabs,.fitter-mode #newSaleTop,.fitter-mode #newMeasureTop{display:none}
+.fitter-mode nav.tabs,.fitter-mode #newSaleTop,.fitter-mode #newMeasureTop,.fitter-mode #quickStockTop{display:none}
 .fwrap{max-width:560px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:12px}
 .fday{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .fday.today{border-color:var(--ink);border-width:2px}
@@ -356,6 +356,7 @@ ol.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
   <div class="brand" aria-label="Floor Pilot"><span>FLOOR PILOT</span><span class="pilot-credit">Designed and created by <span class="pilot-signature">David Woodcock</span></span></div>
   <span class="grow"></span>
   <button type="button" class="store" id="store" title="Check the Shopify connection"><i></i><span id="storeText">Connecting to Shopify</span></button>
+  <button class="btn" id="quickStockTop" type="button">Stock search</button>
   <button class="btn" id="newMeasureTop" type="button">Book a measure</button>
   <button class="btn pri" id="newSaleTop" type="button">New sale</button>
 </div></header>
@@ -2870,30 +2871,39 @@ function stockCard(p, v){
 }
 VIEWS.stock = function(){
   const out = h('div', {style:'display:contents'});
+  let timer, sequence=0, checked='';
   const input = h('input', {class:'in', id:'stockSearch', type:'search', placeholder:'Product name, or a roll number like R-901', value:S.ui.stockQ,
-    oninput:e => { S.ui.stockQ = e.target.value; }, onkeydown:e => { if (e.key === 'Enter') run(); }});
+    oninput:e => { S.ui.stockQ = e.target.value; clearTimeout(timer); sequence++; S.ui.stock=null; S.ui.stockBusy=false; S.ui.stockMsg=''; checked=''; draw(); if(S.ui.stockQ.trim().length>=2) timer=setTimeout(run,300); }, onkeydown:e => { if (e.key === 'Enter') { clearTimeout(timer); run(); } }});
+  input.placeholder='Start typing a product, colour or roll number';
+  input.setAttribute('aria-label','Quick stock search');
+  out.setAttribute('aria-live','polite');
   async function run(){
     if (!needShop()) return;
-    const q = L.productQuery(S.ui.stockQ); if (!q) return;
+    if(S.view!=='stock')return;
+    clearTimeout(timer); const term=S.ui.stockQ.trim(), request=++sequence;
+    const q = L.productQuery(term); if (!q) return;
     S.ui.stockBusy = true; S.ui.stockMsg = ''; draw();
     try {
       let d = await sq(Q_SEARCH, {q:q}), ps = (d.products && d.products.nodes) || [];
-      if (!ps.length){ d = await sq(Q_SEARCH, {q:S.ui.stockQ.trim() + ' status:active'}); ps = (d.products && d.products.nodes) || []; }
+      if (!ps.length){ d = await sq(Q_SEARCH, {q:term + ' status:active'}); ps = (d.products && d.products.nodes) || []; }
+      if(request!==sequence)return;
       S.ui.stock = ps;
-    } catch (e){ S.ui.stockMsg = explain(e); }
+      checked=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    } catch (e){ if(request!==sequence)return; S.ui.stock=null; S.ui.stockMsg = explain(e); }
     S.ui.stockBusy = false; draw();
   }
   S.runStockSearch = run;
   function draw(){
     out.replaceChildren(); add(out, banners());
-    if (S.ui.stockBusy){ out.append(h('div', {class:'banner info'}, h('span', {class:'spin'}), h('p', {text:'Reading live stock from Shopify'}))); return; }
+    if (S.ui.stockBusy){ out.append(h('div', {class:'banner info'}, h('span', {class:'spin'}), h('p', {text:'Checking current stock…'}))); return; }
     if (S.ui.stockMsg) out.append(h('div', {class:'banner warn'}, h('p', {text:S.ui.stockMsg})));
     if (S.ui.stock == null){ out.append(h('div', {class:'list'}, h('div', {class:'empty'}, h('b', {text:'Search to see live stock'}), 'Figures come straight from Shopify each time. This page keeps no stock numbers of its own.'))); return; }
     if (!S.ui.stock.length){ out.append(h('div', {class:'list'}, h('div', {class:'empty'}, h('b', {text:'Nothing found'}), 'Try fewer words, or the start of the product name.'))); return; }
+    out.append(h('p',{class:'muted',text:'Stock checked '+checked+' · Includes Floor Pilot clearance stock. For a long list, add the colour or roll number to narrow your search.'}));
     S.ui.stock.forEach(p => ((p.variants && p.variants.nodes) || []).forEach(v => out.append(stockCard(p, v))));
   }
   return {nodes:[
-    h('div', {class:'head'}, h('div', {}, h('h1', {text:'Stock'}), h('p', {text:'Live from Shopify, with what is set aside for jobs and where it is kept.'})), btn('Opening stocktake', () => go('stocktake'), 'sm')),
+    h('div', {class:'head'}, h('div', {}, h('h1', {text:'Quick stock search'}), h('p', {text:'Type a product or colour to see what is left, what is reserved and where it is kept.'})), btn('Opening stocktake', () => go('stocktake'), 'sm')),
     h('div', {class:'bar'}, h('div', {class:'grow'}, input), btn('Search', run, 'pri')), out], refresh:draw};
 };
 
@@ -6764,6 +6774,7 @@ async function boot(){
   $('#sheet').addEventListener('focusout', () => setTimeout(() => { if (S.sheetDirty && (S.openJob || S.openDelivery) && !editingIn($('#sheet'))) redrawSheet(); }, 80));
   document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('#modal').hidden) closeModal(); else if (!$('#sheet').hidden) closeSheet(); });
   $('#newSaleTop').addEventListener('click', () => saleDialog());
+  $('#quickStockTop').addEventListener('click', () => {if(!needShop())return;go('stock');setTimeout(()=>$('#stockSearch')?.focus(),0);});
   $('#newMeasureTop').addEventListener('click', () => measureDialog());
   $('#store').addEventListener('click', () => { if (S.shop.state !== 'connecting') connectShop(); });
   window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if ((v || 'today') !== S.view) go(VIEWS[v] ? v : 'today', false); });
@@ -6791,7 +6802,6 @@ async function boot(){
 boot();
 })();
 </script>
-
 
 
 
