@@ -2520,6 +2520,7 @@ function rescheduleDialog(job,newDate){
 }
 function fitterMoves(){return jobsArr().flatMap(j=>[...Object.entries(j.fitterWork?.events||{}).filter(([,e])=>e.byRole==='fitter'&&!e.reviewed).map(([id,e])=>({job:j,id,e})),...Object.entries(j.visitMoves||{}).filter(([,e])=>e.byRole==='estimator'&&!e.reviewed).map(([id,e])=>({job:j,id,e,visit:true}))]);}
 VIEWS.today = function(){
+  const quick=stockSearchView(true);
   function acceptanceEmailProblem(j){return Object.entries(j.acceptanceNotifications||{}).filter(([id,n])=>n.issue&&!j.msgs?.['m'+id]).map(([,n])=>n.issue).join(' ');}
   const body=h('div',{class:'simple-today'});let selected='',appointmentsOpen=false;
   function draw(){
@@ -2551,7 +2552,7 @@ VIEWS.today = function(){
       h('details',{open:appointmentsOpen,ontoggle:e=>{appointmentsOpen=e.target.open;}},h('summary',{text:'Today’s appointments · '+(todayJobs.length+visits.length)}),section('Fittings, deliveries and collections',todayJobs,jobRow,'todaySec'),section('Measures and inspections',visits,x=>h('button',{type:'button',class:'row',onclick:()=>openSheet(x.job.id)},h('div',{},h('b',{text:(x.job.customer||{}).name||'No name'}),h('p',{text:L.PRE_KINDS[x.v.kind]+' · '+(x.v.who||'Unassigned')+' · '+(x.v.slot||'Time to arrange')}))),'visitsSec'),btn('Open full diary',()=>go('diary'),'sm')),
       h('div',{class:'bar simple-footer'},h('label',{},h('input',{type:'checkbox',checked:!!S.ui.showTestJobs,onchange:e=>{S.ui.showTestJobs=e.target.checked;draw();}}),' Show test jobs'),h('small',{text:'Counts show work items; a job may need more than one action.'}),btn('Measures',()=>go('measures'),'sm'),btn('All jobs',()=>go('jobs'),'sm'))]);
   }
-  return {nodes:[body],refresh:draw};
+  return {nodes:[...quick.nodes,body],refresh:()=>{draw();quick.refresh();}};
 };
 
 /* Catalogue: Shopify remains the source of product prices; service rates stay in Setup. */
@@ -2870,17 +2871,25 @@ function stockCard(p, v){
   else actions = h('div', {class:'bar'}, btn('Receive', () => receiveDialog(p, v), 'sm'), btn('Count', () => countDialog(p, v), 'sm'), btn('Set bay', () => bayDialog(p, v), 'sm'));
   return h('div', {class:'stk'}, h('div', {class:'stk-top'}, h('div', {class:'grow'}, h('h3', {text:variantTitle(p, v).replace(/\s*[·—-]?\s*per\s*10\s*cm\b/ig,'')}), tags), figs), forJobs, actions);
 }
-VIEWS.stock = function(){
+function stockIncomingRows(deliveries,term,variantIds=[]){
+  const words=String(term||'').trim().toLowerCase().split(/\s+/).filter(Boolean),ids=new Set(variantIds);
+  if(!words.length)return [];
+  return deliveries.filter(d=>!['closed','cancelled'].includes(d.status)&&!d.gone).flatMap(d=>L.dLines(d).filter(l=>!l.gone&&!l.cancelled&&L.dOutstanding(l)>0&&(ids.has(l.variantId)||words.every(w=>[l.title,l.sub,l.orderingName,l.sku].join(' ').toLowerCase().includes(w)))).map(l=>({id:d.id,title:l.title,qty:L.dOutstanding(l),unit:l.unit||'items',expected:L.validISO(d.expected)?d.expected:'',supplier:d.supplier||'Supplier not recorded',ref:d.ref||d.orderRef||'',jobRef:l.jobRef||'',reserved:!!l.jobId||l.kind==='reserved',placed:!!(d.placedAt||d.orderedDate||d.supplierSend?.state==='sent'),review:!!d.replyNeedsReview}))).sort((a,b)=>(a.expected||'9999').localeCompare(b.expected||'9999'));
+}
+function incomingStockPanel(rows){
+  return h('section',{class:'card',style:'border-left:4px solid #d6ad54'},h('h3',{text:'Incoming stock · '+rows.length+' matching lines'}),rows.length?rows.map(r=>h('div',{class:'row static'},h('div',{class:'grow'},h('b',{text:r.title}),h('p',{text:L.fmtQty(r.qty,r.unit)+' still to arrive · '+(r.reserved?'Reserved for '+(r.jobRef||'a customer job'):'For shop stock')}),h('p',{text:(r.placed?'Ordered':'Prepared — not yet confirmed ordered')+' · '+r.supplier+(r.ref?' · '+r.ref:'')}),h('b',{text:r.expected?(r.expected<L.todayISO()?'Overdue — expected ':'Expected arrival: ')+L.fmtDay(r.expected):'Arrival date not confirmed'}),r.review?h('p',{class:'banner warn',text:'Supplier reply needs review — check before promising this date.'}):null),btn('Open order',()=>openDelivery(r.id),'sm'))):h('p',{text:'No outstanding supplier orders recorded for this search.'}),h('small',{class:'muted',text:'Incoming goods are not included in available stock until the warehouse receives them. Dates are supplier estimates.'}));
+}
+function stockSearchView(dashboard=false){
   const out = h('div', {style:'display:contents'});
   let timer, sequence=0, checked='';
-  const input = h('input', {class:'in', id:'stockSearch', type:'search', placeholder:'Product name, or a roll number like R-901', value:S.ui.stockQ,
+  const input = h('input', {class:'in', id:dashboard?'dashboardStockSearch':'stockSearch', type:'search', placeholder:'Product name, or a roll number like R-901', value:S.ui.stockQ,
     oninput:e => { S.ui.stockQ = e.target.value; clearTimeout(timer); sequence++; S.ui.stock=null; S.ui.stockBusy=false; S.ui.stockMsg=''; checked=''; draw(); if(S.ui.stockQ.trim().length>=2) timer=setTimeout(run,300); }, onkeydown:e => { if (e.key === 'Enter') { clearTimeout(timer); run(); } }});
   input.placeholder='Start typing a product, colour or roll number';
   input.setAttribute('aria-label','Quick stock search');
   out.setAttribute('aria-live','polite');
   async function run(){
     if (!needShop()) return;
-    if(S.view!=='stock')return;
+    if(S.view!==(dashboard?'today':'stock'))return;
     clearTimeout(timer); const term=S.ui.stockQ.trim(), request=++sequence;
     const q = L.productQuery(term); if (!q) return;
     S.ui.stockBusy = true; S.ui.stockMsg = ''; draw();
@@ -2896,18 +2905,21 @@ VIEWS.stock = function(){
   }
   S.runStockSearch = run;
   function draw(){
-    out.replaceChildren(); add(out, banners());
+    out.replaceChildren(); if(!dashboard||S.ui.stock!=null)add(out, banners());
     if (S.ui.stockBusy){ out.append(h('div', {class:'banner info'}, h('span', {class:'spin'}), h('p', {text:'Checking current stock…'}))); return; }
     if (S.ui.stockMsg) out.append(h('div', {class:'banner warn'}, h('p', {text:S.ui.stockMsg})));
+    if(dashboard&&S.ui.stock==null&&!S.ui.stockMsg)return;
     if (S.ui.stock == null){ out.append(h('div', {class:'list'}, h('div', {class:'empty'}, h('b', {text:'Search to see live stock'}), 'Figures come straight from Shopify each time. This page keeps no stock numbers of its own.'))); return; }
+    out.append(incomingStockPanel(stockIncomingRows(Array.from(S.deliveries.values()),S.ui.stockQ,S.ui.stock.flatMap(p=>(p.variants?.nodes||[]).map(v=>v.id)))));
     if (!S.ui.stock.length){ out.append(h('div', {class:'list'}, h('div', {class:'empty'}, h('b', {text:'Nothing found'}), 'Try fewer words, or the start of the product name.'))); return; }
     out.append(h('p',{class:'muted',text:'Stock checked '+checked+' · Includes Floor Pilot clearance stock. For a long list, add the colour or roll number to narrow your search.'}));
-    S.ui.stock.forEach(p => ((p.variants && p.variants.nodes) || []).forEach(v => out.append(stockCard(p, v))));
+    S.ui.stock.slice(0,dashboard?6:100).forEach(p => ((p.variants && p.variants.nodes) || []).forEach(v => out.append(stockCard(p, v))));
   }
   return {nodes:[
-    h('div', {class:'head'}, h('div', {}, h('h1', {text:'Quick stock search'}), h('p', {text:'Type a product or colour to see what is left, what is reserved and where it is kept.'})), btn('Opening stocktake', () => go('stocktake'), 'sm')),
+    h('div', {class:'head'}, h('div', {}, h(dashboard?'h2':'h1', {text:'Quick stock search'}), h('p', {text:'Available now, reserved for jobs and expected deliveries.'})), dashboard?btn('Open full stock page',()=>go('stock'),'sm'):btn('Opening stocktake', () => go('stocktake'), 'sm')),
     h('div', {class:'bar'}, h('div', {class:'grow'}, input), btn('Search', run, 'pri')), out], refresh:draw};
-};
+}
+VIEWS.stock=()=>stockSearchView(false);
 
 /* ---------- Tasks ---------- */
 function taskRow(t){
