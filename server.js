@@ -16,7 +16,7 @@ function create(opts){
   opts = opts || {};
   const env = opts.env || process.env, log = opts.log || console.log, fetchImpl = opts.fetch || fetch, now = opts.now || (() => Date.now());
   const dataDir = env.DATA_DIR || path.join(__dirname, 'data'), st = store.open(dataDir);
-  const shop = shopifyLib.client(env, fetchImpl), sendText = opts.sendText || sms.sender(env, fetchImpl, log);
+  const shop = require('./lib/local-stock').make({st,remote:shopifyLib.client(env, fetchImpl)}), sendText = opts.sendText || sms.sender(env, fetchImpl, log);
   const secure = env.INSECURE_COOKIES !== '1', pepper = env.SESSION_PEPPER || 'not-for-production';
   const hash = s => crypto.createHmac('sha256', pepper).update(String(s)).digest('hex');
   const iso = () => new Date(now()).toISOString();
@@ -30,7 +30,7 @@ function create(opts){
   const L = rules.load(appBody);
   const texter = opts.texter || sms.make(env, fetchImpl, log), mailer = opts.mailer || mail.make(env, log);
   const goodsIn=require('./lib/goods-in').make({st,shop,now,broadcast});
-  const clearance=require('./lib/clearance').make({st,shop,goodsIn,now,broadcast});
+  const clearance=require('./lib/clearance').make({st,localStock:shop,goodsIn,now,broadcast});
   const rollEnds=require('./lib/roll-ends').make({st,shop,now,broadcast});
   const trade=require('./lib/trade').make({dataDir,now,mailer});
   const q = {
