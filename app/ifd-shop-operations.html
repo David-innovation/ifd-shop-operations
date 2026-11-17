@@ -5908,7 +5908,7 @@ function draftInput(ctx, tag){
     const units = unitsOf(l), size = l.roll ? ' ' + l.widthM + 'm x ' + Number(l.qty).toFixed(1) + 'm' : '';
     if (l.source === 'stock'){
       if (l.onQuote){ const it = {variantId:l.variantId, quantity:units}; if (Number(l.unitPrice) > 0) it.appliedDiscount = {valueType:'PERCENTAGE', value:100, title:'Priced on the quote'}; items.push(it); }
-      else if (l.roll){ items.push({variantId:l.variantId, quantity:units}); items.push({title:'Carpet cut: ' + l.title + size, quantity:1, originalUnitPriceWithCurrency:gbp(l.price), requiresShipping:false}); }
+      else if (l.roll){ const stockItem={variantId:l.variantId, quantity:units}; if(Number(l.unitPrice)>0)stockItem.appliedDiscount={valueType:'PERCENTAGE',value:100,title:'Priced as carpet cut'}; items.push(stockItem); items.push({title:'Carpet cut: ' + l.title + size, quantity:1, originalUnitPriceWithCurrency:gbp(l.price), requiresShipping:false}); }
       else { const it = {variantId:l.variantId, quantity:units}; if (Math.abs(Number(l.price) - Number(l.unitPrice)) > 0.004) it.priceOverride = gbp(l.price); items.push(it); }
     } else if (l.onQuote){ /* ordered in and priced on the quote's own lines: nothing to add */ }
     else if (l.roll) items.push({title:l.title + size + ' (ordered in)', quantity:1, originalUnitPriceWithCurrency:gbp(l.price)});
