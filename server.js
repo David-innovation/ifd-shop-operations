@@ -30,6 +30,7 @@ function create(opts){
   const L = rules.load(appBody);
   const texter = opts.texter || sms.make(env, fetchImpl, log), mailer = opts.mailer || mail.make(env, log);
   const goodsIn=require('./lib/goods-in').make({st,shop,now,broadcast});
+  const clearance=require('./lib/clearance').make({st,shop,goodsIn,now,broadcast});
   const rollEnds=require('./lib/roll-ends').make({st,shop,now,broadcast});
   const trade=require('./lib/trade').make({dataDir,now,mailer});
   const q = {
@@ -413,6 +414,7 @@ function create(opts){
     if(p==='/api/roll-ends'&&req.method==='GET')return send(res,200,await rollEnds.list(user,url.searchParams.get('q')||''));
     if(p==='/api/roll-ends'&&req.method==='POST')return send(res,200,await rollEnds.create(user,await readJson(req)));
     if(p==='/api/roll-ends/inspect'&&req.method==='GET')return send(res,200,await rollEnds.inspect(user,url.searchParams.get('variant')));
+    if(p==='/clearance'||p.startsWith('/api/clearance')){if(!shopUser)return fail(res,403,'forbidden','Shop access required.');try{if(p==='/clearance'&&req.method==='GET')return page(res,pub('clearance.html'));if(p==='/api/clearance'&&req.method==='GET')return send(res,200,await clearance.list(user));if(p==='/api/clearance/receive'&&req.method==='POST')return send(res,200,await clearance.receive(user,await readJson(req)));if(p==='/api/clearance/reconcile'&&req.method==='POST')return send(res,200,await clearance.reconcile(user,await readJson(req)));}catch(e){return fail(res,e.status||409,'clearance',e.message);}return fail(res,405,'method','Not allowed.');}
     if(p==='/goods-in'&&req.method==='GET'){if(!shopUser&&user.role!=='warehouse')return fail(res,403,'forbidden','Warehouse access required.');return page(res,pub('goods-in.html'));}
     if(p==='/api/goods-in'&&req.method==='GET')return send(res,200,goodsIn.list(user));
     if(p==='/api/goods-in/search'&&req.method==='GET')return send(res,200,await goodsIn.find(user,url.searchParams.get('q'),url.searchParams.get('after')));
