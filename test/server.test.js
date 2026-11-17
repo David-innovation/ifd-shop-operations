@@ -22,7 +22,7 @@ test('staff handbook is available to shop staff but blocked for unauthenticated 
   const shop=await s.signIn(SHOPM);assert.equal((await s.req('GET','/staff-help',undefined,shop)).status,200);
   const data=await s.req('GET','/api/staff-help',undefined,shop);assert.equal(data.status,200);assert.ok(data.json.length>=10);
   assert.ok(data.json.every(x=>x.title&&Array.isArray(x.steps)&&x.steps.length));
-  s.app.ensureUser('Trial fitter',FITTER,'fitter');const fitter=await s.signIn(FITTER);assert.equal((await s.req('GET','/api/staff-help',undefined,fitter)).status,403);assert.equal((await s.req('GET','/staff-help',undefined,fitter)).status,403);for(const path of ['/buying-comparison','/api/buying-comparison']){assert.equal((await s.req('GET',path,undefined,fitter)).status,403);assert.equal((await s.req('GET',path,undefined,shop)).status,200);}
+  s.app.ensureUser('Trial fitter',FITTER,'fitter');const fitter=await s.signIn(FITTER);assert.equal((await s.req('GET','/api/staff-help',undefined,fitter)).status,403);assert.equal((await s.req('GET','/staff-help',undefined,fitter)).status,403);for(const path of ['/buying-comparison','/api/buying-comparison','/buying-report','/api/buying-report','/surplus-stock','/api/surplus-stock']){assert.equal((await s.req('GET',path,undefined,fitter)).status,403);assert.equal((await s.req('GET',path,undefined,shop)).status,200);}
  }finally{s.stop();}
 });
 async function boot(extra, o){

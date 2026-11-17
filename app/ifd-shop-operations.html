@@ -4171,7 +4171,7 @@ function acceptDialog(job,preferredType){
     else add(e.st, ['Only ' + L.fmtQty(Math.max(0, it.free), 'm') + ' free on our rolls. It has to be ordered in. ', btn('Check again', () => look(it), 'sm')]);
     e.stock.disabled = !ok; e.stock.className = it.how === 'stock' && ok ? 'on' : ''; e.order.className = it.how === 'order' ? 'on' : '';
     e.hint.textContent = it.how === 'stock' && ok ? 'Reserved in Shopify when you save, then it goes straight to the warehouse’s cutting list.'
-      : it.how === 'order' ? 'It goes under To order. The job is held there until the order details and the arrival date are in.' : it.look === 'loading' ? '' : 'Choose where it is coming from.';
+      : it.how === 'order' ? 'Matching received leftovers are used first when saved. Only the shortfall goes to To order; the job stays held until stock arrives.' : it.look === 'loading' ? '' : 'Choose where it is coming from.';
   }
   async function look(it){
     it.look = 'loading'; paint(it);
@@ -4318,8 +4318,8 @@ function acceptDialog(job,preferredType){
     F.busy = true; save.disabled = true; myName(name);
     const lines = items.map(it => { const stock = it.how === 'stock', pv = it.pv;
       if(it.pack)return {key:it.key,kind:'stock',onQuote:true,internalId:it.ch.internalId||'',internalKey:it.ch.internalKey||'',variantId:it.ch.variantId,title:it.ch.title,sub:it.cov+' m² per pack',unit:'packs',roll:false,cov:it.cov,ppm:0,unitPrice:pv?Number(pv.v.price)||0:0,price:0,qty:String(Number(it.len)),available:it.free,tracked:it.tracked,source:stock?'stock':'supplier',supplier:it.ch.internalId?.startsWith('furlong-')?'Furlong':'',due:'',rooms:it.names.join(', ')};
-      return {key:it.key, kind:'stock', onQuote:true, variantId:stock ? pv.v.id : '', title:stock ? variantTitle(pv.p, pv.v) : (pv ? pv.p.title : it.ch.title) + ' · ' + it.w + 'm wide', sub:'', unit:'m', roll:true, widthM:it.w, cov:0, ppm:0,
-        unitPrice:stock ? Number(pv.v.price) || 0 : 0, price:0, qty:String(Number(it.len)), available:it.free, tracked:it.tracked, source:stock ? 'stock' : 'supplier', supplier:'', due:'', cuts:it.cuts, rooms:it.names.concat(it.stairs.length ? ['the stairs'] : []).join(', ')}; })
+      return {key:it.key, kind:'stock', onQuote:true, variantId:pv ? pv.v.id : '', title:stock ? variantTitle(pv.p, pv.v) : (pv ? pv.p.title : it.ch.title) + ' · ' + it.w + 'm wide', sub:'', unit:'m', roll:true, widthM:it.w, cov:0, ppm:0,
+        unitPrice:pv ? Number(pv.v.price) || 0 : 0, price:0, qty:String(Number(it.len)), available:it.free, tracked:it.tracked, source:stock ? 'stock' : 'supplier', supplier:'', due:'', cuts:it.cuts, rooms:it.names.concat(it.stairs.length ? ['the stairs'] : []).join(', ')}; })
       .concat(needs.filter(n => n.kind !== 'goods' || true).map(n => n.kind === 'pick' && n.variant
           ? {key:uid(), kind:'stock', acc:true, source:'stock', variantId:n.variant.v.id, title:variantTitle(n.variant.p, n.variant.v), rooms:n.rooms||'',sub:'for ' + n.label.toLowerCase() + (n.sub ? ' ' + n.sub : '') + ', ' + L.fmtQty(n.qty, n.unit) + ' needed', unit:L.accUnit(n.variant.v.title), roll:false, cov:0, ppm:0,
               unitPrice:Number(n.variant.v.price) || 0, price:n.price, qty:String(n.units), available:n.free, tracked:true, label:n.label, needQty:n.qty, needUnit:n.unit}
@@ -4332,7 +4332,7 @@ function acceptDialog(job,preferredType){
       const draft = F.saved.draft, startN = L.linesOf(job).reduce((mx, l) => Math.max(mx, l.n || 0), 0), total = L.quoteTotal(q);
       const patch = {customer:c,type:F.type, fitter:fitter, date:day, slot:'', diary:false, diaryAuto:true, fitterDue:fitAmount(), lines:toJobLines(lines, startN, draft ? draft.name : ''), total:total, accepted:{at:nowISO(), by:S.me.id || '', byName:name, q:q.k, total:total, type:F.type, packs:packSnapshot || null}};
       if (draft){ patch.drafts = {}; patch.drafts[L.gidNum(draft.id)] = {id:draft.id, name:draft.name, closed:false}; }
-      const say = list => list.map(it => (it.pack?Number(it.len)+' packs':Number(it.len).toFixed(1)+' m') + ' of ' + label(it)).join(', '), fromStock = items.filter(it => it.how === 'stock'), toOrder = items.filter(it => it.how === 'order');
+      const say = list => list.map(l => L.fmtQty(unitsOf(l),l.unit)+' of '+l.title+(l.surplusCode?' ['+l.surplusCode+']':'')).join(', '), fromStock=lines.filter(l=>l.kind==='stock'&&l.source==='stock'), toOrder=lines.filter(l=>l.kind==='stock'&&l.source==='supplier');
       await patchJob(job.id, patch, 'The customer said yes to the quote of ' + L.money(total) + '. Taken by ' + name + '. ' + F.type + (fitter ? ' with ' + fitter : '') + (day ? ' on ' + L.fmtDay(day) : F.type === 'Collection' ? '' : ', day to be picked once the carpet’s arrival date is in') + '.'
         + (fitAmount() > 0 ? ' Fitting total of ' + L.money(fitAmount()) + ' to be paid to the fitter on completion.' : '')
         + (fromStock.length ? ' From our stock, reserved in Shopify' + (draft ? ' on draft ' + draft.name : '') + ' and sent for preparation: ' + say(fromStock) + '.' : '') + (toOrder.length ? ' To be ordered in: ' + say(toOrder) + '.' : ''));
@@ -5927,6 +5927,13 @@ function draftInput(ctx, tag){
   return input;
 }
 async function reserveInShopify(ctx, say, always){
+  if(ctx.lines.some(l=>l.kind==='stock'&&['stock','supplier'].includes(l.source))){
+    say('Checking usable leftover stock before ordering');
+    const response=await fetch('/api/surplus-stock',{method:'POST',headers:{'Content-Type':'application/json','X-IFD':'1'},body:JSON.stringify({lines:ctx.lines})}),out=await response.json();
+    if(!response.ok)throw {user:out.error?.message||out.message||'Could not check leftovers. Try again before placing an order.'};
+    ctx.lines.splice(0,ctx.lines.length,...out.lines);
+    if(out.used.length)say('Using leftover stock first: '+out.used.map(x=>x.code+' · '+x.quantity+' '+x.unit).join(', ')+'. Only the shortfall will be ordered.');
+  }
   const stock = ctx.lines.filter(l => l.kind === 'stock' && l.source === 'stock');
   if (!stock.length && !always) return {draft:null};
   const need = {}; stock.forEach(l => { need[l.variantId] = (need[l.variantId] || 0) + unitsOf(l); });
@@ -5978,6 +5985,7 @@ function toJobLines(lines, startN, draftName){
     if (l.kind === 'other'){ out[k] = {n:n, title:l.title, sub:'', unit:'items', qty:Math.max(1, parseInt(l.qty, 10) || 1), hold:'none', price:lineTotal(l)}; return; }
     const base = {n:n, internalId:l.internalId||'', internalKey:l.internalKey||'', variantId:l.variantId, title:l.title, sub:l.sub || '', unit:l.unit, qty:unitsOf(l), price:lineTotal(l), state:'todo', picked:false, checked:false};
     if (l.roll && l.widthM > 0) base.w = l.widthM; else if (l.cov > 0) base.cov = l.cov;
+    if (l.surplusCode) base.surplusCode = l.surplusCode;
     if (l.rooms) base.rooms = l.rooms;
     if (l.cuts) base.cuts = JSON.parse(JSON.stringify(l.cuts));
     if (l.acc) base.acc = {label:l.label, need:L.round2(l.needQty), unit:l.needUnit};
