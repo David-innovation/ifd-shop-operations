@@ -2867,7 +2867,7 @@ function stockCard(p, v){
   if (!fig.tracked) actions = h('div', {class:'bar'}, chip('Shopify is not tracking stock for this', 'warn'), adminLink('products', p.id, 'Open in Shopify'), roll ? null : btn('Set bay', () => bayDialog(p, v), 'sm'));
   else if (roll) actions = h('div',{class:'bar'},h('a',{class:'btn sm',href:'/goods-in',text:'Receive delivery'}),h('a',{class:'btn sm',href:'/roll-ends?variant='+encodeURIComponent(v.id),text:'Mark as roll end'}),h('a',{class:'btn sm',href:'/roll-ends',text:'Find roll-end code'}));
   else actions = h('div', {class:'bar'}, btn('Receive', () => receiveDialog(p, v), 'sm'), btn('Count', () => countDialog(p, v), 'sm'), btn('Set bay', () => bayDialog(p, v), 'sm'));
-  return h('div', {class:'stk'}, h('div', {class:'stk-top'}, h('div', {class:'grow'}, h('h3', {text:variantTitle(p, v)}), tags), figs), forJobs, actions);
+  return h('div', {class:'stk'}, h('div', {class:'stk-top'}, h('div', {class:'grow'}, h('h3', {text:variantTitle(p, v).replace(/\s*[·—-]?\s*per\s*10\s*cm\b/ig,'')}), tags), figs), forJobs, actions);
 }
 VIEWS.stock = function(){
   const out = h('div', {style:'display:contents'});
@@ -2887,7 +2887,8 @@ VIEWS.stock = function(){
       let d = await sq(Q_SEARCH, {q:q}), ps = (d.products && d.products.nodes) || [];
       if (!ps.length){ d = await sq(Q_SEARCH, {q:term + ' status:active'}); ps = (d.products && d.products.nodes) || []; }
       if(request!==sequence)return;
-      S.ui.stock = ps;
+      const words=term.toLowerCase().split(/\s+/).filter(Boolean);
+      S.ui.stock = ps.map(p=>({...p,variants:{...p.variants,nodes:(p.variants?.nodes||[]).filter(v=>words.every(w=>[p.title,v.title,v.sku,v.rollNumber?.value].join(' ').toLowerCase().includes(w)))}})).filter(p=>p.variants.nodes.length);
       checked=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     } catch (e){ if(request!==sequence)return; S.ui.stock=null; S.ui.stockMsg = explain(e); }
     S.ui.stockBusy = false; draw();
@@ -6802,6 +6803,7 @@ async function boot(){
 boot();
 })();
 </script>
+
 
 
 
