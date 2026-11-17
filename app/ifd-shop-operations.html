@@ -2864,7 +2864,8 @@ function stockCard(p, v){
     tags.append(chip(unit === 'packs' ? 'Sold by the pack' : 'Sold singly'));
   }
   if (fig.per.length > 1) fig.per.forEach(x => tags.append(chip(x.name + ': ' + (unit === 'm' ? (x.available / 10).toFixed(1) + ' m' : x.available))));
-  const forJobs = m.forJobs.length ? h('p', {class:'small muted', text:'For jobs: ' + m.forJobs.map(f => f.ref + ' ' + (f.name || '') + ' (' + L.fmtQty(f.qty, unit) + ')').join(', ')}) : null;
+  const linked=jobsArr().flatMap(j=>L.linesOf(j).filter(l=>l.variantId===v.id&&!l.released&&j.status!=='cancelled').map(l=>({j,l})));
+  const forJobs=linked.length?h('div',{class:'sec'},h('h4',{text:'Customer allocations'}),...linked.map(({j,l})=>h('div',{class:'row static'},h('div',{class:'grow'},btn((j.customer?.name||'Customer')+' · '+(j.ref||j.id),()=>{closeModal();openSheet(j.id);},'sm'),h('p',{text:(unit==='m'?(Number(l.qty)/10).toFixed(2)+' × '+(l.w||catalogueRollWidth(p,v))+'m':L.fmtQty(l.qty,unit))+' · '+(j.date?'Fitting '+L.fmtDay(j.date)+' '+j.date.slice(0,4):'Fitting date to arrange')}),h('p',{class:'small',text:l.hold==='supplier'?'Pre-sold — awaiting delivery':l.picked?'Cut by '+(l.cutBy||'warehouse')+' · stored '+(l.bay||'bay to confirm'):'Reserved — waiting to cut'})))):null;
   let actions;
   if (!fig.tracked) actions = h('div', {class:'bar'}, chip('Shopify is not tracking stock for this', 'warn'), adminLink('products', p.id, 'Open in Shopify'), roll ? null : btn('Set bay', () => bayDialog(p, v), 'sm'));
   else if (roll) actions = h('div',{class:'bar'},h('a',{class:'btn sm',href:'/goods-in',text:'Receive delivery'}),h('a',{class:'btn sm',href:'/roll-ends?variant='+encodeURIComponent(v.id),text:'Mark as roll end'}),h('a',{class:'btn sm',href:'/roll-ends',text:'Find roll-end code'}));
