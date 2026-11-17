@@ -510,8 +510,9 @@ function create(opts){
   const server = http.createServer((req, res) => {
     handle(req, res).catch(e => { if (res.headersSent) return res.end(); if (e && e.status) return send(res, e.status, {error:Object.assign({code:e.code, message:e.message}, e.more || {})}); log('ERROR ' + (e && e.stack || e)); fail(res, 500, 'server_error', 'Something went wrong on the server.'); });
   });
+  const costBeat=setInterval(()=>{try{financePrivacy.make({st,L,now}).refresh();}catch(e){log('Owner cost refresh failed');}},60000);costBeat.unref();
   const beat = setInterval(() => listeners.forEach(r => { try { r.write(': keep\n\n'); } catch (e) {} }), 25000); beat.unref();
-  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ textCredit.stop();trade.close(); clearInterval(beat); cmds.stop(); supplierMail.stop(); operationsInbox.stop(); performance.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
+  return { server, store:st, ensureUser, version:VERSION, rules:L, commands:cmds, dropLive(){ listeners.forEach(r => { try { r.end(); } catch (e) {} }); listeners.clear(); }, close(){ textCredit.stop();trade.close(); clearInterval(beat); clearInterval(costBeat); cmds.stop(); supplierMail.stop(); operationsInbox.stop(); performance.stop(); listeners.forEach(r => { try { r.end(); } catch (e) {} }); server.closeAllConnections && server.closeAllConnections(); server.close(); st.close(); },
     /* for the owner's tools and the tests */
     disableUser(id){ const u = q.userById.get(id); if (u){ q.setUser.run(u.name, u.role, 0, id); q.dropSessionsOf.run(id); } } };
 }
@@ -521,3 +522,4 @@ if (require.main === module){
   app.server.listen(port, () => console.log('IFD Shop Operations listening on ' + port));
 }
 module.exports = { create, ROLES, SHOP_ROLES };
+
