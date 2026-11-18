@@ -1101,7 +1101,7 @@ window.IFDLogic = (function(){
     }
     if(quoteFeeNotice(q))out=out.concat(['','Included in your quote',quoteFeeNotice(q)]);
     if(subfloorNotice(job))out=out.concat(['','Subfloor inspection',subfloorNotice(job)]);
-    if(preparationNotice(job,q))out=out.concat(['','Herringbone preparation and possible costs',preparationNotice(job,q)]);
+    if(preparationNotice(job,q))out=out.concat(['','Subfloor preparation',preparationNotice(job,q)]);
     if(quoteLines(q).some(l=>l.key==='skirting'&&num(l.price)>0))out=out.concat(['','Skirting removal and refitting',"Our fitters take care when removing and refitting existing skirting, but marks and disturbed paintwork are unavoidable. Please allow for decorating touch-ups afterwards. Filling nail holes, painting and decorating are not included and remain the customer’s responsibility. This does not affect your statutory rights."]);
     if(p.fit.length)out=out.concat(['','Before booking','Please arrange clear rooms and removal of existing flooring unless furniture moving or uplift is included above. Tell us about any known concealed cables or pipes. We will agree any extra work before proceeding.','Helpful fitting information'],fittingCare());
     return out.concat(['', 'To go ahead, or to change anything, ' + (shop.email ? 'reply to this email or ' : '') + 'ring us on ' + shop.phone + ' and quote ' + ref + '.', ''], signOff(shop)).join('\n');
@@ -1403,13 +1403,16 @@ window.IFDLogic = (function(){
   /* what the customer has to do before the fitter arrives: taken from what was sold and what the measure found, then the shop's standing notes */
   function subfloorNotice(job){var visits=Object.values((job&&job.pre)||{});var concealed=visits.some(function(v){return v.sub&&(v.sub.concealed===true||(['not_checked','further'].indexOf(v.sub.outcome)!==-1&&roomsOf(job).some(function(r){return r.spec&&r.spec.old===true;})));});return concealed?"Existing flooring prevented a full inspection of the subfloor during our visit. Once it is lifted, additional preparation or repairs may be needed before fitting. Any necessary work not already included in your agreed order will be quoted separately and is payable by you only once you have agreed the work and price. We will explain any effect on the fitting date before proceeding. This does not affect your statutory rights or our responsibility for our own work.":'';}
   function preparationEstimate(job,q){
-    if(!job||['Collection','Delivery'].indexOf(job.type)!==-1||!herringboneInspection(Object.assign({},job,{type:'Fitting'})).required)return null;
-    var list=priceList(q&&q.rates), matched=roomsOf(job).filter(function(r){var c=choiceOf(job,r)||{};return /herringbone/i.test([c.title,c.type,JSON.stringify(r.spec||{})].join(' '));});
+    if(!job||['Collection','Delivery'].indexOf(job.type)!==-1)return null;
+    var list=priceList(q&&q.rates),bonded=roomsOf(job).filter(function(r){var c=choiceOf(job,r)||{},k=floorKind(c.title,c.type);return (specOf(r)||{}).fitting!==false&&(k.glueDown||k.wood);}),mandatory=bonded.length>0;
+    if(!mandatory&&!herringboneInspection(Object.assign({},job,{type:'Fitting'})).required)return null;
+    var matched=mandatory?bonded:roomsOf(job).filter(function(r){var c=choiceOf(job,r)||{};return /herringbone/i.test([c.title,c.type,JSON.stringify(r.spec||{})].join(' '));});
     var area=round2(matched.reduce(function(n,r){return n+roomArea(r);},0));
-    return {area:area,screedRate:list.prepScreed,plywoodRate:list.prepPlywood,screed:round2(area*list.prepScreed),plywood:round2(area*list.prepPlywood),included:round2(quoteLines(q).filter(function(l){return l.key==='prep'||/preparation|screed|plywood/i.test(l.label||'');}).reduce(function(n,l){return n+num(l.price);},0))};
+    return {mandatory:mandatory,area:area,screedRate:list.prepScreed,plywoodRate:list.prepPlywood,screed:round2(area*list.prepScreed),plywood:round2(area*list.prepPlywood),included:round2(quoteLines(q).filter(function(l){return l.key==='prep'||/preparation|screed|plywood/i.test(l.label||'');}).reduce(function(n,l){return n+num(l.price);},0))};
   }
   function preparationNotice(job,q){
     var e=preparationEstimate(job,q);if(!e)return '';
+    if(e.mandatory)return 'Subfloor preparation is required for every glue-down installation. '+(e.included>0?'Your quote includes '+money(e.included)+' for preparation; this is already in your total and is not an additional charge.':'The shop must include and confirm the preparation charge before this quote is sent.')+' The inspection confirms the appropriate method, such as screed or plywood, and the specification for your subfloor. Any additional repairs or extra preparation beyond the quoted scope will be explained and agreed before work proceeds. We cannot fit a glue-down floor without the required preparation. This does not affect your statutory rights or our responsibility for our own work.';
     var cost='Screed preparation is '+money(e.screedRate)+'/m² and plywood preparation is '+money(e.plywoodRate)+'/m².';
     if(e.area>0)cost+=' Based on the herringbone areas currently measured, the estimated cost if the whole area needs preparation is '+money(e.screed)+' for screed or '+money(e.plywood)+' for plywood.';
     else cost+=' We will confirm the estimated total once the areas have been measured.';
