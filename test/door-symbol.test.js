@@ -1,0 +1,2 @@
+const test=require('node:test'),assert=require('node:assert/strict'),D=require('../lib/room-drawing');
+test('door opening remains accurate without an oversized swing arc',()=>{const p=D.clean({points:[{x:0,y:0},{x:900,y:0},{x:900,y:300},{x:0,y:300}],closed:true,lengths:[1,4,1,4],doors:[{wall:0,t:0,width:.8,bar:'no'}]});const before=JSON.stringify(p),svg=D.svg(p);assert.match(svg,/data-door-opening/);assert.match(svg,/M720 -10V10/);assert.match(svg,/L24 18/);assert.doesNotMatch(svg,/ A720 /);assert.equal(JSON.stringify(p),before);assert.match(svg,/0.80 m/);});
