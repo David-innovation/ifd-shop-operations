@@ -10,3 +10,12 @@ test('removing a shared doorway releases the remaining physical opening rather t
 
 test('opposite drawing directions place adjoining rooms on opposite sides of their shared wall',()=>{const a=rect([door('a',1,{partner:'b:b',toRoom:'b'})]);const b=D.clean({closed:true,points:[{x:0,y:0},{x:0,y:300},{x:400,y:300},{x:400,y:0}],lengths:[3,4,3,4],doors:[door('b',0,{partner:'a:a',toRoom:'a'})]});const j={rooms:{a:{name:'Hall',drawing:a},b:{name:'Kitchen',drawing:b}}};const svg=require('../lib/job-layout').layout(j,L).svg;const boxes=[...svg.matchAll(/<polygon points="([^"]+)"/g)].map(x=>{const pts=x[1].split(' ').map(v=>v.split(',').map(Number));return {left:Math.min(...pts.map(p=>p[0])),right:Math.max(...pts.map(p=>p[0])),top:Math.min(...pts.map(p=>p[1])),bottom:Math.max(...pts.map(p=>p[1]))};});assert.equal(boxes.length,2);assert.ok(boxes[0].right<=boxes[1].left+.001||boxes[1].right<=boxes[0].left+.001||boxes[0].bottom<=boxes[1].top+.001||boxes[1].bottom<=boxes[0].top+.001);});
 
+
+test('upstairs and downstairs openings save as staircase endpoints and survive resaving',()=>{
+ let rows=fixture();rows.a.name='Bottom landing';rows.b.name='Top landing';rows.a.drawing.level='ground';rows.b.drawing.level='first';rows.a.drawing.stairs=[{kind:'straight',count:13,width:.9,tread:25,riser:18,x:100,y:100}];rows.b.drawing.doors[0].width=1;
+ rows=merge(rows,R.reconcile(rows,'a'));
+ assert.equal(rows.a.drawing.stairTo,'b');assert.equal(rows.b.drawing.stairTo,'a');assert.equal(rows.a.drawing.stairDirection,'up');assert.equal(rows.b.drawing.stairDirection,'down');assert.equal(rows.a.drawing.doors[1].partner,'');assert.equal(rows.b.drawing.doors[0].partner,'');assert.equal(rows.a.drawing.stairJoin.wall,1);assert.equal(rows.b.drawing.stairJoin.wall,3);assert.equal(rows.a.drawing.stairs[0].count,13);assert.equal(rows.b.drawing.stairs.length,0);
+ rows=merge(rows,R.reconcile(rows,'b'));rows=merge(rows,R.reconcile(rows,'a'));assert.equal(rows.a.drawing.stairTo,'b');assert.equal(rows.b.drawing.level,'first');const html=require('../lib/job-layout').render({rooms:rows},L);assert.match(html,/stairs up to Top landing/);assert.match(html,/stairs down to Bottom landing/);
+});
+test('cross-floor door links without a measured staircase remain blocked without changing source drawings',()=>{const rows=fixture();rows.a.drawing.level='ground';rows.b.drawing.level='first';const before=JSON.stringify(rows);assert.throws(()=>R.reconcile(rows,'a'),/Add the staircase/);assert.equal(JSON.stringify(rows),before);});
+
