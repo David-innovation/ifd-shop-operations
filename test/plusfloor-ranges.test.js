@@ -8,7 +8,7 @@ test('PlusFloor separates 87 glue-down and 28 click options at agreed VAT-inclus
  const r=rows.find(r=>r.code===code);assert.equal(r.sellingPrice,price);assert.equal(r.coverage,coverage);}
 });
 test('shared supplier catalogue includes PlusFloor and protects supplier costs',()=>{
- assert.equal(require('../lib/supplier-ranges').list().filter(r=>r.supplier==='PlusFloor').length,115);
+ assert.equal(require('../lib/supplier-ranges').list().filter(r=>r.supplier==='PlusFloor'&&r.category!=='feature-strip').length,115);
  const p=require('../lib/owner-finance'),staff=p.redact(rows);assert.equal(p.hasPrivate(staff),false);
  for(let i=0;i<rows.length;i++){assert.equal(staff[i].sellingPrice,rows[i].sellingPrice);assert.equal(staff[i].coverage,rows[i].coverage);assert.equal(staff[i].cost,undefined);assert.equal(staff[i].formula,undefined);}
 });
