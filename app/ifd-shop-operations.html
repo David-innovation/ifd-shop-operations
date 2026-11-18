@@ -1112,8 +1112,12 @@ window.IFDLogic = (function(){
     return shop.name + ' quote ' + quoteRef(job, q) + '. ' + (p.discount ? 'Includes ' + (p.pct ? p.pct + '% ' : '') + 'discount of ' + money(p.discount) + '. ' : '') + (p.fit.length ? 'To pay the shop: ' + money(p.shopTotal) + '. Fitting, paid straight to your fitter on the day: ' + money(p.fitTotal) + '. ' : '') + 'Total: ' + money(p.total) + '. To go ahead or ask anything ring ' + shop.phone + '.';
   }
   /* the lines a quote starts from, with what staff need to price each one. The notes are for staff only. */
+  function vinylSprayRooms(job, goods){
+    return roomsOf(job).filter(function(r){var ch=choiceOf(job,r);if(!ch||ch.unit!=='m'||!specOf(r))return false;var t=(ch.title||'')+' '+(ch.type||'')+' '+((goods||{})[ch.k]?.type||'');return /vinyl/i.test(t)&&!/spc|lvt|click|glue.?down|dryback/i.test(t);});
+  }
   function quoteRows(job, goods){
     var p = pricingOf(job), out = [], rooms = roomsOf(job).filter(function(r){ return specOf(r); });
+    var sprayRooms=vinylSprayRooms(job,goods);if(sprayRooms.length)out.push({key:'vinylSpray',label:'Spray glue',must:true,note:sprayRooms.length+' can(s) — one per sheet vinyl area, £10 per can.'});
     var supply = supplyPlan(job);
     if (p.carpets.length || p.stairs.length) out.push({key:'carpet', label:rooms.some(r=>/sheet vinyl/i.test(choiceOf(job,r)?.type||''))?(rooms.every(r=>/sheet vinyl/i.test(choiceOf(job,r)?.type||''))?'Sheet vinyl':'Carpet / sheet vinyl'):'Carpet', note:supply.groups.map(function(g){return cutSize(g.cut,g.w)+', including '+g.names.join(', ');}).concat(supply.problems).join('; ')});
     if (p.flooringRooms.length) out.push({key:'flooring', label:'Flooring', note:fmtM(p.flooringArea) + ' m² of floor as measured, nothing added for wastage'});
@@ -1268,6 +1272,7 @@ window.IFDLogic = (function(){
     if (p.upliftArea || p.disposalArea) out.uplift = {amount:round2(p.upliftArea * list.uplift + p.disposalArea * list.disposal), text:sqm(p.upliftArea)+' × '+money(list.uplift)+' to lift; '+sqm(p.disposalArea)+' × '+money(list.disposal)+' to dispose'};
     if(p.skirting.length)out.skirting={amount:p.skirtingMetres>0&&!p.byHand.some(x=>x.indexOf('skirting length')===0)?round2(p.skirtingMetres*5):0,text:fmtM(p.skirtingMetres)+' metres × £5.00'};
     if (p.furniture.length) out.furniture = {amount:round2(p.furniture.length * list.furniture), text:p.furniture.length + (p.furniture.length === 1 ? ' room' : ' rooms') + ' × ' + money(list.furniture)};
+    var sprayRooms=vinylSprayRooms(job,g);if(sprayRooms.length)out.vinylSpray={amount:sprayRooms.length*10,needQty:sprayRooms.length,needUnit:'cans',text:sprayRooms.length+' can(s) × £10.00 — one per sheet vinyl area: '+sprayRooms.map(r=>r.name||'Room').join(', ')};
     Object.assign(out,jobFees(job,saved,g));
     return out;
   }
@@ -1293,6 +1298,7 @@ window.IFDLogic = (function(){
     quoteLines(q).forEach(function(l){
       var t = String(l.label), o = {label:l.label, price:num(l.price), kind:'service', qty:1, unit:'items', sub:'', find:'', pickId:String(l.pick || '')};
       if(l.barItems&&l.barItems.length){var sum=l.barItems.reduce(function(n,b){return n+b.qty*b.unitPrice;},0),used=0;l.barItems.forEach(function(b,i){var amount=i===l.barItems.length-1?round2(o.price-used):round2(o.price*(b.qty*b.unitPrice)/sum);used=round2(used+amount);out.push(Object.assign({},o,{label:'Door bar — '+b.label,kind:'pick',qty:b.qty,unit:'each',price:amount,sub:b.label,rooms:b.rooms||'',pickId:'',find:'tag:accessory_doorbar'}));});return;}
+      if(l.key==='vinylSpray'){out.push(Object.assign({},o,{kind:'pick',qty:num(l.needQty)||vinylSprayRooms(job).length||1,unit:'cans',find:'tag:accessory_adhesive',rooms:vinylSprayRooms(job).map(r=>r.name||'Room').join(', ')}));return;}
       if (isService(t)) o.kind = 'service';
       else if (/carpet|flooring|laminate|vinyl|lvt|spc|engineered|\bwood\b|plank/i.test(t)) o.kind = 'goods';
       else if (/underlay/i.test(t)){roomUnderlays(job,q.options).forEach(function(g,i){out.push(Object.assign({},o,{label:'Underlay — '+g.title,kind:'pick',unit:'m²',qty:g.area,price:i?0:o.price,sub:'for '+g.rooms.join(', '),rooms:g.rooms.join(', '),pickId:g.id||(!g.carpet||!p.underlayFlooring?o.pickId:''),find:g.carpet?'tag:accessory_underlay AND tag:for_carpet':'tag:accessory_underlay AND NOT tag:for_carpet'}));});return;}
@@ -4266,7 +4272,7 @@ function acceptDialog(job,preferredType){
     n.src = n.find && S.cap.mcp ? '' : 'none'; n.cands = []; n.units = 1;
     const kind = h('select', {class:'in', id:'accNeedKind' + i, 'aria-label':'What ' + n.label + ' is'}, h('option', {value:'pick', text:'To be picked and checked', selected:n.kind === 'pick'}), h('option', {value:'service', text:'A service: no stock needed', selected:n.kind === 'service'}));
     const qty = h('input', {class:'in', id:'accNeedQty' + i, type:'number', min:'0', step:'0.1', inputmode:'decimal', value:String(n.qty), 'aria-label':'How much ' + n.label});
-    const unit = h('select', {class:'in', id:'accNeedUnit' + i, 'aria-label':'Unit for ' + n.label}, [['m²', 'm²'], ['metres', 'metres'], ['lengths', 'lengths'], ['items', 'items']].map(u => h('option', {value:u[0], text:u[1], selected:n.unit === u[0]})));
+    const unit = h('select', {class:'in', id:'accNeedUnit' + i, 'aria-label':'Unit for ' + n.label}, [['m²', 'm²'], ['metres', 'metres'], ['lengths', 'lengths'], ['cans', 'cans'], ['items', 'items']].map(u => h('option', {value:u[0], text:u[1], selected:n.unit === u[0]})));
     const src = h('select', {class:'in', id:'accNeedSrc' + i, 'aria-label':'Where ' + n.label + ' comes from'}), units = h('input', {class:'in', id:'accNeedUnits' + i, type:'number', min:'1', step:'1', inputmode:'numeric', value:'1', 'aria-label':'How many to take from Shopify stock'});
     const srcNote = h('p', {class:'small', id:'accNeedNote' + i}), unitRow = h('div', {class:'lenrow', hidden:true}, units, h('span', {class:'small muted', id:'accNeedPer' + i}));
     const row = h('div', {class:'lenrow'}, qty, unit), box = h('div', {class:'sec', id:'accNeedStock' + i}, field('Where it comes from', src), unitRow, srcNote);
