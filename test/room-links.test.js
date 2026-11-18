@@ -18,4 +18,4 @@ test('upstairs and downstairs openings save as staircase endpoints and survive r
  rows=merge(rows,R.reconcile(rows,'b'));rows=merge(rows,R.reconcile(rows,'a'));assert.equal(rows.a.drawing.stairTo,'b');assert.equal(rows.b.drawing.level,'first');const html=require('../lib/job-layout').render({rooms:rows},L);assert.match(html,/stairs up to Top landing/);assert.match(html,/stairs down to Bottom landing/);
 });
 test('cross-floor door links without a measured staircase remain blocked without changing source drawings',()=>{const rows=fixture();rows.a.drawing.level='ground';rows.b.drawing.level='first';const before=JSON.stringify(rows);assert.throws(()=>R.reconcile(rows,'a'),/Add the staircase/);assert.equal(JSON.stringify(rows),before);});
-
+test('unassigned floor is not treated as a different floor for a shared doorway',()=>{const rows=fixture();rows.a.drawing.level='ground';const linked=R.reconcile(rows,'a');assert.equal(linked.b.drawing.doors[0].partner,'a:one');assert.equal(linked.b.drawing.level,'');});
