@@ -1146,7 +1146,7 @@ window.IFDLogic = (function(){
      from the shop's own price list, which the owner keeps in Setup. From those and the measure the pricing screen works
      out a figure for each line. Staff click to use it, change it, or type their own: nothing is priced without a person
      choosing to. A discount comes off the shop's part only, never off fitting money that goes to the fitter. */
-  var PRICE_DEFAULTS = {fitVinyl:0,fitVinylMin:0,arrangeSoft:1,arrangeClick:1.5,arrangeBonded:2,delivery:25,prepScreed:14, prepPlywood:14, runnerTape:20, runnerWhip:12, fitCarpet:5, fitCarpetMin:120, fitHslMin:150, underlay10:5.99, underlay12:7.99, gripper:1, gripperLen:1.52, doorBar:9.99, uplift:1.5, disposal:2.5, furniture:30,
+  var PRICE_DEFAULTS = {fitVinyl:6,fitVinylMin:120,arrangeSoft:1,arrangeClick:1.5,arrangeBonded:2,delivery:25,prepScreed:14, prepPlywood:14, runnerTape:20, runnerWhip:12, fitCarpet:5, fitCarpetMin:120, fitHslMin:150, underlay10:5.99, underlay12:7.99, gripper:1, gripperLen:1.52, doorBar:9.99, uplift:1.5, disposal:2.5, furniture:30,
     fitGlueStraight:18, fitGluePattern:25, fitGlueTile:20, fitGlueBasket:35, fitGlueBorder:30, fitGlueMin:200, lvtGlue:3, lvtPrep:14, lvtPrepMin:150, fitEngHerringbone:30, fitEngStraight:22, glue:11, fitLaminate:10, fitLvt:10, fitLaminatePattern:22, fitLvtPattern:22, fitStraightMin:120, fitPatternMin:200, prep:14, beading:5, beadingLen:2.4, waste:10, discounts:'5, 10, 15, 20'};
   var PRICE_PLAIN = {gripperLen:1, beadingLen:1, waste:1};     /* lengths and a percentage, not money */
   var PRICE_FIELDS = [['fitVinyl','Sheet vinyl fitting, per m²'],['fitVinylMin','Sheet vinyl fitting minimum'],['prepScreed','Screed preparation, per m²'],['prepPlywood','Plywood preparation, per m²'],['runnerTape','Runner taping, per metre of edge (both sides)'],['runnerWhip','Runner whipping, per metre of edge (both sides)'],['fitGlueStraight','Glue-down LVT straight fitting, per m²'],['fitGluePattern','Glue-down LVT herringbone / chevron fitting, per m²'],['fitGlueTile','Glue-down LVT tile fitting, per m²'],['fitGlueBasket','Glue-down LVT basket weave fitting, per m²'],['fitGlueBorder','Glue-down LVT bordered fitting, per m²'],['fitGlueMin','Glue-down LVT fitting minimum per job'],['lvtGlue','Glue-down LVT adhesive, per m²'],['lvtPrep','Glue-down LVT preparation, per m²'],['lvtPrepMin','Glue-down LVT preparation minimum per job'],['fitCarpet', 'Carpet fitting, per m² of floor'], ['fitCarpetMin', 'Carpet fitting, least charge'], ['fitHslMin', 'Carpet fitting, least charge with a hall, stairs and landing'],
@@ -1166,7 +1166,7 @@ window.IFDLogic = (function(){
   }
   function priceList(saved){
     var o = {}; saved = saved || {};
-    Object.keys(PRICE_DEFAULTS).forEach(function(k){ var v = saved[k]; if ((k === 'fitLaminate' || k === 'fitLvt') && Number(v) === 0) v = null; o[k] = k === 'discounts' ? String(v == null || v === '' ? PRICE_DEFAULTS[k] : v) : (v == null || v === '' || !isFinite(Number(v)) || Number(v) < 0 ? PRICE_DEFAULTS[k] : Number(v)); });
+    Object.keys(PRICE_DEFAULTS).forEach(function(k){ var v = saved[k]; if ((k === 'fitLaminate' || k === 'fitLvt' || k === 'fitVinyl' || k === 'fitVinylMin') && Number(v) === 0) v = null; o[k] = k === 'discounts' ? String(v == null || v === '' ? PRICE_DEFAULTS[k] : v) : (v == null || v === '' || !isFinite(Number(v)) || Number(v) < 0 ? PRICE_DEFAULTS[k] : Number(v)); });
     // Confirmed shop rule: Superior 12mm is always £2/m² above Super Soft 10mm.
     o.underlay12 = round2(o.underlay10 + 2);
     return o;
